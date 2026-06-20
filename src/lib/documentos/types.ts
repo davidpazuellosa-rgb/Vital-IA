@@ -62,6 +62,14 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     ],
   },
   {
+    slug: "tecnica",
+    titulo: "Qualificação Técnica",
+    descricao: "Comprovação de aptidão para execução do objeto",
+    tipos: [
+      { slug: "atestado_capacidade_tecnica", nome: "Atestado de Capacidade Técnica", descricao: "Atestado de capacidade técnica emitido por cliente" },
+    ],
+  },
+  {
     slug: "socios",
     titulo: "Documentos dos Sócios / Proprietários",
     descricao: "Documentação pessoal dos sócios e representantes",
@@ -95,6 +103,7 @@ export const TIPOS_SEM_VALIDADE = new Set([
   "inscricao_estadual",
   "inscricao_municipal",
   "balanco",
+  "atestado_capacidade_tecnica",
   "conta_titularidade_1",
   "conta_titularidade_2",
   "socio_identidade_pazu",
