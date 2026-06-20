@@ -35,8 +35,8 @@ export default async function PropostaLicitacaoPage({ params }: { params: Promis
   const rascunho: PropostaRascunho = {
     status: proposta?.status ?? "rascunho",
     validade_dias: proposta?.validade_dias ?? base.validade_dias,
-    prazo_entrega: proposta?.prazo_entrega ?? base.prazo_entrega,
-    condicoes_pagamento: proposta?.condicoes_pagamento ?? base.condicoes_pagamento,
+    prazo_entrega: proposta?.prazo_entrega ?? "",
+    condicoes_pagamento: proposta?.condicoes_pagamento ?? "",
     observacoes: proposta?.observacoes ?? base.observacoes_padrao,
     itens,
   };

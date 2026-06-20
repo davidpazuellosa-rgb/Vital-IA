@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { PropostaItem } from "./types";
+import { REPRESENTANTES_LEGAIS, type PropostaItem } from "./types";
 
 function texto(formData: FormData, campo: string): string {
   return ((formData.get(campo) as string) ?? "").trim();
@@ -20,14 +20,15 @@ export async function salvarConfiguracaoProposta(formData: FormData) {
   if (!user) throw new Error("Não autenticado");
 
   const validade = numero(formData.get("validade_dias"));
+  const representante = REPRESENTANTES_LEGAIS.find(
+    (item) => item.nome === texto(formData, "representante_legal"),
+  );
   const { error } = await supabase.from("proposta_configuracao").upsert({
     user_id: user.id,
     validade_dias: validade && validade > 0 ? Math.round(validade) : 60,
-    prazo_entrega: texto(formData, "prazo_entrega"),
-    condicoes_pagamento: texto(formData, "condicoes_pagamento"),
     impostos_inclusos: formData.get("impostos_inclusos") === "on",
-    representante_legal: texto(formData, "representante_legal"),
-    representante_cargo: texto(formData, "representante_cargo"),
+    representante_legal: representante?.nome ?? "",
+    representante_cargo: representante?.cargo ?? "",
     observacoes_padrao: texto(formData, "observacoes_padrao"),
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });

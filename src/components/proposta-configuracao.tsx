@@ -9,9 +9,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { EmpresaDados } from "@/lib/empresa/actions";
 import { salvarConfiguracaoProposta } from "@/lib/propostas/actions";
-import type { PropostaConfiguracao } from "@/lib/propostas/types";
+import { REPRESENTANTES_LEGAIS, type PropostaConfiguracao } from "@/lib/propostas/types";
 
 export function PropostaConfiguracaoForm({
   configuracao,
@@ -24,11 +25,16 @@ export function PropostaConfiguracaoForm({
 }) {
   const [pendente, startTransition] = useTransition();
   const [salvo, setSalvo] = useState(false);
+  const representanteInicial = REPRESENTANTES_LEGAIS.some((item) => item.nome === configuracao.representante_legal)
+    ? configuracao.representante_legal
+    : "";
+  const [representante, setRepresentante] = useState(representanteInicial);
+  const cargoRepresentante = REPRESENTANTES_LEGAIS.find((item) => item.nome === representante)?.cargo ?? "";
   const empresaCompleta = Boolean(
     empresa.razao_social && empresa.cnpj && empresa.email && empresa.telefone && empresa.dados_bancarios,
   );
-  const regrasCompletas = Boolean(configuracao.prazo_entrega && configuracao.condicoes_pagamento);
-  const representanteCompleto = Boolean(configuracao.representante_legal && configuracao.representante_cargo);
+  const regrasCompletas = configuracao.validade_dias > 0 && Boolean(configuracao.observacoes_padrao);
+  const representanteCompleto = Boolean(representante && cargoRepresentante);
   const completos = [empresaCompleta, temModelo, regrasCompletas, representanteCompleto].filter(Boolean).length;
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -61,7 +67,7 @@ export function PropostaConfiguracaoForm({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <ItemChecklist pronto={empresaCompleta} titulo="Dados cadastrais e bancários" descricao="Identificação, contato e conta da Vital Norte" />
           <ItemChecklist pronto={temModelo} titulo="Modelo de proposta" descricao="Proposta vencedora usada como referência" href="/documentos" />
-          <ItemChecklist pronto={regrasCompletas} titulo="Condições comerciais" descricao="Validade, entrega, pagamento e impostos" />
+          <ItemChecklist pronto={regrasCompletas} titulo="Padrões da proposta" descricao="Validade, impostos e observações padrão" />
           <ItemChecklist pronto={representanteCompleto} titulo="Responsável pela proposta" descricao="Nome e cargo para assinatura" />
         </div>
 
@@ -74,17 +80,17 @@ export function PropostaConfiguracaoForm({
             <Campo label="Validade da proposta (dias)" htmlFor="validade_dias">
               <Input id="validade_dias" name="validade_dias" type="number" min={1} defaultValue={configuracao.validade_dias} />
             </Campo>
-            <Campo label="Prazo de entrega" htmlFor="prazo_entrega">
-              <Input id="prazo_entrega" name="prazo_entrega" defaultValue={configuracao.prazo_entrega} placeholder="Ex.: até 15 dias úteis" />
-            </Campo>
-            <Campo label="Condições de pagamento" htmlFor="condicoes_pagamento">
-              <Input id="condicoes_pagamento" name="condicoes_pagamento" defaultValue={configuracao.condicoes_pagamento} placeholder="Ex.: até 30 dias" />
-            </Campo>
             <Campo label="Representante legal" htmlFor="representante_legal">
-              <Input id="representante_legal" name="representante_legal" defaultValue={configuracao.representante_legal} />
+              <Select name="representante_legal" value={representante} onValueChange={(value) => setRepresentante(value ?? "")}>
+                <SelectTrigger id="representante_legal" className="w-full"><SelectValue placeholder="Selecione David ou Ruy" /></SelectTrigger>
+                <SelectContent>
+                  {REPRESENTANTES_LEGAIS.map((item) => <SelectItem key={item.nome} value={item.nome}>{item.nomeCurto}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Campo>
             <Campo label="Cargo / função" htmlFor="representante_cargo">
-              <Input id="representante_cargo" name="representante_cargo" defaultValue={configuracao.representante_cargo} />
+              <Input id="representante_cargo" value={cargoRepresentante} readOnly placeholder="Preenchido automaticamente" />
+              <input type="hidden" name="representante_cargo" value={cargoRepresentante} />
             </Campo>
             <div className="flex items-center gap-2 self-end rounded-lg border px-3 py-2.5">
               <Checkbox id="impostos_inclusos" name="impostos_inclusos" defaultChecked={configuracao.impostos_inclusos} />

@@ -49,14 +49,16 @@ create policy "Usuários removem suas próprias licitações"
 create table if not exists public.proposta_configuracao (
   user_id uuid primary key references auth.users (id) on delete cascade,
   validade_dias integer not null default 60,
-  prazo_entrega text not null default '',
-  condicoes_pagamento text not null default '',
   impostos_inclusos boolean not null default true,
   representante_legal text not null default '',
   representante_cargo text not null default '',
   observacoes_padrao text not null default '',
   updated_at timestamptz not null default now()
 );
+
+-- Condições de entrega e pagamento pertencem a cada licitação, não à configuração global.
+alter table public.proposta_configuracao drop column if exists prazo_entrega;
+alter table public.proposta_configuracao drop column if exists condicoes_pagamento;
 
 alter table public.proposta_configuracao enable row level security;
 drop policy if exists "Usuários veem sua configuração de proposta" on public.proposta_configuracao;

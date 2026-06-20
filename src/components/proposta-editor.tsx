@@ -83,16 +83,19 @@ export function PropostaEditor({
 
       <Card className="shadow-sm">
         <CardContent className="flex flex-col gap-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Condições comerciais</h2>
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Condições da licitação</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Prazo de entrega e pagamento devem seguir o edital ou Termo de Referência desta licitação.</p>
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Campo label="Validade (dias)" htmlFor="validade_dias">
               <Input id="validade_dias" name="validade_dias" type="number" min={1} defaultValue={rascunho.validade_dias} />
             </Campo>
-            <Campo label="Prazo de entrega" htmlFor="prazo_entrega">
-              <Input id="prazo_entrega" name="prazo_entrega" defaultValue={rascunho.prazo_entrega} />
+            <Campo label="Prazo de entrega do edital" htmlFor="prazo_entrega">
+              <Input id="prazo_entrega" name="prazo_entrega" defaultValue={rascunho.prazo_entrega} placeholder="Extraído do edital / Termo de Referência" />
             </Campo>
-            <Campo label="Condições de pagamento" htmlFor="condicoes_pagamento">
-              <Input id="condicoes_pagamento" name="condicoes_pagamento" defaultValue={rascunho.condicoes_pagamento} />
+            <Campo label="Pagamento previsto no edital" htmlFor="condicoes_pagamento">
+              <Input id="condicoes_pagamento" name="condicoes_pagamento" defaultValue={rascunho.condicoes_pagamento} placeholder="Extraído do edital / Termo de Referência" />
             </Campo>
           </div>
         </CardContent>
