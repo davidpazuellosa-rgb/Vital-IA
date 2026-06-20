@@ -46,6 +46,8 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     tipos: [
       { slug: "contrato_social", nome: "Contrato Social", descricao: "Contrato social ou estatuto e alterações" },
       { slug: "cnpj", nome: "Cartão CNPJ", descricao: "Comprovante de inscrição e situação cadastral" },
+      { slug: "inscricao_estadual", nome: "Inscrição Estadual", descricao: "Comprovante de inscrição estadual" },
+      { slug: "inscricao_municipal", nome: "Inscrição Municipal", descricao: "Comprovante de inscrição municipal" },
     ],
   },
   {
@@ -90,6 +92,8 @@ export const TIPO_AVULSO = "avulso";
 export const TIPOS_SEM_VALIDADE = new Set([
   "contrato_social",
   "cnpj",
+  "inscricao_estadual",
+  "inscricao_municipal",
   "balanco",
   "conta_titularidade_1",
   "conta_titularidade_2",
