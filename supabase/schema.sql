@@ -16,9 +16,14 @@ create table if not exists public.saved_licitacoes (
   data_encerramento_proposta timestamptz,
   link_origem text,
   observacoes text not null default '',
+  etapa text not null default 'aberta',
   created_at timestamptz not null default now(),
   unique (user_id, numero_controle_pncp, plataforma)
 );
+
+-- Para bancos já existentes: adiciona a coluna de etapa do funil
+alter table public.saved_licitacoes
+  add column if not exists etapa text not null default 'aberta';
 
 alter table public.saved_licitacoes enable row level security;
 

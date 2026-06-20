@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { UnifiedLicitacao } from "./types";
+import { UnifiedLicitacao, type EtapaSlug } from "./types";
 
 export async function salvarLicitacao(licitacao: UnifiedLicitacao) {
   const supabase = await createClient();
@@ -37,6 +37,20 @@ export async function removerLicitacaoSalva(id: string) {
   if (!user) throw new Error("Não autenticado");
 
   const { error } = await supabase.from("saved_licitacoes").delete().eq("id", id).eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/minhas-licitacoes");
+}
+
+export async function atualizarEtapaLicitacao(id: string, etapa: EtapaSlug) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { error } = await supabase
+    .from("saved_licitacoes")
+    .update({ etapa })
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw new Error(error.message);
   revalidatePath("/minhas-licitacoes");
 }

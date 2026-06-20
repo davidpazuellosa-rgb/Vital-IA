@@ -6,6 +6,28 @@ export interface PlatformInfo {
   descricao: string;
 }
 
+/** Etapa do funil de acompanhamento de uma licitação salva. */
+export type EtapaSlug = "aberta" | "participando" | "proposta_enviada" | "concluida";
+
+export type EtapaInfo = {
+  slug: EtapaSlug;
+  nome: string;
+  descricao: string;
+};
+
+export const ETAPAS_LICITACAO: EtapaInfo[] = [
+  { slug: "aberta", nome: "Aberta", descricao: "Salvas, ainda em análise" },
+  { slug: "participando", nome: "Participando", descricao: "Em disputa / habilitação" },
+  { slug: "proposta_enviada", nome: "Proposta enviada", descricao: "Aguardando resultado" },
+  { slug: "concluida", nome: "Concluída", descricao: "Encerradas / finalizadas" },
+];
+
+export const ETAPA_PADRAO: EtapaSlug = "aberta";
+
+export function nomeEtapa(slug: string): string {
+  return ETAPAS_LICITACAO.find((e) => e.slug === slug)?.nome ?? "Aberta";
+}
+
 export const PLATAFORMAS: PlatformInfo[] = [
   {
     id: "pncp",
