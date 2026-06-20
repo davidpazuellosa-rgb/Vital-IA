@@ -61,7 +61,7 @@ export default async function LicitacaoDetalhePage({
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[19rem_1fr_16rem]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[19rem_minmax(0,1fr)_16rem]">
         {/* ===== Coluna esquerda: identidade + "Sobre" ===== */}
         <div className="flex flex-col gap-4">
           <Card className="shadow-sm">
@@ -160,7 +160,7 @@ export default async function LicitacaoDetalhePage({
                       {itens.map((item) => (
                         <TableRow key={item.numeroItem}>
                           <TableCell className="pl-5 text-muted-foreground">{item.numeroItem}</TableCell>
-                          <TableCell className="min-w-[16rem] max-w-md">{item.descricao}</TableCell>
+                          <TableCell className="max-w-md whitespace-normal">{item.descricao}</TableCell>
                           <TableCell className="text-right tabular-nums">{item.quantidade ?? "—"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{item.unidadeMedida || "—"}</TableCell>
                           <TableCell className="whitespace-nowrap text-right tabular-nums">{formatarMoeda(item.valorUnitarioEstimado)}</TableCell>

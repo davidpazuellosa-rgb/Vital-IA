@@ -13,9 +13,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <SidebarProvider style={{ "--sidebar-width": "13rem" } as React.CSSProperties}>
       <AppSidebar userEmail={user.email ?? ""} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppHeader />
-        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 p-4 md:p-6 overflow-auto">
+        <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 md:p-6">
           {children}
         </main>
       </SidebarInset>
