@@ -15,7 +15,11 @@ function brParaIso(dia: string, mes: string, ano: string): string | null {
 }
 
 const RE_DATA = /(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{2,4})/g;
-const RE_VALIDADE = /(v[áa]lid[ao]\s*(?:at[ée]|:)?|validade|vencimento|vence|efic[áa]cia|expira(?:[çc][ãa]o)?)/i;
+const RE_DATA_ONE = /(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{2,4})/;
+// (?<!in) evita casar com "invalidará" / "inválido"; \b ancora no início da palavra
+const RE_VALIDADE = /(?<!in)\b(v[áa]lid[ao]\s*(?:at[ée]|:)?|validade|vencimento|vence|efic[áa]cia|expira(?:[çc][ãa]o)?)/i;
+// quão longe da palavra-chave ainda aceitamos a data de validade
+const JANELA_VALIDADE = 60;
 
 export type DatasExtraidas = {
   dataValidade: string | null;
@@ -48,27 +52,26 @@ export async function extrairDatasDoPdf(buffer: ArrayBuffer): Promise<DatasExtra
   }
   if (datas.length === 0) return { dataValidade: null, dataEmissao: null };
 
-  // 1) Data imediatamente após uma palavra-chave de validade
+  // 1) Data logo após uma palavra-chave de validade (dentro de uma janela curta)
   let validade: string | null = null;
   const kw = RE_VALIDADE.exec(texto);
   if (kw) {
-    const apos = texto.slice(kw.index);
-    const m = RE_DATA.exec(apos);
-    RE_DATA.lastIndex = 0;
+    const janela = texto.slice(kw.index, kw.index + JANELA_VALIDADE);
+    const m = RE_DATA_ONE.exec(janela);
     if (m) validade = brParaIso(m[1], m[2], m[3]);
   }
 
-  // 2) Fallback: a data futura mais distante (validade costuma ser a maior)
+  // 2) Fallback: a data mais distante (validade costuma ser a maior do documento)
   if (!validade) {
-    const ordenadas = [...datas].sort((a, b) => b.iso.localeCompare(a.iso));
-    validade = ordenadas[0]?.iso ?? null;
+    validade = [...datas].sort((a, b) => b.iso.localeCompare(a.iso))[0]?.iso ?? null;
   }
 
-  // Emissão: a menor data encontrada (provável data de expedição)
-  const emissao = [...datas].sort((a, b) => a.iso.localeCompare(b.iso))[0]?.iso ?? null;
+  // Emissão: a maior data estritamente anterior à validade (ignora datas espúrias antigas)
+  const emissao =
+    datas
+      .map((d) => d.iso)
+      .filter((iso) => validade != null && iso < validade)
+      .sort((a, b) => b.localeCompare(a))[0] ?? null;
 
-  return {
-    dataValidade: validade,
-    dataEmissao: emissao && emissao !== validade ? emissao : null,
-  };
+  return { dataValidade: validade, dataEmissao: emissao };
 }

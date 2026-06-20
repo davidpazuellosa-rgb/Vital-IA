@@ -86,6 +86,23 @@ export async function removerDocumento(id: string) {
   revalidatePath("/documentos");
 }
 
+export async function renomearDocumento(id: string, nome: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const limpo = nome.trim();
+  if (!limpo) throw new Error("Informe um nome.");
+
+  const { error } = await supabase
+    .from("documentos")
+    .update({ nome: limpo })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/documentos");
+}
+
 export async function atualizarValidade(id: string, dataValidade: string | null) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

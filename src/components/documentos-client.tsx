@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus } from "lucide-react";
+import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO } from "@/lib/documentos/types";
-import { registrarDocumento, removerDocumento, atualizarValidade } from "@/lib/documentos/actions";
+import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 
 const BUCKET = "documentos";
@@ -175,23 +175,34 @@ export function UploadDocumento({
 
 export function DocumentoAcoes({
   id,
+  nome,
   urlVisualizacao,
   dataValidade,
   semValidade,
 }: {
   id: string;
+  nome: string;
   urlVisualizacao: string | null;
   dataValidade: string | null;
   semValidade?: boolean;
 }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(dataValidade ?? "");
+  const [renomeando, setRenomeando] = useState(false);
+  const [novoNome, setNovoNome] = useState(nome);
   const [pendente, startTransition] = useTransition();
 
   function salvarData() {
     startTransition(async () => {
       await atualizarValidade(id, valor || null);
       setEditando(false);
+    });
+  }
+
+  function salvarNome() {
+    startTransition(async () => {
+      await renomearDocumento(id, novoNome);
+      setRenomeando(false);
     });
   }
 
@@ -219,6 +230,10 @@ export function DocumentoAcoes({
               </a>
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setNovoNome(nome); setRenomeando(true); }}>
+            <Pencil className="size-4" />
+            Renomear
+          </DropdownMenuItem>
           {!semValidade && (
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditando(true); }}>
               <CalendarCog className="size-4" />
@@ -255,6 +270,35 @@ export function DocumentoAcoes({
               Cancelar
             </Button>
             <Button onClick={salvarData} disabled={pendente}>
+              {pendente && <Loader2 className="animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renomeando} onOpenChange={setRenomeando}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear documento</DialogTitle>
+            <DialogDescription>
+              Use para identificar melhor o documento (ex.: &ldquo;Balanço Patrimonial 2025&rdquo;).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`nome-${id}`}>Nome</Label>
+            <Input
+              id={`nome-${id}`}
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") salvarNome(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenomeando(false)} disabled={pendente}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarNome} disabled={pendente || !novoNome.trim()}>
               {pendente && <Loader2 className="animate-spin" />}
               Salvar
             </Button>
