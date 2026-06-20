@@ -55,6 +55,8 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     tipos: [
       { slug: "falencia", nome: "Falência e Concordata", descricao: "Certidão negativa de falência/recuperação judicial" },
       { slug: "balanco", nome: "Balanço Patrimonial", descricao: "Balanço e demonstrações contábeis do último exercício" },
+      { slug: "conta_titularidade_1", nome: "Titularidade de Conta — Conta 1", descricao: "Comprovante de titularidade de conta bancária" },
+      { slug: "conta_titularidade_2", nome: "Titularidade de Conta — Conta 2", descricao: "Comprovante de titularidade de conta bancária" },
     ],
   },
   {
@@ -62,8 +64,19 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     titulo: "Documentos dos Sócios / Proprietários",
     descricao: "Documentação pessoal dos sócios e representantes",
     tipos: [
-      { slug: "socio_identidade", nome: "Identidade e CPF", descricao: "RG e CPF dos sócios/proprietários" },
+      { slug: "socio_identidade_pazu", nome: "Identidade e CPF — Pazu", descricao: "RG e CPF do sócio Pazu" },
+      { slug: "socio_identidade_ruy", nome: "Identidade e CPF — Ruy", descricao: "RG e CPF do sócio Ruy" },
       { slug: "socio_residencia", nome: "Comprovante de Residência", descricao: "Comprovante de endereço dos sócios" },
+    ],
+  },
+  {
+    slug: "declaracoes",
+    titulo: "Declarações",
+    descricao: "Declarações assinadas exigidas no edital",
+    tipos: [
+      { slug: "decl_enquadramento", nome: "Enquadramento ME/EPP", descricao: "Declaração de enquadramento como ME/EPP" },
+      { slug: "decl_areas_atuacao", nome: "Áreas de Atuação", descricao: "Declaração de áreas de atuação" },
+      { slug: "decl_nao_emprega_menor", nome: "Não emprega menor", descricao: "Declaração de que não emprega menor de idade (salvo aprendiz)" },
     ],
   },
 ];
@@ -78,8 +91,14 @@ export const TIPOS_SEM_VALIDADE = new Set([
   "contrato_social",
   "cnpj",
   "balanco",
-  "socio_identidade",
+  "conta_titularidade_1",
+  "conta_titularidade_2",
+  "socio_identidade_pazu",
+  "socio_identidade_ruy",
   "socio_residencia",
+  "decl_enquadramento",
+  "decl_areas_atuacao",
+  "decl_nao_emprega_menor",
 ]);
 
 export function tipoSemValidade(slug: string): boolean {
