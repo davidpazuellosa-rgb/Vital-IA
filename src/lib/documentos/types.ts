@@ -18,16 +18,58 @@ export type TipoDocumento = {
   descricao: string;
 };
 
-export const CHECKLIST_DOCUMENTOS: TipoDocumento[] = [
-  { slug: "cnd_federal", nome: "CND Federal", descricao: "Débitos Federais e Dívida Ativa da União (Receita/PGFN)" },
-  { slug: "fgts", nome: "CRF / FGTS", descricao: "Certificado de Regularidade do FGTS" },
-  { slug: "trabalhista", nome: "CNDT", descricao: "Certidão Negativa de Débitos Trabalhistas" },
-  { slug: "estadual", nome: "Certidão Estadual", descricao: "Regularidade fiscal estadual" },
-  { slug: "municipal", nome: "Certidão Municipal", descricao: "Regularidade fiscal municipal" },
-  { slug: "falencia", nome: "Falência e Concordata", descricao: "Certidão negativa de falência/recuperação judicial" },
-  { slug: "contrato_social", nome: "Contrato Social", descricao: "Contrato social ou estatuto e alterações" },
-  { slug: "cnpj", nome: "Cartão CNPJ", descricao: "Comprovante de inscrição e situação cadastral" },
+/** Grupo (categoria) de documentos de habilitação, exibido recolhível. */
+export type GrupoDocumentos = {
+  slug: string;
+  titulo: string;
+  descricao: string;
+  tipos: TipoDocumento[];
+};
+
+export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
+  {
+    slug: "fiscal_trabalhista",
+    titulo: "Regularidade Fiscal e Trabalhista",
+    descricao: "Certidões de débitos federais, estaduais, municipais, FGTS e trabalhista",
+    tipos: [
+      { slug: "cnd_federal", nome: "CND Federal", descricao: "Débitos Federais e Dívida Ativa da União (Receita/PGFN)" },
+      { slug: "fgts", nome: "CRF / FGTS", descricao: "Certificado de Regularidade do FGTS" },
+      { slug: "trabalhista", nome: "CNDT", descricao: "Certidão Negativa de Débitos Trabalhistas" },
+      { slug: "estadual", nome: "Certidão Estadual", descricao: "Regularidade fiscal estadual" },
+      { slug: "municipal", nome: "Certidão Municipal", descricao: "Regularidade fiscal municipal" },
+    ],
+  },
+  {
+    slug: "juridica",
+    titulo: "Habilitação Jurídica",
+    descricao: "Atos constitutivos da empresa",
+    tipos: [
+      { slug: "contrato_social", nome: "Contrato Social", descricao: "Contrato social ou estatuto e alterações" },
+      { slug: "cnpj", nome: "Cartão CNPJ", descricao: "Comprovante de inscrição e situação cadastral" },
+    ],
+  },
+  {
+    slug: "economico_financeira",
+    titulo: "Qualificação Econômico-Financeira",
+    descricao: "Comprovação da saúde financeira da empresa",
+    tipos: [
+      { slug: "falencia", nome: "Falência e Concordata", descricao: "Certidão negativa de falência/recuperação judicial" },
+      { slug: "balanco", nome: "Balanço Patrimonial", descricao: "Balanço e demonstrações contábeis do último exercício" },
+    ],
+  },
+  {
+    slug: "socios",
+    titulo: "Documentos dos Sócios / Proprietários",
+    descricao: "Documentação pessoal dos sócios e representantes",
+    tipos: [
+      { slug: "socio_identidade", nome: "Identidade e CPF", descricao: "RG e CPF dos sócios/proprietários" },
+      { slug: "socio_residencia", nome: "Comprovante de Residência", descricao: "Comprovante de endereço dos sócios" },
+    ],
+  },
 ];
+
+/** Lista achatada de todos os tipos do checklist (para selects e contagens). */
+export const CHECKLIST_DOCUMENTOS: TipoDocumento[] = GRUPOS_DOCUMENTOS.flatMap((g) => g.tipos);
 
 export const TIPO_AVULSO = "avulso";
 

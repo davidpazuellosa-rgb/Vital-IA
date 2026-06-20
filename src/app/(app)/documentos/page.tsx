@@ -1,10 +1,11 @@
-import { FileText, FileCheck2, FileClock, FileX2, FileQuestion, CircleHelp } from "lucide-react";
+import { FileText, FileCheck2, FileClock, FileX2, FileQuestion, CircleHelp, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData } from "@/lib/format";
 import {
   CHECKLIST_DOCUMENTOS,
+  GRUPOS_DOCUMENTOS,
   TIPO_AVULSO,
   avaliarValidade,
   nomeTipo,
@@ -64,44 +65,82 @@ export default async function DocumentosPage() {
         <ResumoCard rotulo="Total de arquivos" valor={String(documentos.length)} />
       </div>
 
-      {/* Checklist */}
+      {/* Grupos do checklist (recolhíveis) */}
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Checklist de habilitação
         </h2>
-        <div className="flex flex-col gap-2">
-          {CHECKLIST_DOCUMENTOS.map((tipo) => {
-            const doc = porTipo.get(tipo.slug);
-            return doc ? (
-              <LinhaDocumento key={tipo.slug} doc={doc} url={urls.get(doc.id) ?? null} subtitulo={tipo.descricao} />
-            ) : (
-              <LinhaPendente key={tipo.slug} tipo={tipo.slug} nome={tipo.nome} descricao={tipo.descricao} />
-            );
-          })}
-        </div>
+        {GRUPOS_DOCUMENTOS.map((grupo) => {
+          const enviadosGrupo = grupo.tipos.filter((t) => porTipo.has(t.slug)).length;
+          return (
+            <Grupo
+              key={grupo.slug}
+              titulo={grupo.titulo}
+              descricao={grupo.descricao}
+              enviados={enviadosGrupo}
+              total={grupo.tipos.length}
+            >
+              {grupo.tipos.map((tipo) => {
+                const doc = porTipo.get(tipo.slug);
+                return doc ? (
+                  <LinhaDocumento key={tipo.slug} doc={doc} url={urls.get(doc.id) ?? null} subtitulo={tipo.descricao} />
+                ) : (
+                  <LinhaPendente key={tipo.slug} tipo={tipo.slug} nome={tipo.nome} descricao={tipo.descricao} />
+                );
+              })}
+            </Grupo>
+          );
+        })}
       </section>
 
-      {/* Avulsos */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Outros documentos
-          </h2>
+      {/* Outros documentos (avulsos) */}
+      <Grupo titulo="Outros documentos" descricao="Arquivos fora do checklist" enviados={avulsos.length}>
+        <div className="flex justify-end">
           <UploadDocumento variant="outline" size="sm" label="Adicionar avulso" />
         </div>
         {avulsos.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            Nenhum documento avulso. Use o botão acima para enviar arquivos fora do checklist.
+          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            Nenhum documento avulso ainda.
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {avulsos.map((doc) => (
-              <LinhaDocumento key={doc.id} doc={doc} url={urls.get(doc.id) ?? null} />
-            ))}
-          </div>
+          avulsos.map((doc) => <LinhaDocumento key={doc.id} doc={doc} url={urls.get(doc.id) ?? null} />)
         )}
-      </section>
+      </Grupo>
     </div>
+  );
+}
+
+function Grupo({
+  titulo,
+  descricao,
+  enviados,
+  total,
+  children,
+}: {
+  titulo: string;
+  descricao: string;
+  enviados: number;
+  total?: number;
+  children: React.ReactNode;
+}) {
+  const completo = total != null && enviados >= total;
+  return (
+    <details className="group rounded-xl border bg-card shadow-sm [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5">
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 [details[open]_&]:rotate-90" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold leading-tight">{titulo}</p>
+          <p className="truncate text-xs text-muted-foreground">{descricao}</p>
+        </div>
+        <Badge
+          variant="secondary"
+          className={`shrink-0 font-medium tabular-nums ${completo ? "bg-primary/12 text-primary" : ""}`}
+        >
+          {total != null ? `${enviados}/${total}` : enviados}
+        </Badge>
+      </summary>
+      <div className="flex flex-col gap-2 border-t px-3 py-3">{children}</div>
+    </details>
   );
 }
 
@@ -129,51 +168,47 @@ function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string |
   const Icon = style.icon;
 
   return (
-    <Card className="shadow-sm">
-      <CardContent className="flex items-center gap-4 py-1">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Icon className="size-5 text-muted-foreground" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{doc.nome}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {doc.tipo !== TIPO_AVULSO ? `${nomeTipo(doc.tipo)} · ` : ""}
-            {subtitulo ?? doc.arquivo_nome}
-          </p>
-        </div>
-        <div className="hidden shrink-0 text-right sm:block">
-          <p className="text-xs text-muted-foreground">Validade</p>
-          <p className="text-sm font-medium tabular-nums">{formatarData(doc.data_validade)}</p>
-        </div>
-        <Badge variant="outline" className={`shrink-0 gap-1 font-medium ${style.badge}`}>
-          {validade.rotulo}
-          {doc.validade_automatica && validade.status !== "sem_data" && (
-            <span title="Data detectada automaticamente do PDF" className="opacity-70">·auto</span>
-          )}
-        </Badge>
-        <DocumentoAcoes id={doc.id} urlVisualizacao={url} dataValidade={doc.data_validade} />
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-4 rounded-lg border bg-background px-3 py-2.5">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <Icon className="size-5 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{doc.nome}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {doc.tipo !== TIPO_AVULSO ? `${nomeTipo(doc.tipo)} · ` : ""}
+          {subtitulo ?? doc.arquivo_nome}
+        </p>
+      </div>
+      <div className="hidden shrink-0 text-right sm:block">
+        <p className="text-xs text-muted-foreground">Validade</p>
+        <p className="text-sm font-medium tabular-nums">{formatarData(doc.data_validade)}</p>
+      </div>
+      <Badge variant="outline" className={`shrink-0 gap-1 font-medium ${style.badge}`}>
+        {validade.rotulo}
+        {doc.validade_automatica && validade.status !== "sem_data" && (
+          <span title="Data detectada automaticamente do PDF" className="opacity-70">·auto</span>
+        )}
+      </Badge>
+      <DocumentoAcoes id={doc.id} urlVisualizacao={url} dataValidade={doc.data_validade} />
+    </div>
   );
 }
 
 function LinhaPendente({ tipo, nome, descricao }: { tipo: string; nome: string; descricao: string }) {
   return (
-    <Card className="border-dashed shadow-none">
-      <CardContent className="flex items-center gap-4 py-1">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/60">
-          <FileText className="size-5 text-muted-foreground/60" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-muted-foreground">{nome}</p>
-          <p className="truncate text-xs text-muted-foreground/70">{descricao}</p>
-        </div>
-        <Badge variant="outline" className="shrink-0 gap-1 font-normal text-muted-foreground">
-          <CircleHelp className="size-3.5" />
-          Pendente
-        </Badge>
-        <UploadDocumento tipoFixo={tipo} nomeSugerido={nome} variant="outline" size="sm" label="Enviar" />
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-4 rounded-lg border border-dashed px-3 py-2.5">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/60">
+        <FileText className="size-5 text-muted-foreground/60" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-muted-foreground">{nome}</p>
+        <p className="truncate text-xs text-muted-foreground/70">{descricao}</p>
+      </div>
+      <Badge variant="outline" className="shrink-0 gap-1 font-normal text-muted-foreground">
+        <CircleHelp className="size-3.5" />
+        Pendente
+      </Badge>
+      <UploadDocumento tipoFixo={tipo} nomeSugerido={nome} variant="outline" size="sm" label="Enviar" />
+    </div>
   );
 }
