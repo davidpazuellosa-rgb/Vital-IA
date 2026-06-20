@@ -90,6 +90,14 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "decl_nepotismo", nome: "Negativa de Nepotismo", descricao: "Declaração negativa de nepotismo" },
     ],
   },
+  {
+    slug: "modelo_proposta",
+    titulo: "Modelo de Proposta",
+    descricao: "Modelos de proposta usados em licitações vencidas, para reaproveitar",
+    tipos: [
+      { slug: "modelo_proposta", nome: "Modelo de Proposta", descricao: "Proposta vencedora usada como modelo" },
+    ],
+  },
 ];
 
 /** Lista achatada de todos os tipos do checklist (para selects e contagens). */
@@ -114,6 +122,7 @@ export const TIPOS_SEM_VALIDADE = new Set([
   "decl_areas_atuacao",
   "decl_nao_emprega_menor",
   "decl_nepotismo",
+  "modelo_proposta",
 ]);
 
 export function tipoSemValidade(slug: string): boolean {
