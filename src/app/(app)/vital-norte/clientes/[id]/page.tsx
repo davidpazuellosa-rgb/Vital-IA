@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData } from "@/lib/format";
 import { CATEGORIAS_CLIENTE, type Cliente, type ClienteDocumento } from "@/lib/clientes/types";
-import { ClienteDocUpload, ClienteDocAcoes, RemoverClienteButton } from "@/components/clientes-client";
+import { ClienteDocUpload, ClienteDocAcoes, RemoverClienteButton, ClienteStatus } from "@/components/clientes-client";
 
 export default async function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,6 +57,12 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
         </div>
         <RemoverClienteButton id={c.id} />
       </div>
+
+      <Card className="shadow-sm">
+        <CardContent>
+          <ClienteStatus id={c.id} status={c.status ?? ""} proximoPasso={c.proximo_passo ?? ""} />
+        </CardContent>
+      </Card>
 
       {CATEGORIAS_CLIENTE.map((cat) => {
         const lista = porCategoria(cat.slug);

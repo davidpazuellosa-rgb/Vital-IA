@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Users, Building2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { AdicionarCliente } from "@/components/clientes-client";
 import type { Cliente } from "@/lib/clientes/types";
@@ -59,6 +60,9 @@ export default async function ClientesPage() {
                         )}
                       </div>
                     </div>
+                    {c.status && (
+                      <Badge variant="secondary" className="w-fit font-normal">{c.status}</Badge>
+                    )}
                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <FileText className="size-3.5" />
                       {total} documento{total === 1 ? "" : "s"}

@@ -4,6 +4,8 @@ export type Cliente = {
   nome: string;
   orgao: string;
   observacoes: string;
+  status: string;
+  proximo_passo: string;
   created_at: string;
 };
 

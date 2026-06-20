@@ -44,6 +44,20 @@ export async function removerCliente(id: string) {
   revalidatePath("/vital-norte/clientes");
 }
 
+export async function atualizarClienteStatus(id: string, status: string, proximoPasso: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { error } = await supabase
+    .from("clientes")
+    .update({ status: status.trim(), proximo_passo: proximoPasso.trim() })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/vital-norte/clientes/${id}`);
+}
+
 export type RegistrarClienteDocInput = {
   clienteId: string;
   tipo: string;

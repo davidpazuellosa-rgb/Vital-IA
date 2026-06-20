@@ -165,3 +165,7 @@ create policy "Usuários inserem seus docs de cliente" on public.cliente_documen
 drop policy if exists "Usuários removem seus docs de cliente" on public.cliente_documentos;
 create policy "Usuários removem seus docs de cliente" on public.cliente_documentos for delete using (auth.uid() = user_id);
 
+
+-- Status e próximo passo por cliente
+alter table public.clientes add column if not exists status text not null default '';
+alter table public.clientes add column if not exists proximo_passo text not null default '';

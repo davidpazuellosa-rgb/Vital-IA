@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2 } from "lucide-react";
+import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import {
-  criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente,
+  criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente, atualizarClienteStatus,
 } from "@/lib/clientes/actions";
 
 const BUCKET = "documentos";
@@ -173,6 +173,51 @@ export function ClienteDocAcoes({ id, clienteId, url }: { id: string; clienteId:
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/* ---------- Status e próximo passo ---------- */
+export function ClienteStatus({
+  id, status, proximoPasso,
+}: {
+  id: string;
+  status: string;
+  proximoPasso: string;
+}) {
+  const [s, setS] = useState(status);
+  const [p, setP] = useState(proximoPasso);
+  const [pendente, startTransition] = useTransition();
+  const [salvo, setSalvo] = useState(false);
+  const alterado = s !== status || p !== proximoPasso;
+
+  function salvar() {
+    setSalvo(false);
+    startTransition(async () => {
+      await atualizarClienteStatus(id, s, p);
+      setSalvo(true);
+      setTimeout(() => setSalvo(false), 2500);
+    });
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="status" className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
+        <Input id="status" value={s} onChange={(e) => setS(e.target.value)} placeholder="Ex.: Em contratação" />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="proximo" className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
+          <ArrowRight className="size-3" /> Próximo passo
+        </Label>
+        <Input id="proximo" value={p} onChange={(e) => setP(e.target.value)} placeholder="Ex.: Aguardar nota de empenho" />
+      </div>
+      <div className="flex items-center gap-3 sm:col-span-2">
+        <Button size="sm" onClick={salvar} disabled={pendente || !alterado}>
+          {pendente && <Loader2 className="size-4 animate-spin" />} Salvar
+        </Button>
+        {salvo && <span className="flex items-center gap-1 text-sm text-primary"><Check className="size-4" /> Salvo</span>}
+      </div>
+    </div>
   );
 }
 
