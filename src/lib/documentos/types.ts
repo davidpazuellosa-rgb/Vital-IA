@@ -87,6 +87,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "decl_enquadramento", nome: "Enquadramento ME/EPP", descricao: "Declaração de enquadramento como ME/EPP" },
       { slug: "decl_areas_atuacao", nome: "Áreas de Atuação", descricao: "Declaração de áreas de atuação" },
       { slug: "decl_nao_emprega_menor", nome: "Não emprega menor", descricao: "Declaração de que não emprega menor de idade (salvo aprendiz)" },
+      { slug: "decl_nepotismo", nome: "Negativa de Nepotismo", descricao: "Declaração negativa de nepotismo" },
     ],
   },
 ];
@@ -112,6 +113,7 @@ export const TIPOS_SEM_VALIDADE = new Set([
   "decl_enquadramento",
   "decl_areas_atuacao",
   "decl_nao_emprega_menor",
+  "decl_nepotismo",
 ]);
 
 export function tipoSemValidade(slug: string): boolean {
