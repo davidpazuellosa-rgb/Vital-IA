@@ -29,7 +29,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO } from "@/lib/documentos/types";
-import { uploadDocumento, removerDocumento, atualizarValidade } from "@/lib/documentos/actions";
+import { registrarDocumento, removerDocumento, atualizarValidade } from "@/lib/documentos/actions";
+import { createClient } from "@/lib/supabase/client";
+
+const BUCKET = "documentos";
+
+function sanitizarNome(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9.\-_]/g, "_")
+    .slice(-120);
+}
 
 /* ---------------- Upload ---------------- */
 
@@ -52,14 +63,48 @@ export function UploadDocumento({
   const [pendente, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
-  function onSubmit(formData: FormData) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setErro(null);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const file = fd.get("arquivo");
+    const tipo = (fd.get("tipo") as string) || tipoFixo || TIPO_AVULSO;
+    const nome = (fd.get("nome") as string)?.trim();
+
+    if (!(file instanceof File) || file.size === 0) {
+      setErro("Selecione um arquivo.");
+      return;
+    }
+
     startTransition(async () => {
       try {
-        await uploadDocumento(formData);
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Sessão expirada. Faça login novamente.");
+
+        // Upload direto do navegador para o Storage (sem passar pelo Server Action)
+        const id = crypto.randomUUID();
+        const path = `${user.id}/${id}/${sanitizarNome(file.name)}`;
+        const { error: upErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+        if (upErr) throw new Error(`Falha no upload: ${upErr.message}`);
+
+        // Registra metadados + extrai a data de validade no servidor
+        await registrarDocumento({
+          id,
+          tipo,
+          nome: nome || file.name,
+          path,
+          arquivoNome: file.name,
+          mimeType: file.type,
+        });
+
+        form.reset();
         setAberto(false);
-      } catch (e) {
-        setErro(e instanceof Error ? e.message : "Erro ao enviar o documento.");
+      } catch (err) {
+        setErro(err instanceof Error ? err.message : "Erro ao enviar o documento.");
       }
     });
   }
@@ -80,7 +125,7 @@ export function UploadDocumento({
             detectada automaticamente — você pode corrigir depois.
           </DialogDescription>
         </DialogHeader>
-        <form action={onSubmit} className="flex flex-col gap-4">
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {tipoFixo ? (
             <input type="hidden" name="tipo" value={tipoFixo} />
           ) : (

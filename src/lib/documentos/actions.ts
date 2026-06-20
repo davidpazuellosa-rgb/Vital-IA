@@ -7,60 +7,57 @@ import { TIPO_AVULSO } from "./types";
 
 const BUCKET = "documentos";
 
-function sanitizarNome(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9.\-_]/g, "_")
-    .slice(-120);
-}
+export type RegistrarDocumentoInput = {
+  id: string;
+  tipo: string;
+  nome: string;
+  path: string;
+  arquivoNome: string;
+  mimeType: string;
+};
 
-export async function uploadDocumento(formData: FormData) {
+/**
+ * Registra um documento já enviado direto pelo navegador ao Storage.
+ * O arquivo não passa pelo Server Action (evita o limite de body de 1MB
+ * e o limite de request do Vercel). Aqui só baixamos o arquivo do Storage
+ * para extrair a data de validade e gravamos a linha no banco.
+ */
+export async function registrarDocumento(input: RegistrarDocumentoInput) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const file = formData.get("arquivo");
-  const tipo = (formData.get("tipo") as string) || TIPO_AVULSO;
-  const nomeInformado = (formData.get("nome") as string)?.trim();
-
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Selecione um arquivo válido.");
+  // segurança: o arquivo precisa estar sob o prefixo do próprio usuário
+  if (!input.path.startsWith(`${user.id}/`)) {
+    throw new Error("Caminho de arquivo inválido.");
   }
-
-  const id = crypto.randomUUID();
-  const arquivoNome = sanitizarNome(file.name);
-  const path = `${user.id}/${id}/${arquivoNome}`;
-  const buffer = await file.arrayBuffer();
-
-  const { error: upErr } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: false });
-  if (upErr) throw new Error(`Falha no upload: ${upErr.message}`);
 
   // Extração automática da data de validade (apenas PDFs com texto)
   let dataValidade: string | null = null;
   let dataEmissao: string | null = null;
-  if (file.type === "application/pdf" || arquivoNome.toLowerCase().endsWith(".pdf")) {
-    const datas = await extrairDatasDoPdf(buffer);
-    dataValidade = datas.dataValidade;
-    dataEmissao = datas.dataEmissao;
+  if (input.mimeType === "application/pdf" || input.arquivoNome.toLowerCase().endsWith(".pdf")) {
+    const { data: blob } = await supabase.storage.from(BUCKET).download(input.path);
+    if (blob) {
+      const datas = await extrairDatasDoPdf(await blob.arrayBuffer());
+      dataValidade = datas.dataValidade;
+      dataEmissao = datas.dataEmissao;
+    }
   }
 
   const { error: insErr } = await supabase.from("documentos").insert({
-    id,
+    id: input.id,
     user_id: user.id,
-    tipo,
-    nome: nomeInformado || file.name,
-    arquivo_path: path,
-    arquivo_nome: file.name,
+    tipo: input.tipo || TIPO_AVULSO,
+    nome: input.nome,
+    arquivo_path: input.path,
+    arquivo_nome: input.arquivoNome,
     data_emissao: dataEmissao,
     data_validade: dataValidade,
     validade_automatica: dataValidade != null,
   });
   if (insErr) {
     // desfaz o upload para não deixar arquivo órfão
-    await supabase.storage.from(BUCKET).remove([path]);
+    await supabase.storage.from(BUCKET).remove([input.path]);
     throw new Error(insErr.message);
   }
 
