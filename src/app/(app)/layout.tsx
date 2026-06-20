@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   return (
-    <SidebarProvider>
+    <SidebarProvider style={{ "--sidebar-width": "13rem" } as React.CSSProperties}>
       <AppSidebar userEmail={user.email ?? ""} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">

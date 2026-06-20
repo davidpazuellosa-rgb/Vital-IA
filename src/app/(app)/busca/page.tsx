@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Search, BookmarkPlus, Check } from "lucide-react";
+import { Loader2, Search, BookmarkPlus, Check, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export default function BuscaPage() {
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
   const [plataformas, setPlataformas] = useState<string[]>(["pncp"]);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   const [resultados, setResultados] = useState<UnifiedLicitacao[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -90,6 +92,28 @@ export default function BuscaPage() {
     <div className="flex flex-col gap-4">
       <Card>
         <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="gap-2 px-2"
+              onClick={() => setFiltrosAbertos((v) => !v)}
+              aria-expanded={filtrosAbertos}
+            >
+              <SlidersHorizontal className="size-4" />
+              Filtros
+              <ChevronDown
+                className={cn("size-4 transition-transform", filtrosAbertos && "rotate-180")}
+              />
+            </Button>
+            <Button onClick={buscar} disabled={carregando}>
+              {carregando ? <Loader2 className="animate-spin" /> : <Search />}
+              Buscar
+            </Button>
+          </div>
+
+          {filtrosAbertos && (
+            <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="flex flex-col gap-2">
               <Label>Palavra-chave</Label>
@@ -153,13 +177,8 @@ export default function BuscaPage() {
               onChange={setModalidades}
             />
           </div>
-
-          <div>
-            <Button onClick={buscar} disabled={carregando}>
-              {carregando ? <Loader2 className="animate-spin" /> : <Search />}
-              Buscar
-            </Button>
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
