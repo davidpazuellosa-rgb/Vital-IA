@@ -9,6 +9,7 @@ import {
   TIPO_AVULSO,
   avaliarValidade,
   nomeTipo,
+  tipoSemValidade,
   type Documento,
   type StatusValidade,
 } from "@/lib/documentos/types";
@@ -43,7 +44,9 @@ export default async function DocumentosPage() {
 
   const totalChecklist = CHECKLIST_DOCUMENTOS.length;
   const enviados = CHECKLIST_DOCUMENTOS.filter((t) => porTipo.has(t.slug)).length;
-  const vencidos = documentos.filter((d) => avaliarValidade(d.data_validade).status === "vencido").length;
+  const vencidos = documentos.filter(
+    (d) => !tipoSemValidade(d.tipo) && avaliarValidade(d.data_validade).status === "vencido",
+  ).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -163,9 +166,10 @@ const STATUS_STYLE: Record<StatusValidade, { badge: string; icon: typeof FileChe
 };
 
 function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string | null; subtitulo?: string }) {
+  const semValidade = tipoSemValidade(doc.tipo);
   const validade = avaliarValidade(doc.data_validade);
   const style = STATUS_STYLE[validade.status];
-  const Icon = style.icon;
+  const Icon = semValidade ? FileCheck2 : style.icon;
 
   return (
     <div className="flex items-center gap-4 rounded-lg border bg-background px-3 py-2.5">
@@ -179,17 +183,30 @@ function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string |
           {subtitulo ?? doc.arquivo_nome}
         </p>
       </div>
-      <div className="hidden shrink-0 text-right sm:block">
-        <p className="text-xs text-muted-foreground">Validade</p>
-        <p className="text-sm font-medium tabular-nums">{formatarData(doc.data_validade)}</p>
-      </div>
-      <Badge variant="outline" className={`shrink-0 gap-1 font-medium ${style.badge}`}>
-        {validade.rotulo}
-        {doc.validade_automatica && validade.status !== "sem_data" && (
-          <span title="Data detectada automaticamente do PDF" className="opacity-70">·auto</span>
-        )}
-      </Badge>
-      <DocumentoAcoes id={doc.id} urlVisualizacao={url} dataValidade={doc.data_validade} />
+      {!semValidade && (
+        <div className="hidden shrink-0 text-right sm:block">
+          <p className="text-xs text-muted-foreground">Validade</p>
+          <p className="text-sm font-medium tabular-nums">{formatarData(doc.data_validade)}</p>
+        </div>
+      )}
+      {semValidade ? (
+        <Badge variant="outline" className="shrink-0 gap-1 font-medium border-transparent bg-muted text-muted-foreground">
+          Sem validade
+        </Badge>
+      ) : (
+        <Badge variant="outline" className={`shrink-0 gap-1 font-medium ${style.badge}`}>
+          {validade.rotulo}
+          {doc.validade_automatica && validade.status !== "sem_data" && (
+            <span title="Data detectada automaticamente do PDF" className="opacity-70">·auto</span>
+          )}
+        </Badge>
+      )}
+      <DocumentoAcoes
+        id={doc.id}
+        urlVisualizacao={url}
+        dataValidade={doc.data_validade}
+        semValidade={semValidade}
+      />
     </div>
   );
 }

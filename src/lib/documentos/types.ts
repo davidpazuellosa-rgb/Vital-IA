@@ -73,6 +73,19 @@ export const CHECKLIST_DOCUMENTOS: TipoDocumento[] = GRUPOS_DOCUMENTOS.flatMap((
 
 export const TIPO_AVULSO = "avulso";
 
+/** Tipos que não expiram (atos constitutivos, documentos pessoais) — não validam por data. */
+export const TIPOS_SEM_VALIDADE = new Set([
+  "contrato_social",
+  "cnpj",
+  "balanco",
+  "socio_identidade",
+  "socio_residencia",
+]);
+
+export function tipoSemValidade(slug: string): boolean {
+  return TIPOS_SEM_VALIDADE.has(slug);
+}
+
 const CHECKLIST_NOMES: Record<string, string> = Object.fromEntries(
   CHECKLIST_DOCUMENTOS.map((t) => [t.slug, t.nome]),
 );

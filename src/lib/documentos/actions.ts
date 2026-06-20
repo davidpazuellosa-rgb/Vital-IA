@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { extrairDatasDoPdf } from "./extract";
-import { TIPO_AVULSO } from "./types";
+import { TIPO_AVULSO, tipoSemValidade } from "./types";
 
 const BUCKET = "documentos";
 
@@ -32,10 +32,11 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
     throw new Error("Caminho de arquivo inválido.");
   }
 
-  // Extração automática da data de validade (apenas PDFs com texto)
+  // Extração automática da data de validade (apenas PDFs com texto e tipos que expiram)
   let dataValidade: string | null = null;
   let dataEmissao: string | null = null;
-  if (input.mimeType === "application/pdf" || input.arquivoNome.toLowerCase().endsWith(".pdf")) {
+  const ehPdf = input.mimeType === "application/pdf" || input.arquivoNome.toLowerCase().endsWith(".pdf");
+  if (ehPdf && !tipoSemValidade(input.tipo)) {
     const { data: blob } = await supabase.storage.from(BUCKET).download(input.path);
     if (blob) {
       const datas = await extrairDatasDoPdf(await blob.arrayBuffer());

@@ -177,10 +177,12 @@ export function DocumentoAcoes({
   id,
   urlVisualizacao,
   dataValidade,
+  semValidade,
 }: {
   id: string;
   urlVisualizacao: string | null;
   dataValidade: string | null;
+  semValidade?: boolean;
 }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(dataValidade ?? "");
@@ -217,10 +219,12 @@ export function DocumentoAcoes({
               </a>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditando(true); }}>
-            <CalendarCog className="size-4" />
-            Editar validade
-          </DropdownMenuItem>
+          {!semValidade && (
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditando(true); }}>
+              <CalendarCog className="size-4" />
+              Editar validade
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={(e) => { e.preventDefault(); remover(); }}>
             <Trash2 className="size-4" />
