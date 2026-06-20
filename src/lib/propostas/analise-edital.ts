@@ -66,6 +66,7 @@ const DECLARACOES_ESPECIFICAS = [
   { nome: "Declaração de reserva de cargos para PCD", padrao: /declara[cç][aã]o.{0,120}(pessoa com defici[êe]ncia|reserva de cargos|reabilitado)/i },
   { nome: "Declaração de integralidade dos custos", padrao: /declara[cç][aã]o.{0,120}(integralidade|custos trabalhistas|direitos trabalhistas)/i },
   { nome: "Declaração de vistoria ou renúncia", padrao: /declara[cç][aã]o.{0,100}(vistoria|ren[uú]ncia.{0,30}vistoria)/i },
+  { nome: "Termo de compromisso / adesão / ciência", padrao: /termo de (?:compromisso|ades[aã]o|ci[êe]ncia|responsabilidade)/i },
 ] as const;
 
 const CONDICOES = [
@@ -184,8 +185,9 @@ function adicionarDeclaracoesGenericas(
   for (const arquivo of arquivos) {
     for (const linhaOriginal of arquivo.texto.split(/\n+/)) {
       const linha = linhaOriginal.replace(/\s+/g, " ").trim();
-      if (linha.length < 15 || linha.length > 220 || !/declara[cç][aã]o/i.test(linha)) continue;
-      const declaracao = linha.slice(Math.max(0, linha.search(/declara[cç][aã]o/i))).trim();
+      const inicio = linha.search(/declara[cç][aã]o|termo de (?:compromisso|ades[aã]o|ci[êe]ncia|responsabilidade)/i);
+      if (linha.length < 15 || linha.length > 220 || inicio < 0) continue;
+      const declaracao = linha.slice(inicio).trim();
       const chave = normalizar(declaracao);
       if ([...vistos].some((visto) => similar(visto, chave))) continue;
       declaracoes.push({
