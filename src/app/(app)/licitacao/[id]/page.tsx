@@ -172,12 +172,12 @@ export default async function LicitacaoDetalhePage({
                     <TableBody>
                       {itens.map((item) => (
                         <TableRow key={item.numeroItem}>
-                          <TableCell className="pl-5 text-muted-foreground">{item.numeroItem}</TableCell>
-                          <TableCell className="max-w-md whitespace-normal">{item.descricao}</TableCell>
-                          <TableCell className="text-right tabular-nums">{item.quantidade ?? "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{item.unidadeMedida || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap text-right tabular-nums">{formatarMoeda(item.valorUnitarioEstimado)}</TableCell>
-                          <TableCell className="whitespace-nowrap pr-5 text-right tabular-nums">{formatarMoeda(item.valorTotal)}</TableCell>
+                          <TableCell className="pl-5 align-top text-muted-foreground">{item.numeroItem}</TableCell>
+                          <TableCell className="min-w-[24rem] whitespace-normal align-top">{item.descricao}</TableCell>
+                          <TableCell className="align-top text-right tabular-nums">{item.quantidade ?? "—"}</TableCell>
+                          <TableCell className="align-top text-sm text-muted-foreground">{item.unidadeMedida || "—"}</TableCell>
+                          <TableCell className="whitespace-nowrap align-top text-right tabular-nums">{formatarMoeda(item.valorUnitarioEstimado)}</TableCell>
+                          <TableCell className="whitespace-nowrap pr-5 align-top text-right tabular-nums">{formatarMoeda(item.valorTotal)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppSidebar userEmail={user.email ?? ""} />
       <SidebarInset className="min-w-0">
         <AppHeader />
-        <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 md:p-6">
+        <main className="flex w-full min-w-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 md:p-6 2xl:px-10">
           {children}
         </main>
       </SidebarInset>
