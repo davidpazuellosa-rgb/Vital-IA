@@ -9,11 +9,13 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/app/login/actions";
 
 const NAV_ITEMS = [
@@ -23,19 +25,24 @@ const NAV_ITEMS = [
 
 export function AppSidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname();
+  const iniciais = (userEmail.slice(0, 2) || "U").toUpperCase();
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">
+      <SidebarHeader className="border-b border-sidebar-border/60">
+        <div className="flex items-center gap-2.5 px-1.5 py-2">
+          <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground text-base font-bold shadow-sm shadow-primary/30">
             V
           </div>
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">Vital.IA</span>
+          <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="font-semibold tracking-tight">Vital.IA</span>
+            <span className="text-xs text-sidebar-foreground/60">Licitações públicas</span>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => (
@@ -52,13 +59,18 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border/60">
+        <div className="flex items-center gap-2 px-1.5 py-1.5 group-data-[collapsible=icon]:hidden">
+          <Avatar className="size-8">
+            <AvatarFallback className="bg-sidebar-accent text-xs font-medium text-sidebar-accent-foreground">
+              {iniciais}
+            </AvatarFallback>
+          </Avatar>
+          <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground/70">
+            {userEmail}
+          </span>
+        </div>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <span className="truncate px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-              {userEmail}
-            </span>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <form action={signOut}>
               <SidebarMenuButton type="submit" tooltip="Sair">
