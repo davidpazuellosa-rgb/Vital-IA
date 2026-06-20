@@ -127,3 +127,41 @@ create policy "Usuários inserem seus dados de empresa" on public.empresa for in
 drop policy if exists "Usuários atualizam seus dados de empresa" on public.empresa;
 create policy "Usuários atualizam seus dados de empresa" on public.empresa for update using (auth.uid() = user_id);
 
+create table if not exists public.clientes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  nome text not null,
+  orgao text not null default '',
+  observacoes text not null default '',
+  created_at timestamptz not null default now()
+);
+
+alter table public.clientes enable row level security;
+drop policy if exists "Usuários veem seus clientes" on public.clientes;
+create policy "Usuários veem seus clientes" on public.clientes for select using (auth.uid() = user_id);
+drop policy if exists "Usuários inserem seus clientes" on public.clientes;
+create policy "Usuários inserem seus clientes" on public.clientes for insert with check (auth.uid() = user_id);
+drop policy if exists "Usuários atualizam seus clientes" on public.clientes;
+create policy "Usuários atualizam seus clientes" on public.clientes for update using (auth.uid() = user_id);
+drop policy if exists "Usuários removem seus clientes" on public.clientes;
+create policy "Usuários removem seus clientes" on public.clientes for delete using (auth.uid() = user_id);
+
+create table if not exists public.cliente_documentos (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  tipo text not null default 'avulso',
+  nome text not null,
+  arquivo_path text not null,
+  arquivo_nome text not null default '',
+  created_at timestamptz not null default now()
+);
+
+alter table public.cliente_documentos enable row level security;
+drop policy if exists "Usuários veem seus docs de cliente" on public.cliente_documentos;
+create policy "Usuários veem seus docs de cliente" on public.cliente_documentos for select using (auth.uid() = user_id);
+drop policy if exists "Usuários inserem seus docs de cliente" on public.cliente_documentos;
+create policy "Usuários inserem seus docs de cliente" on public.cliente_documentos for insert with check (auth.uid() = user_id);
+drop policy if exists "Usuários removem seus docs de cliente" on public.cliente_documentos;
+create policy "Usuários removem seus docs de cliente" on public.cliente_documentos for delete using (auth.uid() = user_id);
+
