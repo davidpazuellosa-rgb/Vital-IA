@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, LogOut } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,7 @@ import { signOut } from "@/app/login/actions";
 const NAV_ITEMS = [
   { href: "/busca", label: "Busca", icon: Search },
   { href: "/minhas-licitacoes", label: "Minhas Licitações", icon: Bookmark },
+  { href: "/documentos", label: "Documentos", icon: FolderOpen },
 ];
 
 export function AppSidebar({ userEmail }: { userEmail: string }) {

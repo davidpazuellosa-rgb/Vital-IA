@@ -37,3 +37,55 @@ create policy "Usuários atualizam suas próprias licitações"
 create policy "Usuários removem suas próprias licitações"
   on public.saved_licitacoes for delete
   using (auth.uid() = user_id);
+
+-- =====================================================================
+-- Documentos (habilitação para gerar propostas)
+-- =====================================================================
+create table if not exists public.documentos (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  tipo text not null default 'avulso',        -- slug do checklist ou 'avulso'
+  nome text not null,                          -- nome de exibição
+  arquivo_path text not null,                  -- caminho no storage
+  arquivo_nome text not null default '',       -- nome original do arquivo
+  data_emissao date,
+  data_validade date,                          -- usada para validar (nula = sem data)
+  validade_automatica boolean not null default false, -- data veio da extração do PDF
+  created_at timestamptz not null default now()
+);
+
+alter table public.documentos enable row level security;
+
+create policy "Usuários veem apenas seus documentos"
+  on public.documentos for select
+  using (auth.uid() = user_id);
+
+create policy "Usuários inserem seus próprios documentos"
+  on public.documentos for insert
+  with check (auth.uid() = user_id);
+
+create policy "Usuários atualizam seus próprios documentos"
+  on public.documentos for update
+  using (auth.uid() = user_id);
+
+create policy "Usuários removem seus próprios documentos"
+  on public.documentos for delete
+  using (auth.uid() = user_id);
+
+-- Bucket privado de armazenamento dos arquivos
+insert into storage.buckets (id, name, public)
+values ('documentos', 'documentos', false)
+on conflict (id) do nothing;
+
+-- Políticas de storage: cada usuário só acessa arquivos sob seu próprio prefixo (user_id/...)
+create policy "Usuários leem seus arquivos de documentos"
+  on storage.objects for select
+  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "Usuários enviam seus arquivos de documentos"
+  on storage.objects for insert
+  with check (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "Usuários removem seus arquivos de documentos"
+  on storage.objects for delete
+  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
