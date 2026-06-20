@@ -94,3 +94,36 @@ create policy "Usuários enviam seus arquivos de documentos"
 create policy "Usuários removem seus arquivos de documentos"
   on storage.objects for delete
   using (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+create table if not exists public.empresa (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  razao_social text not null default '',
+  nome_fantasia text not null default '',
+  cnpj text not null default '',
+  porte text not null default '',
+  natureza_juridica text not null default '',
+  data_abertura date,
+  cnae_principal text not null default '',
+  inscricao_estadual text not null default '',
+  inscricao_municipal text not null default '',
+  email text not null default '',
+  telefone text not null default '',
+  cep text not null default '',
+  logradouro text not null default '',
+  numero text not null default '',
+  complemento text not null default '',
+  bairro text not null default '',
+  municipio text not null default '',
+  uf text not null default '',
+  dados_bancarios text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.empresa enable row level security;
+
+drop policy if exists "Usuários veem seus dados de empresa" on public.empresa;
+create policy "Usuários veem seus dados de empresa" on public.empresa for select using (auth.uid() = user_id);
+drop policy if exists "Usuários inserem seus dados de empresa" on public.empresa;
+create policy "Usuários inserem seus dados de empresa" on public.empresa for insert with check (auth.uid() = user_id);
+drop policy if exists "Usuários atualizam seus dados de empresa" on public.empresa;
+create policy "Usuários atualizam seus dados de empresa" on public.empresa for update using (auth.uid() = user_id);
+

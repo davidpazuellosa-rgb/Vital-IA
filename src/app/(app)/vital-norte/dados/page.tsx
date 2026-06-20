@@ -1,29 +1,28 @@
-import { FileText } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { EmpresaForm } from "@/components/empresa-form";
+import type { EmpresaDados } from "@/lib/empresa/actions";
 
-export default function DadosEmpresaPage() {
+const VAZIO: EmpresaDados = {
+  razao_social: "", nome_fantasia: "", cnpj: "", porte: "", natureza_juridica: "",
+  data_abertura: null, cnae_principal: "", inscricao_estadual: "", inscricao_municipal: "",
+  email: "", telefone: "", cep: "", logradouro: "", numero: "", complemento: "",
+  bairro: "", municipio: "", uf: "", dados_bancarios: "",
+};
+
+export default async function DadosEmpresaPage() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("empresa").select("*").maybeSingle();
+  const dados: EmpresaDados = { ...VAZIO, ...(data ?? {}) };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Dados da Empresa</h1>
         <p className="text-sm text-muted-foreground">
-          Dados cadastrais da Vital Norte usados para preencher propostas e habilitações.
+          Dados cadastrais da Vital Norte, reutilizados para preencher propostas e habilitações.
         </p>
       </div>
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <FileText className="size-6" />
-          </div>
-          <div className="space-y-1">
-            <p className="font-medium">Em breve</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Aqui ficarão CNPJ, razão social, endereço, dados bancários e sócios — reutilizados
-              automaticamente na geração de propostas.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <EmpresaForm dados={dados} />
     </div>
   );
 }
