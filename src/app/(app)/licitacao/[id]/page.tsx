@@ -112,6 +112,19 @@ export default async function LicitacaoDetalhePage({
               <Campo rotulo="Encerramento das propostas" valor={formatarData(lic.data_encerramento_proposta)} />
             </CardContent>
           </Card>
+
+          <Card className="shadow-sm">
+            <CardContent className="flex flex-col gap-3">
+              <SecaoTitulo>Resumo financeiro</SecaoTitulo>
+              <Campo rotulo="Valor estimado" valor={formatarMoeda(lic.valor_estimado)} destaque />
+              {itens.length > 0 && (
+                <>
+                  <Campo rotulo="Soma dos itens" valor={formatarMoeda(valorItens)} />
+                  <Campo rotulo="Quantidade de itens" valor={String(itens.length)} />
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* ===== Coluna do meio: destaques + itens ===== */}
@@ -180,19 +193,6 @@ export default async function LicitacaoDetalhePage({
           <Card className="shadow-sm">
             <CardContent>
               <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} />
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm">
-            <CardContent className="flex flex-col gap-3">
-              <SecaoTitulo>Resumo financeiro</SecaoTitulo>
-              <Campo rotulo="Valor estimado" valor={formatarMoeda(lic.valor_estimado)} destaque />
-              {itens.length > 0 && (
-                <>
-                  <Campo rotulo="Soma dos itens" valor={formatarMoeda(valorItens)} />
-                  <Campo rotulo="Quantidade de itens" valor={String(itens.length)} />
-                </>
-              )}
             </CardContent>
           </Card>
         </div>
