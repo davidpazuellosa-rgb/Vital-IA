@@ -15,6 +15,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente, atualizarClienteStatus,
+  criarContratacao, removerContratacao, atualizarContratacaoStatus,
 } from "@/lib/clientes/actions";
 
 const BUCKET = "documentos";
@@ -74,11 +75,12 @@ export function AdicionarCliente() {
   );
 }
 
-/* ---------- Upload de documento do cliente ---------- */
+/* ---------- Upload de documento da contratação ---------- */
 export function ClienteDocUpload({
-  clienteId, tipo, label = "Enviar", variant = "outline",
+  clienteId, contratacaoId, tipo, label = "Enviar", variant = "outline",
 }: {
   clienteId: string;
+  contratacaoId: string;
   tipo: string;
   label?: string;
   variant?: "default" | "outline";
@@ -107,7 +109,7 @@ export function ClienteDocUpload({
           .from(BUCKET)
           .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
         if (upErr) throw new Error(`Falha no upload: ${upErr.message}`);
-        await registrarClienteDocumento({ clienteId, tipo, nome: nome || file.name, path, arquivoNome: file.name });
+        await registrarClienteDocumento({ clienteId, contratacaoId, tipo, nome: nome || file.name, path, arquivoNome: file.name });
         form.reset();
         setAberto(false);
       } catch (err) {
@@ -148,11 +150,11 @@ export function ClienteDocUpload({
 }
 
 /* ---------- Ações de um documento ---------- */
-export function ClienteDocAcoes({ id, clienteId, url }: { id: string; clienteId: string; url: string | null }) {
+export function ClienteDocAcoes({ id, clienteId, contratacaoId, url }: { id: string; clienteId: string; contratacaoId: string; url: string | null }) {
   const [pendente, startTransition] = useTransition();
   function remover() {
     if (!confirm("Remover este documento? O arquivo será apagado.")) return;
-    startTransition(async () => { await removerClienteDocumento(id, clienteId); });
+    startTransition(async () => { await removerClienteDocumento(id, clienteId, contratacaoId); });
   }
   return (
     <DropdownMenu>
@@ -176,7 +178,120 @@ export function ClienteDocAcoes({ id, clienteId, url }: { id: string; clienteId:
   );
 }
 
-/* ---------- Status e próximo passo ---------- */
+/* ---------- Adicionar contratação/licitação ---------- */
+export function AdicionarContratacao({ clienteId }: { clienteId: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, startTransition] = useTransition();
+  const router = useRouter();
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro(null);
+    const fd = new FormData(e.currentTarget);
+    fd.set("clienteId", clienteId);
+    startTransition(async () => {
+      try {
+        const id = await criarContratacao(fd);
+        setAberto(false);
+        router.push(`/vital-norte/clientes/${clienteId}/contratacao/${id}`);
+      } catch (err) {
+        setErro(err instanceof Error ? err.message : "Erro ao criar.");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <DialogTrigger asChild>
+        <Button size="sm"><Plus /> Nova licitação</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nova licitação / contratação</DialogTitle>
+          <DialogDescription>Cada licitação reúne seus próprios documentos (proposta, empenho, contrato, NFs).</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="titulo">Título</Label>
+            <Input id="titulo" name="titulo" placeholder="Ex.: PROAD 19056.2026" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="identificador">Identificador (opcional)</Label>
+            <Input id="identificador" name="identificador" placeholder="Ex.: NE 2026NE000567" />
+          </div>
+          {erro && <p className="text-sm text-destructive">{erro}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={pendente}>{pendente && <Loader2 className="animate-spin" />} Criar</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- Status da contratação ---------- */
+export function ContratacaoStatus({
+  id, clienteId, status, proximoPasso,
+}: {
+  id: string; clienteId: string; status: string; proximoPasso: string;
+}) {
+  const [s, setS] = useState(status);
+  const [p, setP] = useState(proximoPasso);
+  const [pendente, startTransition] = useTransition();
+  const [salvo, setSalvo] = useState(false);
+  const alterado = s !== status || p !== proximoPasso;
+
+  function salvar() {
+    setSalvo(false);
+    startTransition(async () => {
+      await atualizarContratacaoStatus(id, clienteId, s, p);
+      setSalvo(true);
+      setTimeout(() => setSalvo(false), 2500);
+    });
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="cstatus" className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
+        <Input id="cstatus" value={s} onChange={(e) => setS(e.target.value)} placeholder="Ex.: Contratada — empenho emitido" />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="cproximo" className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
+          <ArrowRight className="size-3" /> Próximo passo
+        </Label>
+        <Input id="cproximo" value={p} onChange={(e) => setP(e.target.value)} placeholder="Ex.: Emitir nota fiscal" />
+      </div>
+      <div className="flex items-center gap-3 sm:col-span-2">
+        <Button size="sm" onClick={salvar} disabled={pendente || !alterado}>
+          {pendente && <Loader2 className="size-4 animate-spin" />} Salvar
+        </Button>
+        {salvo && <span className="flex items-center gap-1 text-sm text-primary"><Check className="size-4" /> Salvo</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Remover contratação ---------- */
+export function RemoverContratacaoButton({ id, clienteId }: { id: string; clienteId: string }) {
+  const [pendente, startTransition] = useTransition();
+  const router = useRouter();
+  function remover() {
+    if (!confirm("Remover esta licitação e todos os seus documentos?")) return;
+    startTransition(async () => {
+      await removerContratacao(id, clienteId);
+      router.push(`/vital-norte/clientes/${clienteId}`);
+    });
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={remover} disabled={pendente} className="text-destructive">
+      {pendente ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />} Remover licitação
+    </Button>
+  );
+}
+
+/* ---------- Status e próximo passo (cliente) ---------- */
 export function ClienteStatus({
   id, status, proximoPasso,
 }: {

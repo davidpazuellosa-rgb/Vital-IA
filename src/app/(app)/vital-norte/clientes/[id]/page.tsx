@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, FileText } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Gavel, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import { formatarData } from "@/lib/format";
-import { CATEGORIAS_CLIENTE, type Cliente, type ClienteDocumento } from "@/lib/clientes/types";
-import { ClienteDocUpload, ClienteDocAcoes, RemoverClienteButton, ClienteStatus } from "@/components/clientes-client";
+import type { Cliente, Contratacao } from "@/lib/clientes/types";
+import { RemoverClienteButton, ClienteStatus, AdicionarContratacao } from "@/components/clientes-client";
 
 export default async function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,23 +16,12 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
   if (!cliente) notFound();
   const c = cliente as Cliente;
 
-  const { data: docsData } = await supabase
-    .from("cliente_documentos")
-    .select("*")
+  const { data: contData } = await supabase
+    .from("contratacoes")
+    .select("*, cliente_documentos(count)")
     .eq("cliente_id", id)
     .order("created_at", { ascending: false });
-  const docs = (docsData ?? []) as ClienteDocumento[];
-
-  const urls = new Map<string, string>();
-  await Promise.all(
-    docs.map(async (d) => {
-      const { data } = await supabase.storage.from("documentos").createSignedUrl(d.arquivo_path, 3600);
-      if (data?.signedUrl) urls.set(d.id, data.signedUrl);
-    }),
-  );
-
-  const porCategoria = (slug: string) => docs.filter((d) => d.tipo === slug);
-  const avulsos = docs.filter((d) => !CATEGORIAS_CLIENTE.some((cat) => cat.slug === d.tipo));
+  const contratacoes = (contData ?? []) as (Contratacao & { cliente_documentos: { count: number }[] })[];
 
   return (
     <div className="flex flex-col gap-5">
@@ -64,64 +52,48 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
         </CardContent>
       </Card>
 
-      {CATEGORIAS_CLIENTE.map((cat) => {
-        const lista = porCategoria(cat.slug);
-        return (
-          <Card key={cat.slug} className="shadow-sm">
-            <CardContent className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold">{cat.nome}</h2>
-                  <p className="text-xs text-muted-foreground">{cat.descricao}</p>
-                </div>
-                <ClienteDocUpload clienteId={c.id} tipo={cat.slug} />
-              </div>
-              {lista.length === 0 ? (
-                <p className="rounded-lg border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
-                  Nenhum documento.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {lista.map((d) => (
-                    <LinhaDoc key={d.id} doc={d} clienteId={c.id} url={urls.get(d.id) ?? null} />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Licitações / Contratações
+        </h2>
+        <AdicionarContratacao clienteId={c.id} />
+      </div>
 
-      {avulsos.length > 0 && (
-        <Card className="shadow-sm">
-          <CardContent className="flex flex-col gap-3">
-            <h2 className="font-semibold">Outros documentos</h2>
-            <div className="flex flex-col gap-2">
-              {avulsos.map((d) => (
-                <LinhaDoc key={d.id} doc={d} clienteId={c.id} url={urls.get(d.id) ?? null} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {contratacoes.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          Nenhuma licitação ainda. Use &ldquo;Nova licitação&rdquo; para registrar uma contratação deste cliente.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {contratacoes.map((ct) => {
+            const total = ct.cliente_documentos?.[0]?.count ?? 0;
+            return (
+              <Link key={ct.id} href={`/vital-norte/clientes/${c.id}/contratacao/${ct.id}`}>
+                <Card className="h-full shadow-sm transition-colors hover:border-primary/50">
+                  <CardContent className="flex flex-col gap-2">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Gavel className="size-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold leading-tight">{ct.titulo}</p>
+                        {ct.identificador && (
+                          <p className="truncate text-xs text-muted-foreground">{ct.identificador}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </div>
+                    {ct.status && <Badge variant="secondary" className="w-fit font-normal">{ct.status}</Badge>}
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <FileText className="size-3.5" /> {total} documento{total === 1 ? "" : "s"}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
       )}
-    </div>
-  );
-}
-
-function LinhaDoc({ doc, clienteId, url }: { doc: ClienteDocumento; clienteId: string; url: string | null }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-        <FileText className="size-4 text-muted-foreground" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{doc.nome}</p>
-        <p className="truncate text-xs text-muted-foreground">{doc.arquivo_nome}</p>
-      </div>
-      <Badge variant="secondary" className="hidden shrink-0 font-normal tabular-nums sm:inline-flex">
-        {formatarData(doc.created_at)}
-      </Badge>
-      <ClienteDocAcoes id={doc.id} clienteId={clienteId} url={url} />
     </div>
   );
 }

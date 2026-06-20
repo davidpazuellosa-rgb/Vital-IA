@@ -169,3 +169,22 @@ create policy "Usuários removem seus docs de cliente" on public.cliente_documen
 -- Status e próximo passo por cliente
 alter table public.clientes add column if not exists status text not null default '';
 alter table public.clientes add column if not exists proximo_passo text not null default '';
+
+-- Contratações (cada cliente pode ter várias licitações/contratos)
+create table if not exists public.contratacoes (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  titulo text not null,
+  identificador text not null default '',
+  status text not null default '',
+  proximo_passo text not null default '',
+  created_at timestamptz not null default now()
+);
+alter table public.contratacoes enable row level security;
+create policy "Usuários veem suas contratações" on public.contratacoes for select using (auth.uid() = user_id);
+create policy "Usuários inserem suas contratações" on public.contratacoes for insert with check (auth.uid() = user_id);
+create policy "Usuários atualizam suas contratações" on public.contratacoes for update using (auth.uid() = user_id);
+create policy "Usuários removem suas contratações" on public.contratacoes for delete using (auth.uid() = user_id);
+
+alter table public.cliente_documentos add column if not exists contratacao_id uuid references public.contratacoes (id) on delete cascade;

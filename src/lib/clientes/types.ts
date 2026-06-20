@@ -9,9 +9,21 @@ export type Cliente = {
   created_at: string;
 };
 
+export type Contratacao = {
+  id: string;
+  cliente_id: string;
+  user_id: string;
+  titulo: string;
+  identificador: string;
+  status: string;
+  proximo_passo: string;
+  created_at: string;
+};
+
 export type ClienteDocumento = {
   id: string;
   cliente_id: string;
+  contratacao_id: string | null;
   user_id: string;
   tipo: string;
   nome: string;
@@ -22,15 +34,17 @@ export type ClienteDocumento = {
 
 export type CategoriaCliente = { slug: string; nome: string; descricao: string };
 
-export const CATEGORIAS_CLIENTE: CategoriaCliente[] = [
-  { slug: "proposta", nome: "Propostas enviadas", descricao: "Propostas apresentadas a este cliente" },
-  { slug: "nota_empenho", nome: "Notas de Empenho", descricao: "Empenhos emitidos pelo órgão" },
+/** Categorias de documentos dentro de uma contratação/licitação. */
+export const CATEGORIAS_CONTRATACAO: CategoriaCliente[] = [
+  { slug: "proposta", nome: "Proposta enviada", descricao: "Proposta apresentada nesta licitação" },
+  { slug: "edital", nome: "Edital e Termo de Referência", descricao: "Edital, termo de referência e aviso de contratação" },
+  { slug: "empenho", nome: "Nota de Empenho", descricao: "Empenhos emitidos pelo órgão" },
+  { slug: "contrato", nome: "Contrato e Termos", descricao: "Contrato, termo de ciência e aditivos" },
   { slug: "nota_fiscal", nome: "Notas Fiscais", descricao: "Notas fiscais emitidas" },
-  { slug: "contrato", nome: "Contratos", descricao: "Contratos e aditivos firmados" },
 ];
 
 export const CATEGORIA_AVULSO = "avulso";
 
 export function nomeCategoria(slug: string): string {
-  return CATEGORIAS_CLIENTE.find((c) => c.slug === slug)?.nome ?? "Outros";
+  return CATEGORIAS_CONTRATACAO.find((c) => c.slug === slug)?.nome ?? "Outros";
 }
