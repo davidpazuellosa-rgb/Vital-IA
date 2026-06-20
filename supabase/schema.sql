@@ -44,6 +44,61 @@ create policy "Usuários removem suas próprias licitações"
   using (auth.uid() = user_id);
 
 -- =====================================================================
+-- Propostas (configuração-base e rascunho por licitação)
+-- =====================================================================
+create table if not exists public.proposta_configuracao (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  validade_dias integer not null default 60,
+  prazo_entrega text not null default '',
+  condicoes_pagamento text not null default '',
+  impostos_inclusos boolean not null default true,
+  representante_legal text not null default '',
+  representante_cargo text not null default '',
+  observacoes_padrao text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.proposta_configuracao enable row level security;
+drop policy if exists "Usuários veem sua configuração de proposta" on public.proposta_configuracao;
+create policy "Usuários veem sua configuração de proposta" on public.proposta_configuracao
+  for select using (auth.uid() = user_id);
+drop policy if exists "Usuários inserem sua configuração de proposta" on public.proposta_configuracao;
+create policy "Usuários inserem sua configuração de proposta" on public.proposta_configuracao
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "Usuários atualizam sua configuração de proposta" on public.proposta_configuracao;
+create policy "Usuários atualizam sua configuração de proposta" on public.proposta_configuracao
+  for update using (auth.uid() = user_id);
+
+create table if not exists public.propostas (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  licitacao_id uuid not null references public.saved_licitacoes (id) on delete cascade,
+  status text not null default 'rascunho',
+  validade_dias integer not null default 60,
+  prazo_entrega text not null default '',
+  condicoes_pagamento text not null default '',
+  observacoes text not null default '',
+  itens jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, licitacao_id)
+);
+
+alter table public.propostas enable row level security;
+drop policy if exists "Usuários veem suas propostas" on public.propostas;
+create policy "Usuários veem suas propostas" on public.propostas
+  for select using (auth.uid() = user_id);
+drop policy if exists "Usuários inserem suas propostas" on public.propostas;
+create policy "Usuários inserem suas propostas" on public.propostas
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "Usuários atualizam suas propostas" on public.propostas;
+create policy "Usuários atualizam suas propostas" on public.propostas
+  for update using (auth.uid() = user_id);
+drop policy if exists "Usuários removem suas propostas" on public.propostas;
+create policy "Usuários removem suas propostas" on public.propostas
+  for delete using (auth.uid() = user_id);
+
+-- =====================================================================
 -- Documentos (habilitação para gerar propostas)
 -- =====================================================================
 create table if not exists public.documentos (

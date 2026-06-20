@@ -192,7 +192,7 @@ export default async function LicitacaoDetalhePage({
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} />
+              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} />
             </CardContent>
           </Card>
         </div>

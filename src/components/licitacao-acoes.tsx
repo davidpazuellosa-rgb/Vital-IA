@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Download, FileSpreadsheet, FileText, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LicitacaoItem } from "@/lib/licitacoes/types";
@@ -22,9 +23,11 @@ function paraCsv(itens: LicitacaoItem[]): string {
 export function LicitacaoAcoes({
   itens,
   numeroControle,
+  licitacaoId,
 }: {
   itens: LicitacaoItem[];
   numeroControle: string;
+  licitacaoId: string;
 }) {
   function extrairItens() {
     const csv = "﻿" + paraCsv(itens); // BOM para acentos no Excel
@@ -46,10 +49,11 @@ export function LicitacaoAcoes({
         <FileSpreadsheet />
         Extrair itens (CSV)
       </Button>
-      <Button variant="outline" disabled className="justify-start">
-        <FileText />
-        Gerar proposta
-        <span className="ml-auto text-xs text-muted-foreground">em breve</span>
+      <Button asChild variant="outline" className="justify-start">
+        <Link href={`/licitacao/${licitacaoId}/proposta`}>
+          <FileText />
+          Criar proposta
+        </Link>
       </Button>
       <Button variant="outline" disabled className="justify-start">
         <Scale />

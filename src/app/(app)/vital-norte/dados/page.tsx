@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { EmpresaForm } from "@/components/empresa-form";
+import { PropostaConfiguracaoForm } from "@/components/proposta-configuracao";
 import type { EmpresaDados } from "@/lib/empresa/actions";
+import { CONFIGURACAO_PROPOSTA_PADRAO, type PropostaConfiguracao } from "@/lib/propostas/types";
 
 const VAZIO: EmpresaDados = {
   razao_social: "", nome_fantasia: "", cnpj: "", porte: "", natureza_juridica: "",
@@ -11,8 +13,16 @@ const VAZIO: EmpresaDados = {
 
 export default async function DadosEmpresaPage() {
   const supabase = await createClient();
-  const { data } = await supabase.from("empresa").select("*").maybeSingle();
+  const [{ data }, { data: configuracao }, { count: modelos }] = await Promise.all([
+    supabase.from("empresa").select("*").maybeSingle(),
+    supabase.from("proposta_configuracao").select("*").maybeSingle(),
+    supabase.from("documentos").select("id", { count: "exact", head: true }).eq("tipo", "modelo_proposta"),
+  ]);
   const dados: EmpresaDados = { ...VAZIO, ...(data ?? {}) };
+  const propostaConfiguracao: PropostaConfiguracao = {
+    ...CONFIGURACAO_PROPOSTA_PADRAO,
+    ...(configuracao ?? {}),
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -23,6 +33,11 @@ export default async function DadosEmpresaPage() {
         </p>
       </div>
       <EmpresaForm dados={dados} />
+      <PropostaConfiguracaoForm
+        configuracao={propostaConfiguracao}
+        empresa={dados}
+        temModelo={(modelos ?? 0) > 0}
+      />
     </div>
   );
 }
