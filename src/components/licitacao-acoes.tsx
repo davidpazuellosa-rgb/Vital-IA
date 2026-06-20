@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { Download, FileSpreadsheet, FileText, Scale } from "lucide-react";
+import { Download, FileSpreadsheet, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
 import { LicitacaoItem } from "@/lib/licitacoes/types";
 
 function paraCsv(itens: LicitacaoItem[]): string {
@@ -49,12 +49,7 @@ export function LicitacaoAcoes({
         <FileSpreadsheet />
         Extrair itens (CSV)
       </Button>
-      <Button asChild variant="outline" className="justify-start">
-        <Link href={`/licitacao/${licitacaoId}/proposta`}>
-          <FileText />
-          Criar proposta
-        </Link>
-      </Button>
+      <CriarPropostaDialog licitacaoId={licitacaoId} className="w-full justify-start" />
       <Button variant="outline" disabled className="justify-start">
         <Scale />
         Comparar preços

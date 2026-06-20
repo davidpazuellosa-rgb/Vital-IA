@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bookmark, Search, ChevronRight, FileText } from "lucide-react";
+import { Bookmark, Search, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { PLATAFORMAS, ETAPAS_LICITACAO, ETAPA_PADRAO, type EtapaSlug } from "@/l
 import { LicitacaoCard } from "@/components/licitacao-card";
 import { RemoverLicitacaoButton } from "@/components/remover-licitacao-button";
 import { EtapaSelect } from "@/components/etapa-select";
+import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
 
 const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
   PLATAFORMAS.map((p) => [p.id, p.nome]),
@@ -112,12 +113,7 @@ export default async function MinhasLicitacoesPage() {
                       linkOrigem={item.link_origem}
                       action={
                         <div className="flex items-center gap-1.5">
-                          <Button asChild variant="outline" size="sm" title="Criar proposta">
-                            <Link href={`/licitacao/${item.id}/proposta`} aria-label="Criar proposta">
-                              <FileText />
-                              <span className="hidden xl:inline">Proposta</span>
-                            </Link>
-                          </Button>
+                          <CriarPropostaDialog licitacaoId={item.id} size="sm" compacto />
                           <EtapaSelect id={item.id} etapa={(item.etapa ?? ETAPA_PADRAO) as EtapaSlug} />
                           <RemoverLicitacaoButton id={item.id} />
                         </div>

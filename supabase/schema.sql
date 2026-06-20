@@ -81,10 +81,15 @@ create table if not exists public.propostas (
   condicoes_pagamento text not null default '',
   observacoes text not null default '',
   itens jsonb not null default '[]'::jsonb,
+  analise_edital jsonb,
+  edital_analisado_em timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, licitacao_id)
 );
+
+alter table public.propostas add column if not exists analise_edital jsonb;
+alter table public.propostas add column if not exists edital_analisado_em timestamptz;
 
 alter table public.propostas enable row level security;
 drop policy if exists "Usuários veem suas propostas" on public.propostas;

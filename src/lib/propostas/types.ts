@@ -6,23 +6,7 @@ export type PropostaConfiguracao = {
   observacoes_padrao: string;
 };
 
-export type PropostaItem = {
-  numero: number;
-  descricao: string;
-  quantidade: number | null;
-  unidade: string;
-  marca: string;
-  valor_unitario: number | null;
-};
-
-export type PropostaRascunho = {
-  status: "rascunho" | "pronta" | "enviada";
-  validade_dias: number;
-  prazo_entrega: string;
-  condicoes_pagamento: string;
-  observacoes: string;
-  itens: PropostaItem[];
-};
+export type { AnaliseEdital, RequisitoEdital, StatusRequisito } from "./analise-edital";
 
 export const CONFIGURACAO_PROPOSTA_PADRAO: PropostaConfiguracao = {
   validade_dias: 60,

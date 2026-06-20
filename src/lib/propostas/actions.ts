@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Documento } from "@/lib/documentos/types";
+import { buscarArquivosPncp, lerArquivoEdital } from "@/lib/licitacoes/providers/pncp-arquivos";
+import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { createClient } from "@/lib/supabase/server";
-import { REPRESENTANTES_LEGAIS, type PropostaItem } from "./types";
+import { analisarConteudoEdital, type AnaliseEdital } from "./analise-edital";
+import { REPRESENTANTES_LEGAIS } from "./types";
 
 function texto(formData: FormData, campo: string): string {
   return ((formData.get(campo) as string) ?? "").trim();
@@ -37,46 +41,41 @@ export async function salvarConfiguracaoProposta(formData: FormData) {
   revalidatePath("/vital-norte/dados");
 }
 
-export async function salvarRascunhoProposta(licitacaoId: string, formData: FormData) {
+export async function analisarEditalLicitacao(licitacaoId: string): Promise<AnaliseEdital> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const { data: licitacao } = await supabase
-    .from("saved_licitacoes")
-    .select("id")
-    .eq("id", licitacaoId)
-    .eq("user_id", user.id)
-    .single();
+  const [{ data: licitacao }, { data: documentos }] = await Promise.all([
+    supabase
+      .from("saved_licitacoes")
+      .select("id, numero_controle_pncp")
+      .eq("id", licitacaoId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase.from("documentos").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+  ]);
   if (!licitacao) throw new Error("Licitação não encontrada");
 
-  const numeros = formData.getAll("item_numero").map((valor) => Number(valor));
-  const itens: PropostaItem[] = numeros.map((itemNumero) => ({
-    numero: itemNumero,
-    descricao: texto(formData, `item_${itemNumero}_descricao`),
-    quantidade: numero(formData.get(`item_${itemNumero}_quantidade`)),
-    unidade: texto(formData, `item_${itemNumero}_unidade`),
-    marca: texto(formData, `item_${itemNumero}_marca`),
-    valor_unitario: numero(formData.get(`item_${itemNumero}_valor_unitario`)),
-  }));
+  const [arquivosPncp, itens] = await Promise.all([
+    buscarArquivosPncp(licitacao.numero_controle_pncp),
+    buscarItensPncp(licitacao.numero_controle_pncp),
+  ]);
+  const arquivos = await Promise.all(arquivosPncp.map(lerArquivoEdital));
+  const analise = analisarConteudoEdital({
+    arquivos,
+    documentosEmpresa: (documentos ?? []) as Documento[],
+    itens,
+  });
 
-  const validade = numero(formData.get("validade_dias"));
-  const status = itens.length > 0 && itens.every((item) => item.valor_unitario !== null)
-    ? "pronta"
-    : "rascunho";
   const { error } = await supabase.from("propostas").upsert({
     user_id: user.id,
     licitacao_id: licitacaoId,
-    status,
-    validade_dias: validade && validade > 0 ? Math.round(validade) : 60,
-    prazo_entrega: texto(formData, "prazo_entrega"),
-    condicoes_pagamento: texto(formData, "condicoes_pagamento"),
-    observacoes: texto(formData, "observacoes"),
-    itens,
+    analise_edital: analise,
+    edital_analisado_em: analise.analisadoEm,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,licitacao_id" });
-
   if (error) throw new Error(error.message);
-  revalidatePath(`/licitacao/${licitacaoId}/proposta`);
-  revalidatePath("/minhas-licitacoes");
+
+  return analise;
 }
