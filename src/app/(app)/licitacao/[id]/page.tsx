@@ -157,30 +157,30 @@ export default async function LicitacaoDetalhePage({
                   Não foi possível carregar os itens desta licitação no PNCP.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-12 pl-5">#</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead className="text-right">Qtd.</TableHead>
-                        <TableHead>Unid.</TableHead>
-                        <TableHead className="text-right">Vlr. unitário</TableHead>
-                        <TableHead className="pr-5 text-right">Vlr. total</TableHead>
+                <div className="[&_[data-slot=table-container]]:overflow-visible">
+                  <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-8 pl-5">#</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Qtd.</TableHead>
+                      <TableHead>Unid.</TableHead>
+                      <TableHead className="text-right">Vlr. unitário</TableHead>
+                      <TableHead className="pr-5 text-right">Vlr. total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {itens.map((item) => (
+                      <TableRow key={item.numeroItem}>
+                        <TableCell className="pl-5 align-top text-muted-foreground">{item.numeroItem}</TableCell>
+                        <TableCell className="w-full whitespace-normal align-top leading-snug">{item.descricao}</TableCell>
+                        <TableCell className="align-top text-right tabular-nums">{item.quantidade ?? "—"}</TableCell>
+                        <TableCell className="align-top text-muted-foreground">{item.unidadeMedida || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap align-top text-right tabular-nums">{formatarMoeda(item.valorUnitarioEstimado)}</TableCell>
+                        <TableCell className="whitespace-nowrap pr-5 align-top text-right tabular-nums">{formatarMoeda(item.valorTotal)}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {itens.map((item) => (
-                        <TableRow key={item.numeroItem}>
-                          <TableCell className="pl-5 align-top text-muted-foreground">{item.numeroItem}</TableCell>
-                          <TableCell className="min-w-[24rem] whitespace-normal align-top">{item.descricao}</TableCell>
-                          <TableCell className="align-top text-right tabular-nums">{item.quantidade ?? "—"}</TableCell>
-                          <TableCell className="align-top text-sm text-muted-foreground">{item.unidadeMedida || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap align-top text-right tabular-nums">{formatarMoeda(item.valorUnitarioEstimado)}</TableCell>
-                          <TableCell className="whitespace-nowrap pr-5 align-top text-right tabular-nums">{formatarMoeda(item.valorTotal)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
+                    ))}
+                  </TableBody>
                   </Table>
                 </div>
               )}
