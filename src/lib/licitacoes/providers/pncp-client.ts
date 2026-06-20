@@ -1,9 +1,21 @@
-import { MODALIDADES, UnifiedLicitacao, UniversalFilter } from "../types";
+import {
+  MODALIDADES,
+  Paginacao,
+  ResultadoBusca,
+  UnifiedLicitacao,
+  UniversalFilter,
+} from "../types";
 
-const BASE_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
-const PAGE_SIZE = 50;
-const MAX_PAGES_PER_CALL = 2;
+const PUBLICACAO_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
+const PROPOSTA_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta";
 const DEFAULT_MODALIDADES = [4, 5, 6, 7, 8, 9];
+
+/** Data limite (AAAAMMDD) de encerramento de propostas para o modo "em aberto": hoje + 1 ano. */
+function horizonteEncerramento(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return toYyyymmdd(d.toISOString().slice(0, 10));
+}
 
 interface PncpOrgaoEntidade {
   cnpj: string;
@@ -65,8 +77,8 @@ function mapItem(item: PncpItem): UnifiedLicitacao {
   };
 }
 
-async function buscarPagina(params: URLSearchParams): Promise<PncpResponse> {
-  const res = await fetch(`${BASE_URL}?${params.toString()}`, {
+async function buscarPagina(baseUrl: string, params: URLSearchParams): Promise<PncpResponse> {
+  const res = await fetch(`${baseUrl}?${params.toString()}`, {
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
@@ -79,60 +91,91 @@ async function buscarPagina(params: URLSearchParams): Promise<PncpResponse> {
   return res.json();
 }
 
-async function buscarModalidadeUf(
-  filtro: UniversalFilter,
-  modalidadeId: number,
-  uf?: string,
-): Promise<PncpItem[]> {
-  const itens: PncpItem[] = [];
-  for (let pagina = 1; pagina <= MAX_PAGES_PER_CALL; pagina++) {
-    const params = new URLSearchParams({
-      dataInicial: toYyyymmdd(filtro.dataInicial),
-      dataFinal: toYyyymmdd(filtro.dataFinal),
-      codigoModalidadeContratacao: String(modalidadeId),
-      pagina: String(pagina),
-      tamanhoPagina: String(PAGE_SIZE),
-    });
-    if (uf) params.set("uf", uf);
-
-    const resposta = await buscarPagina(params);
-    itens.push(...resposta.data);
-    if (pagina >= resposta.totalPaginas) break;
-  }
-  return itens;
+interface PaginaCombo {
+  itens: PncpItem[];
+  totalPaginas: number;
+  totalRegistros: number;
 }
 
-export async function buscarPncp(filtro: UniversalFilter): Promise<UnifiedLicitacao[]> {
-  const modalidades =
-    filtro.modalidades && filtro.modalidades.length > 0
-      ? filtro.modalidades
+async function buscarCombo(
+  filtro: UniversalFilter,
+  apenasAberto: boolean,
+  paginacao: Paginacao,
+  modalidadeId: number | undefined,
+  uf: string | undefined,
+): Promise<PaginaCombo> {
+  const baseUrl = apenasAberto ? PROPOSTA_URL : PUBLICACAO_URL;
+  const params = new URLSearchParams({
+    pagina: String(paginacao.pagina),
+    tamanhoPagina: String(paginacao.tamanhoPagina),
+  });
+  if (modalidadeId != null) {
+    params.set("codigoModalidadeContratacao", String(modalidadeId));
+  }
+  if (apenasAberto) {
+    params.set("dataFinal", horizonteEncerramento());
+  } else {
+    params.set("dataInicial", toYyyymmdd(filtro.dataInicial));
+    params.set("dataFinal", toYyyymmdd(filtro.dataFinal));
+  }
+  if (uf) params.set("uf", uf);
+
+  const resposta = await buscarPagina(baseUrl, params);
+  return {
+    itens: resposta.data,
+    totalPaginas: resposta.totalPaginas,
+    totalRegistros: resposta.totalRegistros,
+  };
+}
+
+export async function buscarPncp(
+  filtro: UniversalFilter,
+  paginacao: Paginacao,
+): Promise<ResultadoBusca> {
+  const apenasAberto = filtro.apenasAberto ?? true;
+
+  // Modalidades escolhidas pelo usuário têm prioridade. Sem escolha:
+  // - "em aberto" (proposta) busca sem modalidade → 1 consulta por UF (rápido);
+  // - "publicação" exige modalidade → usa as padrão (fan-out).
+  const modalidadesSelecionadas =
+    filtro.modalidades && filtro.modalidades.length > 0 ? filtro.modalidades : null;
+  const modalidades: (number | undefined)[] = modalidadesSelecionadas
+    ? modalidadesSelecionadas
+    : apenasAberto
+      ? [undefined]
       : DEFAULT_MODALIDADES;
-  const ufs = filtro.ufs && filtro.ufs.length > 0 ? filtro.ufs : [undefined];
+  const ufs: (string | undefined)[] =
+    filtro.ufs && filtro.ufs.length > 0 ? filtro.ufs : [undefined];
 
   const combinacoes = modalidades.flatMap((modalidadeId) =>
     ufs.map((uf) => ({ modalidadeId, uf })),
   );
 
-  const resultados = await Promise.all(
-    combinacoes.map(({ modalidadeId, uf }) =>
-      buscarModalidadeUf(filtro, modalidadeId, uf).catch(() => [] as PncpItem[]),
+  const paginas = await Promise.all(
+    combinacoes.map((c) =>
+      buscarCombo(filtro, apenasAberto, paginacao, c.modalidadeId, c.uf).catch(
+        () => ({ itens: [] as PncpItem[], totalPaginas: 0, totalRegistros: 0 }),
+      ),
     ),
   );
 
+  const totalPaginas = paginas.reduce((m, p) => Math.max(m, p.totalPaginas), 0);
+  const totalRegistros = paginas.reduce((s, p) => s + p.totalRegistros, 0);
+
   const vistos = new Set<string>();
-  const itens: PncpItem[] = [];
-  for (const lista of resultados) {
-    for (const item of lista) {
+  const itensBrutos: PncpItem[] = [];
+  for (const p of paginas) {
+    for (const item of p.itens) {
       if (vistos.has(item.numeroControlePNCP)) continue;
       vistos.add(item.numeroControlePNCP);
-      itens.push(item);
+      itensBrutos.push(item);
     }
   }
 
   const keyword = filtro.keyword?.trim().toLowerCase();
   const orgaoFiltro = filtro.orgao?.trim().toLowerCase();
 
-  return itens
+  const itens = itensBrutos
     .filter((item) => {
       if (keyword) {
         const alvo = `${item.objetoCompra ?? ""} ${item.informacaoComplementar ?? ""}`.toLowerCase();
@@ -146,6 +189,8 @@ export async function buscarPncp(filtro: UniversalFilter): Promise<UnifiedLicita
       return true;
     })
     .map(mapItem);
+
+  return { itens, totalPaginas, totalRegistros };
 }
 
 export function nomeModalidade(id: number): string {

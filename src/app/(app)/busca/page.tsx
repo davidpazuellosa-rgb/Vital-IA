@@ -8,6 +8,8 @@ import {
   Check,
   SlidersHorizontal,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FileSearch,
   SearchX,
 } from "lucide-react";
@@ -15,19 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MultiToggle } from "@/components/multi-toggle";
+import { LicitacaoCard } from "@/components/licitacao-card";
 import { MODALIDADES, PLATAFORMAS, PlatformId, UFS, UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
-import { formatarData, formatarMoeda } from "@/lib/format";
 import { salvarLicitacao } from "@/lib/licitacoes/actions";
 import { cn } from "@/lib/utils";
 
@@ -51,9 +46,13 @@ export default function BuscaPage() {
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
   const [plataformas, setPlataformas] = useState<string[]>(["pncp"]);
+  const [apenasAberto, setApenasAberto] = useState(true);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   const [resultados, setResultados] = useState<UnifiedLicitacao[]>([]);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(0);
+  const [totalRegistros, setTotalRegistros] = useState(0);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [buscou, setBuscou] = useState(false);
@@ -68,12 +67,13 @@ export default function BuscaPage() {
     (valorMin ? 1 : 0) +
     (valorMax ? 1 : 0);
 
-  async function buscar() {
+  async function buscar(paginaAlvo = 1) {
     setCarregando(true);
     setErro(null);
     setBuscou(true);
+    setPagina(paginaAlvo);
 
-    const filtro: UniversalFilter = {
+    const filtro = {
       keyword: keyword || undefined,
       orgao: orgao || undefined,
       ufs: ufs.length > 0 ? ufs : undefined,
@@ -83,7 +83,9 @@ export default function BuscaPage() {
       valorMin: valorMin ? Number(valorMin) : undefined,
       valorMax: valorMax ? Number(valorMax) : undefined,
       plataformas: plataformas as PlatformId[],
-    };
+      apenasAberto,
+      pagina: paginaAlvo,
+    } satisfies UniversalFilter & { pagina: number };
 
     try {
       const res = await fetch("/api/licitacoes/buscar", {
@@ -94,6 +96,9 @@ export default function BuscaPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Erro ao buscar");
       setResultados(json.resultados);
+      setTotalPaginas(json.totalPaginas ?? 0);
+      setTotalRegistros(json.totalRegistros ?? 0);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao buscar licitações");
     } finally {
@@ -139,11 +144,19 @@ export default function BuscaPage() {
                 className={cn("size-4 transition-transform", filtrosAbertos && "rotate-180")}
               />
             </Button>
-            <Button onClick={buscar} disabled={carregando}>
+            <Button onClick={() => buscar(1)} disabled={carregando}>
               {carregando ? <Loader2 className="animate-spin" /> : <Search />}
               Buscar
             </Button>
           </div>
+
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={apenasAberto}
+              onCheckedChange={(v) => setApenasAberto(v === true)}
+            />
+            <span>Somente licitações em aberto para proposta</span>
+          </label>
 
           {filtrosAbertos && (
             <div className="flex flex-col gap-4 border-t pt-4">
@@ -248,70 +261,69 @@ export default function BuscaPage() {
       {!carregando && resultados.length > 0 && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{resultados.length}</span> resultado(s)
-            encontrado(s)
+            Mostrando <span className="font-medium text-foreground">{resultados.length}</span>
+            {totalRegistros > 0 && (
+              <> de ~<span className="font-medium text-foreground">{totalRegistros}</span></>
+            )}{" "}
+            licitação(ões){totalPaginas > 1 && <> · página {pagina} de {totalPaginas}</>}
           </p>
-          <Card className="py-0">
-            <CardContent className="overflow-x-auto px-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-6">Plataforma</TableHead>
-                    <TableHead>Órgão / Objeto</TableHead>
-                    <TableHead>UF / Município</TableHead>
-                    <TableHead>Modalidade</TableHead>
-                    <TableHead className="text-right">Valor estimado</TableHead>
-                    <TableHead>Abertura</TableHead>
-                    <TableHead>Encerramento</TableHead>
-                    <TableHead>Situação</TableHead>
-                    <TableHead className="pr-6" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resultados.map((item) => {
-                    const chave = `${item.plataforma}-${item.numeroControlePNCP}`;
-                    const jaSalva = salvas.has(chave);
-                    return (
-                      <TableRow key={chave}>
-                        <TableCell className="pl-6">
-                          <Badge variant="secondary" className="font-normal">
-                            {PLATAFORMA_NOME[item.plataforma] ?? item.plataforma}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-sm">
-                          <div className="font-medium">{item.orgao}</div>
-                          <div className="text-sm text-muted-foreground line-clamp-2">{item.titulo}</div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {item.municipio} / {item.uf}
-                        </TableCell>
-                        <TableCell className="text-sm">{item.modalidade}</TableCell>
-                        <TableCell className="whitespace-nowrap text-right tabular-nums">
-                          {formatarMoeda(item.valorEstimado)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">{formatarData(item.dataAberturaProposta)}</TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">{formatarData(item.dataEncerramentoProposta)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-normal">{item.situacao}</Badge>
-                        </TableCell>
-                        <TableCell className="pr-6">
-                          <Button
-                            size="sm"
-                            variant={jaSalva ? "secondary" : "outline"}
-                            disabled={jaSalva}
-                            onClick={() => salvar(item)}
-                          >
-                            {jaSalva ? <Check /> : <BookmarkPlus />}
-                            {jaSalva ? "Salva" : "Salvar"}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          {resultados.map((item) => {
+            const chave = `${item.plataforma}-${item.numeroControlePNCP}`;
+            const jaSalva = salvas.has(chave);
+            return (
+              <LicitacaoCard
+                key={chave}
+                plataformaNome={PLATAFORMA_NOME[item.plataforma] ?? item.plataforma}
+                situacao={item.situacao}
+                titulo={item.titulo}
+                orgao={item.orgao}
+                uf={item.uf}
+                municipio={item.municipio}
+                modalidade={item.modalidade}
+                valorEstimado={item.valorEstimado}
+                dataAbertura={item.dataAberturaProposta}
+                dataEncerramento={item.dataEncerramentoProposta}
+                linkOrigem={item.linkOrigem}
+                action={
+                  <Button
+                    size="sm"
+                    variant={jaSalva ? "secondary" : "outline"}
+                    disabled={jaSalva}
+                    onClick={() => salvar(item)}
+                  >
+                    {jaSalva ? <Check /> : <BookmarkPlus />}
+                    {jaSalva ? "Salva" : "Salvar"}
+                  </Button>
+                }
+              />
+            );
+          })}
+
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={carregando || pagina <= 1}
+                onClick={() => buscar(pagina - 1)}
+              >
+                <ChevronLeft />
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Página {pagina} de {totalPaginas}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={carregando || pagina >= totalPaginas}
+                onClick={() => buscar(pagina + 1)}
+              >
+                Próxima
+                <ChevronRight />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

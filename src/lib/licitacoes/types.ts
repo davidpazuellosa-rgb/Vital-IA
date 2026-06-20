@@ -60,6 +60,8 @@ export interface UniversalFilter {
   valorMax?: number;
   orgao?: string;
   plataformas: PlatformId[];
+  /** Quando true (padrão), retorna apenas licitações com proposta em aberto. */
+  apenasAberto?: boolean;
 }
 
 export interface UnifiedLicitacao {
@@ -81,7 +83,30 @@ export interface UnifiedLicitacao {
   linkOrigem: string | null;
 }
 
+export interface Paginacao {
+  /** Página solicitada (começa em 1). */
+  pagina: number;
+  tamanhoPagina: number;
+}
+
+export interface ResultadoBusca {
+  itens: UnifiedLicitacao[];
+  /** Maior número de páginas entre as consultas combinadas. */
+  totalPaginas: number;
+  /** Total aproximado de registros (soma das consultas). */
+  totalRegistros: number;
+}
+
+export interface LicitacaoItem {
+  numeroItem: number;
+  descricao: string;
+  quantidade: number | null;
+  unidadeMedida: string;
+  valorUnitarioEstimado: number | null;
+  valorTotal: number | null;
+}
+
 export interface LicitacaoProvider {
   id: PlatformId;
-  buscar(filtro: UniversalFilter): Promise<UnifiedLicitacao[]>;
+  buscar(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca>;
 }
