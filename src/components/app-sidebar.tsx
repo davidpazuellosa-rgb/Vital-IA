@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileText, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,14 +14,23 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/app/login/actions";
 
 const NAV_ITEMS = [
   { href: "/busca", label: "Busca", icon: Search },
   { href: "/minhas-licitacoes", label: "Minhas Licitações", icon: Bookmark },
+];
+
+const VITAL_NORTE_ITEMS = [
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
+  { href: "/vital-norte/dados", label: "Dados da Empresa", icon: FileText },
+  { href: "/vital-norte/clientes", label: "Clientes", icon: Users },
 ];
 
 export function AppSidebar({ userEmail }: { userEmail: string }) {
@@ -56,6 +65,33 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Seção recolhível Vital Norte */}
+              <Collapsible defaultOpen className="group/vn">
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Vital Norte">
+                      <Building2 />
+                      <span>Vital Norte</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/vn:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {VITAL_NORTE_ITEMS.map((item) => (
+                        <SidebarMenuSubItem key={item.href}>
+                          <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                            <Link href={item.href}>
+                              <item.icon />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
