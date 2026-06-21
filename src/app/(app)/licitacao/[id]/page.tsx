@@ -47,6 +47,11 @@ export default async function LicitacaoDetalhePage({
 
   if (!lic) notFound();
 
+  const { data: propostaExistente } = await supabase
+    .from("propostas")
+    .select("id")
+    .eq("licitacao_id", id)
+    .maybeSingle();
   const itens = await buscarItensPncp(lic.numero_controle_pncp);
   const valorItens = itens.reduce((s, i) => s + (i.valorTotal ?? 0), 0);
   const iniciais = (lic.orgao || "LI").slice(0, 2).toUpperCase();
@@ -194,7 +199,7 @@ export default async function LicitacaoDetalhePage({
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} />
+              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} temProposta={Boolean(propostaExistente)} />
             </CardContent>
           </Card>
         </div>

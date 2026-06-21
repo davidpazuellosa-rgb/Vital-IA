@@ -33,12 +33,14 @@ import { cn } from "@/lib/utils";
 
 export function CriarPropostaDialog({
   licitacaoId,
+  temPropostaInicial = false,
   variant = "outline",
   size = "default",
   compacto = false,
   className,
 }: {
   licitacaoId: string;
+  temPropostaInicial?: boolean;
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "sm";
   compacto?: boolean;
@@ -48,6 +50,7 @@ export function CriarPropostaDialog({
   const [analise, setAnalise] = useState<AnaliseEdital | null>(null);
   const [itensSalvos, setItensSalvos] = useState<ItemPropostaRascunho[]>([]);
   const [rascunhoCarregado, setRascunhoCarregado] = useState(false);
+  const [temProposta, setTemProposta] = useState(temPropostaInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
   const [pendente, startTransition] = useTransition();
@@ -60,6 +63,7 @@ export function CriarPropostaDialog({
         setAnalise(await analisarEditalLicitacao(licitacaoId));
         setItensSalvos([]);
         setRascunhoCarregado(false);
+        setTemProposta(true);
       } catch (error) {
         setErro(error instanceof Error ? error.message : "Não foi possível analisar o edital.");
       }
@@ -75,10 +79,12 @@ export function CriarPropostaDialog({
           setAnalise(proposta.analise);
           setItensSalvos(proposta.itens);
           setRascunhoCarregado(true);
+          setTemProposta(true);
         } else {
           setAnalise(await analisarEditalLicitacao(licitacaoId));
           setItensSalvos([]);
           setRascunhoCarregado(false);
+          setTemProposta(true);
         }
       } catch (error) {
         setErro(error instanceof Error ? error.message : "Não foi possível carregar a proposta.");
@@ -94,15 +100,15 @@ export function CriarPropostaDialog({
   return (
     <Dialog open={aberto} onOpenChange={alterarAbertura}>
       <DialogTrigger asChild>
-        <Button variant={variant} size={size} className={className} aria-label="Criar proposta">
+        <Button variant={variant} size={size} className={className} aria-label={temProposta ? "Abrir rascunho da proposta" : "Criar proposta"}>
           <FileText />
-          {!compacto && "Criar proposta"}
-          {compacto && <span className="hidden xl:inline">Proposta</span>}
+          {!compacto && (temProposta ? "Abrir rascunho" : "Criar proposta")}
+          {compacto && <span className="hidden xl:inline">{temProposta ? "Abrir" : "Proposta"}</span>}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><FileSearch className="size-5 text-primary" /> Criar proposta</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><FileSearch className="size-5 text-primary" /> {temProposta ? "Proposta em rascunho" : "Criar proposta"}</DialogTitle>
           <DialogDescription>
             Analise o edital, confira documentos e itens, informe os preços e exporte a proposta completa em PDF.
           </DialogDescription>

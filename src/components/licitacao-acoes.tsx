@@ -24,10 +24,12 @@ export function LicitacaoAcoes({
   itens,
   numeroControle,
   licitacaoId,
+  temProposta = false,
 }: {
   itens: LicitacaoItem[];
   numeroControle: string;
   licitacaoId: string;
+  temProposta?: boolean;
 }) {
   function extrairItens() {
     const csv = "﻿" + paraCsv(itens); // BOM para acentos no Excel
@@ -49,7 +51,7 @@ export function LicitacaoAcoes({
         <FileSpreadsheet />
         Extrair itens (CSV)
       </Button>
-      <CriarPropostaDialog licitacaoId={licitacaoId} className="w-full justify-start" />
+      <CriarPropostaDialog licitacaoId={licitacaoId} temPropostaInicial={temProposta} className="w-full justify-start" />
       <Button variant="outline" disabled className="justify-start">
         <Scale />
         Comparar preços

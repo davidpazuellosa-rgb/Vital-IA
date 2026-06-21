@@ -39,6 +39,11 @@ export default async function MinhasLicitacoesPage() {
 
   const licitacoes = (data ?? []) as SavedLicitacao[];
   const total = licitacoes.length;
+  const idsLicitacoes = licitacoes.map((item) => item.id);
+  const { data: propostas } = idsLicitacoes.length
+    ? await supabase.from("propostas").select("licitacao_id").in("licitacao_id", idsLicitacoes)
+    : { data: [] };
+  const licitacoesComProposta = new Set((propostas ?? []).map((item) => String(item.licitacao_id)));
 
   // Agrupa por etapa do funil
   const porEtapa = new Map<string, SavedLicitacao[]>();
@@ -113,7 +118,7 @@ export default async function MinhasLicitacoesPage() {
                       linkOrigem={item.link_origem}
                       action={
                         <div className="flex items-center gap-1.5">
-                          <CriarPropostaDialog licitacaoId={item.id} size="sm" compacto />
+                          <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />
                           <EtapaSelect id={item.id} etapa={(item.etapa ?? ETAPA_PADRAO) as EtapaSlug} />
                           <RemoverLicitacaoButton id={item.id} />
                         </div>
