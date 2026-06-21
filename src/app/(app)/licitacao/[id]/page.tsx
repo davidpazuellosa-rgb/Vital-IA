@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { PLATAFORMAS, type EtapaSlug } from "@/lib/licitacoes/types";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
+import { buscarArquivosPncp } from "@/lib/licitacoes/providers/pncp-arquivos";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 
@@ -53,7 +54,10 @@ export default async function LicitacaoDetalhePage({
     .select("id")
     .eq("licitacao_id", id)
     .maybeSingle();
-  const itens = await buscarItensPncp(lic.numero_controle_pncp);
+  const [itens, arquivosEdital] = await Promise.all([
+    buscarItensPncp(lic.numero_controle_pncp),
+    buscarArquivosPncp(lic.numero_controle_pncp),
+  ]);
   const valorItens = itens.reduce((s, i) => s + (i.valorTotal ?? 0), 0);
   const iniciais = (lic.orgao || "LI").slice(0, 2).toUpperCase();
 
@@ -200,7 +204,7 @@ export default async function LicitacaoDetalhePage({
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={(lic.etapa ?? "oportunidade") as EtapaSlug} temProposta={Boolean(propostaExistente)} />
+              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={(lic.etapa ?? "oportunidade") as EtapaSlug} arquivosEdital={arquivosEdital.map((a) => ({ titulo: a.titulo, url: a.url }))} temProposta={Boolean(propostaExistente)} />
             </CardContent>
           </Card>
         </div>
