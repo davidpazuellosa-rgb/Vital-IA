@@ -47,7 +47,9 @@ export function CriarPropostaDialog({
   const [aberto, setAberto] = useState(false);
   const [analise, setAnalise] = useState<AnaliseEdital | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
   const [pendente, startTransition] = useTransition();
+  const formularioId = `montagem-proposta-${licitacaoId}`;
 
   function executarAnalise() {
     setErro(null);
@@ -85,12 +87,23 @@ export function CriarPropostaDialog({
         <div className="min-h-0 overflow-y-auto pr-1">
           {pendente && <EstadoAnalisando />}
           {erro && <EstadoErro mensagem={erro} onTentarNovamente={executarAnalise} />}
-          {analise && !pendente && <ResultadoAnalise analise={analise} licitacaoId={licitacaoId} />}
+          {analise && !pendente && (
+            <ResultadoAnalise
+              analise={analise}
+              licitacaoId={licitacaoId}
+              formularioId={formularioId}
+              onExportandoChange={setExportando}
+            />
+          )}
         </div>
 
         {analise && !pendente && (
           <DialogFooter className="shrink-0">
-            <Button variant="outline" onClick={executarAnalise}><RefreshCw /> Analisar novamente</Button>
+            <Button variant="outline" onClick={executarAnalise} disabled={exportando}><RefreshCw /> Analisar novamente</Button>
+            <Button type="submit" form={formularioId} disabled={exportando || !analise.itens.length}>
+              {exportando ? <Loader2 className="animate-spin" /> : <Download />}
+              {exportando ? "Gerando PDF..." : "Exportar proposta em PDF"}
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>
@@ -126,7 +139,17 @@ function EstadoErro({ mensagem, onTentarNovamente }: { mensagem: string; onTenta
   );
 }
 
-function ResultadoAnalise({ analise, licitacaoId }: { analise: AnaliseEdital; licitacaoId: string }) {
+function ResultadoAnalise({
+  analise,
+  licitacaoId,
+  formularioId,
+  onExportandoChange,
+}: {
+  analise: AnaliseEdital;
+  licitacaoId: string;
+  formularioId: string;
+  onExportandoChange: (exportando: boolean) => void;
+}) {
   const disponiveis = analise.documentos.filter((item) => item.status === "disponivel").length;
   const pendencias = analise.documentos.filter((item) => item.status === "faltante" || item.status === "vencido").length;
 
@@ -154,7 +177,12 @@ function ResultadoAnalise({ analise, licitacaoId }: { analise: AnaliseEdital; li
         {analise.declaracoes.length > 0 ? analise.declaracoes.map((item) => <LinhaRequisito key={`${item.nome}-${item.origem}`} item={item} />) : <Vazio texto="Nenhuma declaração específica foi identificada automaticamente." />}
       </GrupoResultado>
 
-      <MontagemProposta analise={analise} licitacaoId={licitacaoId} />
+      <MontagemProposta
+        analise={analise}
+        licitacaoId={licitacaoId}
+        formularioId={formularioId}
+        onExportandoChange={onExportandoChange}
+      />
 
       <GrupoResultado titulo="Condições identificadas" descricao="Validade, entrega, pagamento, local e garantia" quantidade={analise.condicoes.length}>
         {analise.condicoes.length > 0 ? analise.condicoes.map((item) => (
@@ -183,7 +211,17 @@ type ItemEmEdicao = AnaliseEdital["itens"][number] & {
   valorUnitario: string;
 };
 
-function MontagemProposta({ analise, licitacaoId }: { analise: AnaliseEdital; licitacaoId: string }) {
+function MontagemProposta({
+  analise,
+  licitacaoId,
+  formularioId,
+  onExportandoChange,
+}: {
+  analise: AnaliseEdital;
+  licitacaoId: string;
+  formularioId: string;
+  onExportandoChange: (exportando: boolean) => void;
+}) {
   const [itens, setItens] = useState<ItemEmEdicao[]>(() => analise.itens.map((item) => ({
     ...item,
     selecionado: true,
@@ -193,7 +231,6 @@ function MontagemProposta({ analise, licitacaoId }: { analise: AnaliseEdital; li
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [mensagemArquivo, setMensagemArquivo] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [exportando, setExportando] = useState(false);
   const inputArquivo = useRef<HTMLInputElement>(null);
   const total = itens.reduce((soma, item) => {
     if (!item.selecionado) return soma;
@@ -249,7 +286,7 @@ function MontagemProposta({ analise, licitacaoId }: { analise: AnaliseEdital; li
     setErro(null);
     if (!selecionados.length) return setErro("Selecione ao menos um item para a proposta.");
     if (preenchidos.length !== selecionados.length) return setErro("Informe quantidade e valor unitário maior que zero em todos os itens selecionados.");
-    setExportando(true);
+    onExportandoChange(true);
     try {
       const formData = new FormData();
       formData.set("itens", JSON.stringify(preenchidos.map((item) => ({
@@ -276,12 +313,19 @@ function MontagemProposta({ analise, licitacaoId }: { analise: AnaliseEdital; li
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
     } finally {
-      setExportando(false);
+      onExportandoChange(false);
     }
   }
 
   return (
-    <section className="rounded-xl border bg-background">
+    <form
+      id={formularioId}
+      className="rounded-xl border bg-background"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void exportar();
+      }}
+    >
       <div className="border-b px-4 py-3">
         <p className="font-semibold">Montagem da proposta</p>
         <p className="text-xs text-muted-foreground">Selecione os itens, informe marca e preço e gere o PDF com os documentos disponíveis.</p>
@@ -319,13 +363,12 @@ function MontagemProposta({ analise, licitacaoId }: { analise: AnaliseEdital; li
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-lg bg-muted/50 p-3">
           <div><p className="text-xs text-muted-foreground">Valor global da proposta</p><p className="text-lg font-semibold tabular-nums text-primary">{moeda(total)}</p><p className="text-[11px] text-muted-foreground">{selecionados.length} item(ns) selecionado(s)</p></div>
-          <Button onClick={exportar} disabled={exportando || !itens.length}>{exportando ? <Loader2 className="animate-spin" /> : <Download />} {exportando ? "Gerando PDF..." : "Exportar proposta em PDF"}</Button>
         </div>
         {erro && <p className="flex items-start gap-2 text-xs text-destructive"><CircleAlert className="mt-0.5 size-3.5 shrink-0" />{erro}</p>}
       </div>
-    </section>
+    </form>
   );
 }
 
