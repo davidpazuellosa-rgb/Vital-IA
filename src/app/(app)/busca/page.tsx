@@ -340,6 +340,7 @@ export default function BuscaPage() {
               <LicitacaoCard
                 key={chave}
                 href={`/licitacao/pncp?n=${encodeURIComponent(item.numeroControlePNCP)}`}
+                numeroControlePNCP={item.numeroControlePNCP}
                 plataformaNome={PLATAFORMA_NOME[item.plataforma] ?? item.plataforma}
                 situacao={item.situacao}
                 titulo={item.titulo}

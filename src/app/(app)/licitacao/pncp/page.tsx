@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
+import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { SalvarLicitacaoButton } from "@/components/salvar-licitacao-button";
 
 export default async function LicitacaoPncpPerfil({
@@ -51,9 +52,9 @@ export default async function LicitacaoPncpPerfil({
                   <p className="mt-0.5 text-sm">{lic.descricao}</p>
                 </div>
               )}
-              {lic.linkOrigem && (
-                <a href={lic.linkOrigem} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-                  <ExternalLink className="size-3.5" /> Ver no sistema de origem
+              {(linkPncp(lic.numeroControlePNCP) ?? lic.linkOrigem) && (
+                <a href={linkPncp(lic.numeroControlePNCP) ?? lic.linkOrigem!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                  <ExternalLink className="size-3.5" /> {linkPncp(lic.numeroControlePNCP) ? "Ver no PNCP" : "Ver no sistema de origem"}
                 </a>
               )}
             </CardContent>

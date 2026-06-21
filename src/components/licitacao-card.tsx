@@ -11,6 +11,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatarData, formatarMoeda } from "@/lib/format";
+import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { cn } from "@/lib/utils";
 
 interface LicitacaoCardProps {
@@ -25,6 +26,8 @@ interface LicitacaoCardProps {
   dataAbertura: string | null;
   dataEncerramento: string | null;
   linkOrigem: string | null;
+  /** Número de controle PNCP, usado para montar o link direto no portal do PNCP. */
+  numeroControlePNCP?: string | null;
   /** Quando informado, o card inteiro vira um link para esta rota. */
   href?: string;
   action?: React.ReactNode;
@@ -42,9 +45,13 @@ export function LicitacaoCard({
   dataAbertura,
   dataEncerramento,
   linkOrigem,
+  numeroControlePNCP,
   href,
   action,
 }: LicitacaoCardProps) {
+  const linkPortalPncp = linkPncp(numeroControlePNCP);
+  const linkExterno = linkPortalPncp ?? linkOrigem;
+  const rotuloLink = linkPortalPncp ? "Ver no PNCP" : "Ver no sistema de origem";
   return (
     <Card className={cn("relative transition-colors", href && "hover:border-primary/50")}>
       {href && (
@@ -86,14 +93,14 @@ export function LicitacaoCard({
           />
         </div>
 
-        {linkOrigem && (
+        {linkExterno && (
           <a
-            href={linkOrigem}
+            href={linkExterno}
             target="_blank"
             rel="noreferrer"
             className="relative z-10 inline-flex w-fit items-center gap-1 text-sm text-primary hover:underline"
           >
-            Ver no sistema de origem
+            {rotuloLink}
             <ExternalLink className="size-3.5" />
           </a>
         )}

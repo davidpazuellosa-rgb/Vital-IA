@@ -16,6 +16,7 @@ const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
 
 type SavedLicitacao = {
   id: string;
+  numero_controle_pncp: string;
   plataforma: string;
   situacao: string;
   titulo: string;
@@ -116,6 +117,7 @@ export default async function MinhasLicitacoesPage() {
                       dataAbertura={item.data_abertura_proposta}
                       dataEncerramento={item.data_encerramento_proposta}
                       linkOrigem={item.link_origem}
+                      numeroControlePNCP={item.numero_controle_pncp}
                       action={
                         <div className="flex items-center gap-1.5">
                           <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />

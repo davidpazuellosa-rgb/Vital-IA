@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { PLATAFORMAS } from "@/lib/licitacoes/types";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
+import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 
 export const maxDuration = 300;
@@ -90,15 +91,15 @@ export default async function LicitacaoDetalhePage({
                   <Badge variant="outline" className="font-normal">{lic.situacao}</Badge>
                 )}
               </div>
-              {lic.link_origem && (
+              {(linkPncp(lic.numero_controle_pncp) ?? lic.link_origem) && (
                 <a
-                  href={lic.link_origem}
+                  href={linkPncp(lic.numero_controle_pncp) ?? lic.link_origem!}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                 >
                   <ExternalLink className="size-3.5" />
-                  Sistema de origem
+                  {linkPncp(lic.numero_controle_pncp) ? "Ver no PNCP" : "Sistema de origem"}
                 </a>
               )}
             </CardContent>
