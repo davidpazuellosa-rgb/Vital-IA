@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
+
+const ESTADO_BUSCA_KEY = "vitalia:busca:estado";
 import {
   Loader2,
   Search,
@@ -68,6 +70,46 @@ export default function BuscaPage() {
     (valorMin ? 1 : 0) +
     (valorMax ? 1 : 0);
 
+  // Restaura a última busca ao voltar para a página; salva o scroll ao sair.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(ESTADO_BUSCA_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setKeyword(s.keyword ?? "");
+        setOrgao(s.orgao ?? "");
+        setUfs(s.ufs ?? []);
+        setModalidades(s.modalidades ?? []);
+        if (s.dataInicial) setDataInicial(s.dataInicial);
+        if (s.dataFinal) setDataFinal(s.dataFinal);
+        setValorMin(s.valorMin ?? "");
+        setValorMax(s.valorMax ?? "");
+        setPlataformas(s.plataformas ?? ["pncp"]);
+        setApenasAberto(s.apenasAberto ?? true);
+        setFiltrosAbertos(s.filtrosAbertos ?? false);
+        setResultados(s.resultados ?? []);
+        setPagina(s.pagina ?? 1);
+        setTotalPaginas(s.totalPaginas ?? 0);
+        setTotalRegistros(s.totalRegistros ?? 0);
+        setBuscou(true);
+        requestAnimationFrame(() => window.scrollTo({ top: s.scrollY ?? 0 }));
+      }
+    } catch { /* ignora */ }
+
+    return () => {
+      try {
+        const raw = sessionStorage.getItem(ESTADO_BUSCA_KEY);
+        if (raw) {
+          const s = JSON.parse(raw);
+          s.scrollY = window.scrollY;
+          sessionStorage.setItem(ESTADO_BUSCA_KEY, JSON.stringify(s));
+        }
+      } catch { /* ignora */ }
+    };
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   async function buscar(paginaAlvo = 1) {
     setCarregando(true);
     setErro(null);
@@ -99,6 +141,14 @@ export default function BuscaPage() {
       setResultados(json.resultados);
       setTotalPaginas(json.totalPaginas ?? 0);
       setTotalRegistros(json.totalRegistros ?? 0);
+      try {
+        sessionStorage.setItem(ESTADO_BUSCA_KEY, JSON.stringify({
+          keyword, orgao, ufs, modalidades, dataInicial, dataFinal, valorMin, valorMax,
+          plataformas, apenasAberto, filtrosAbertos,
+          resultados: json.resultados, pagina: paginaAlvo,
+          totalPaginas: json.totalPaginas ?? 0, totalRegistros: json.totalRegistros ?? 0, scrollY: 0,
+        }));
+      } catch { /* sessionStorage indisponível */ }
       if (json.incompleto) {
         if ((json.resultados?.length ?? 0) === 0) {
           toast.error("PNCP indisponível", { description: "O portal não respondeu a tempo. Tente buscar novamente." });
