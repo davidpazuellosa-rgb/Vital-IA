@@ -156,11 +156,12 @@ export async function buscarPncp(
   const paginas = await Promise.all(
     combinacoes.map((c) =>
       buscarCombo(filtro, apenasAberto, paginacao, c.modalidadeId, c.uf).catch(
-        () => ({ itens: [] as PncpItem[], totalPaginas: 0, totalRegistros: 0 }),
+        () => ({ itens: [] as PncpItem[], totalPaginas: 0, totalRegistros: 0, falhou: true }),
       ),
     ),
   );
 
+  const incompleto = paginas.some((p) => "falhou" in p && p.falhou);
   const totalPaginas = paginas.reduce((m, p) => Math.max(m, p.totalPaginas), 0);
   const totalRegistros = paginas.reduce((s, p) => s + p.totalRegistros, 0);
 
@@ -192,7 +193,7 @@ export async function buscarPncp(
     })
     .map(mapItem);
 
-  return { itens, totalPaginas, totalRegistros };
+  return { itens, totalPaginas, totalRegistros, incompleto };
 }
 
 export function nomeModalidade(id: number): string {

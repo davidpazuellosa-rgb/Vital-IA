@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   Loader2,
   Search,
@@ -98,9 +99,18 @@ export default function BuscaPage() {
       setResultados(json.resultados);
       setTotalPaginas(json.totalPaginas ?? 0);
       setTotalRegistros(json.totalRegistros ?? 0);
+      if (json.incompleto) {
+        if ((json.resultados?.length ?? 0) === 0) {
+          toast.error("PNCP indisponível", { description: "O portal não respondeu a tempo. Tente buscar novamente." });
+        } else {
+          toast.warning("Resultados parciais", { description: "O PNCP está instável; alguns resultados podem ter ficado de fora." });
+        }
+      }
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao buscar licitações");
+      const msg = e instanceof Error ? e.message : "Erro ao buscar licitações";
+      setErro(msg);
+      toast.error("Erro na busca", { description: msg });
     } finally {
       setCarregando(false);
     }

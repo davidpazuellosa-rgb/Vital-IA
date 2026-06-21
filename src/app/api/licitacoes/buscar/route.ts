@@ -17,11 +17,11 @@ export async function POST(request: NextRequest) {
   const pagina = Math.max(1, Number(body.pagina) || 1);
 
   try {
-    const { itens, totalPaginas, totalRegistros } = await buscarLicitacoes(body, {
+    const { itens, totalPaginas, totalRegistros, incompleto } = await buscarLicitacoes(body, {
       pagina,
       tamanhoPagina: TAMANHO_PAGINA,
     });
-    return NextResponse.json({ resultados: itens, pagina, totalPaginas, totalRegistros });
+    return NextResponse.json({ resultados: itens, pagina, totalPaginas, totalRegistros, incompleto });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao buscar licitações" },

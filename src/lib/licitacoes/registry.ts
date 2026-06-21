@@ -53,5 +53,6 @@ export async function buscarLicitacoes(
     itens,
     totalPaginas: resultados.reduce((m, r) => Math.max(m, r.totalPaginas), 0),
     totalRegistros: resultados.reduce((s, r) => s + r.totalRegistros, 0),
+    incompleto: resultados.some((r) => r.incompleto),
   };
 }

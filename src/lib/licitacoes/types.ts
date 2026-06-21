@@ -118,6 +118,8 @@ export interface ResultadoBusca {
   totalPaginas: number;
   /** Total aproximado de registros (soma das consultas). */
   totalRegistros: number;
+  /** true quando alguma consulta ao PNCP falhou/expirou (resultado parcial). */
+  incompleto?: boolean;
 }
 
 export interface LicitacaoItem {
