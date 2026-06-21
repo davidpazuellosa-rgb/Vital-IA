@@ -11,7 +11,6 @@ import {
   FileSearch,
   FileText,
   Loader2,
-  Package,
   RefreshCw,
   Upload,
 } from "lucide-react";
@@ -156,15 +155,6 @@ function ResultadoAnalise({ analise, licitacaoId }: { analise: AnaliseEdital; li
       </GrupoResultado>
 
       <MontagemProposta analise={analise} licitacaoId={licitacaoId} />
-
-      <GrupoResultado titulo="Itens" descricao="Itens publicados para esta contratação" quantidade={analise.itens.length} aberto>
-        {analise.itens.length > 0 ? analise.itens.map((item) => (
-          <div key={item.numeroItem} className="flex items-start gap-3 rounded-lg border px-3 py-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted"><Package className="size-4 text-muted-foreground" /></div>
-            <div className="min-w-0 flex-1"><p className="font-medium leading-snug"><span className="mr-1 text-muted-foreground">{item.numeroItem}.</span>{item.descricao}</p><p className="mt-0.5 text-xs text-muted-foreground">Quantidade: {item.quantidade ?? "—"} {item.unidadeMedida}</p></div>
-          </div>
-        )) : <Vazio texto="Nenhum item foi retornado pelo PNCP." />}
-      </GrupoResultado>
 
       <GrupoResultado titulo="Condições identificadas" descricao="Validade, entrega, pagamento, local e garantia" quantidade={analise.condicoes.length}>
         {analise.condicoes.length > 0 ? analise.condicoes.map((item) => (
