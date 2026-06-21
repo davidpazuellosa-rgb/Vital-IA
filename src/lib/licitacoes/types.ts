@@ -7,7 +7,7 @@ export interface PlatformInfo {
 }
 
 /** Etapa do funil de acompanhamento de uma licitação salva. */
-export type EtapaSlug = "aberta" | "participando" | "proposta_enviada" | "concluida";
+export type EtapaSlug = "aberta" | "participando" | "proposta_enviada" | "recusada" | "concluida";
 
 export type EtapaInfo = {
   slug: EtapaSlug;
@@ -19,6 +19,7 @@ export const ETAPAS_LICITACAO: EtapaInfo[] = [
   { slug: "aberta", nome: "Aberta", descricao: "Salvas, ainda em análise" },
   { slug: "participando", nome: "Participando", descricao: "Em disputa / habilitação" },
   { slug: "proposta_enviada", nome: "Proposta enviada", descricao: "Aguardando resultado" },
+  { slug: "recusada", nome: "Proposta recusada", descricao: "Propostas que não seguirão adiante" },
   { slug: "concluida", nome: "Concluída", descricao: "Encerradas / finalizadas" },
 ];
 

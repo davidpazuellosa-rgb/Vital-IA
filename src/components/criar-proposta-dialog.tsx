@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
   Check,
@@ -27,6 +27,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
+import {
+  garantirContratacaoPropostaFinal,
+  listarDestinosPropostaFinal,
+  registrarClienteDocumento,
+  type DestinosPropostaFinal,
+} from "@/lib/clientes/actions";
 import { analisarEditalLicitacao, obterPropostaLicitacao, salvarRascunhoProposta, type ItemPropostaRascunho } from "@/lib/propostas/actions";
 import type { AnaliseEdital, RequisitoEdital, StatusRequisito } from "@/lib/propostas/types";
 import { cn } from "@/lib/utils";
@@ -282,20 +289,45 @@ function MontagemProposta({
   })));
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [declaracoesAssinadas, setDeclaracoesAssinadas] = useState<File | null>(null);
+  const [propostaFinal, setPropostaFinal] = useState<File | null>(null);
+  const [destinos, setDestinos] = useState<DestinosPropostaFinal | null>(null);
+  const [clienteDestino, setClienteDestino] = useState("");
+  const [contratacaoDestino, setContratacaoDestino] = useState("");
   const [mensagemArquivo, setMensagemArquivo] = useState<string | null>(null);
   const [mensagemDeclaracoes, setMensagemDeclaracoes] = useState<string | null>(null);
+  const [mensagemPropostaFinal, setMensagemPropostaFinal] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvandoRascunho, setSalvandoRascunho] = useState(false);
+  const [salvandoPropostaFinal, setSalvandoPropostaFinal] = useState(false);
   const [mensagemRascunho, setMensagemRascunho] = useState<string | null>(null);
   const [baixandoDeclaracoes, setBaixandoDeclaracoes] = useState(false);
   const inputArquivo = useRef<HTMLInputElement>(null);
   const inputDeclaracoes = useRef<HTMLInputElement>(null);
+  const inputPropostaFinal = useRef<HTMLInputElement>(null);
   const total = itens.reduce((soma, item) => {
     if (!item.selecionado) return soma;
     return soma + (item.quantidade ?? 0) * numeroEntrada(item.valorUnitario);
   }, 0);
   const selecionados = itens.filter((item) => item.selecionado);
   const preenchidos = selecionados.filter((item) => (item.quantidade ?? 0) > 0 && numeroEntrada(item.valorUnitario) > 0);
+  const clienteSelecionado = destinos?.clientes.find((cliente) => cliente.id === clienteDestino) ?? null;
+  const contratacoesDestino = clienteSelecionado?.contratacoes ?? [];
+
+  useEffect(() => {
+    let ativo = true;
+    listarDestinosPropostaFinal(licitacaoId)
+      .then((resultado) => {
+        if (!ativo) return;
+        setDestinos(resultado);
+        setClienteDestino(resultado.sugestaoClienteId);
+        setContratacaoDestino(resultado.sugestaoContratacaoId);
+      })
+      .catch((error) => {
+        if (!ativo) return;
+        setErro(error instanceof Error ? error.message : "Não foi possível carregar os clientes.");
+      });
+    return () => { ativo = false; };
+  }, [licitacaoId]);
 
   function atualizar(numeroItem: number, campo: "selecionado" | "marca" | "valorUnitario", valor: boolean | string) {
     setItens((atuais) => atuais.map((item) => item.numeroItem === numeroItem ? { ...item, [campo]: valor } : item));
@@ -411,6 +443,59 @@ function MontagemProposta({
     setMensagemDeclaracoes("PDF assinado importado. Ele será anexado ao final da proposta exportada.");
   }
 
+  async function importarPropostaFinal(novoArquivo: File | null) {
+    setErro(null);
+    setMensagemPropostaFinal(null);
+    setPropostaFinal(novoArquivo);
+    if (!novoArquivo) return;
+    const ehPdf = novoArquivo.type === "application/pdf" || novoArquivo.name.toLowerCase().endsWith(".pdf");
+    if (!ehPdf) {
+      setPropostaFinal(null);
+      setErro("Envie a proposta final em PDF.");
+      return;
+    }
+    if (novoArquivo.size > 25 * 1024 * 1024) {
+      setPropostaFinal(null);
+      setErro("A proposta final deve ter no máximo 25 MB.");
+      return;
+    }
+    if (!clienteDestino) {
+      setPropostaFinal(null);
+      setErro("Selecione o cliente antes de importar a proposta final.");
+      return;
+    }
+
+    setSalvandoPropostaFinal(true);
+    try {
+      const contratacaoId = await garantirContratacaoPropostaFinal(licitacaoId, clienteDestino, contratacaoDestino || undefined);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessão expirada. Faça login novamente.");
+      const docId = crypto.randomUUID();
+      const path = user.id + "/clientes/" + clienteDestino + "/" + docId + "/" + sanitizarArquivo(novoArquivo.name);
+      const { error: uploadError } = await supabase.storage
+        .from("documentos")
+        .upload(path, novoArquivo, { contentType: novoArquivo.type || "application/pdf", upsert: false });
+      if (uploadError) throw new Error("Falha no upload: " + uploadError.message);
+      await registrarClienteDocumento({
+        clienteId: clienteDestino,
+        contratacaoId,
+        tipo: "proposta",
+        nome: "Proposta final - " + novoArquivo.name,
+        path,
+        arquivoNome: novoArquivo.name,
+      });
+      setContratacaoDestino(contratacaoId);
+      setMensagemPropostaFinal("Proposta final importada e salva no cliente selecionado, na categoria Proposta enviada.");
+    } catch (error) {
+      setPropostaFinal(null);
+      setErro(error instanceof Error ? error.message : "Não foi possível salvar a proposta final no cliente.");
+    } finally {
+      setSalvandoPropostaFinal(false);
+      if (inputPropostaFinal.current) inputPropostaFinal.current.value = "";
+    }
+  }
+
   async function exportar() {
     setErro(null);
     if (!selecionados.length) return setErro("Selecione ao menos um item para a proposta.");
@@ -505,6 +590,87 @@ function MontagemProposta({
           {mensagemDeclaracoes && <p className="mt-1 text-xs text-muted-foreground">{mensagemDeclaracoes}</p>}
         </div>
 
+        <div className="rounded-lg border border-dashed p-3">
+          <input
+            ref={inputPropostaFinal}
+            type="file"
+            className="sr-only"
+            accept="application/pdf,.pdf"
+            onChange={(event) => void importarPropostaFinal(event.target.files?.[0] ?? null)}
+          />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Proposta final do cliente</p>
+                <p className="text-xs text-muted-foreground">
+                  Depois de assinar a proposta final, importe o PDF aqui para salvar automaticamente no cliente em “Proposta enviada”.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => inputPropostaFinal.current?.click()}
+                disabled={salvandoPropostaFinal || !clienteDestino}
+              >
+                {salvandoPropostaFinal ? <Loader2 className="animate-spin" /> : <Upload />}
+                {salvandoPropostaFinal ? "Salvando..." : "Importar proposta final"}
+              </Button>
+            </div>
+
+            {!destinos ? (
+              <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                Carregando clientes disponíveis...
+              </p>
+            ) : destinos.clientes.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Cliente</span>
+                  <select
+                    className="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    value={clienteDestino}
+                    onChange={(event) => {
+                      const novoCliente = event.target.value;
+                      const cliente = destinos.clientes.find((item) => item.id === novoCliente);
+                      setClienteDestino(novoCliente);
+                      setContratacaoDestino(cliente?.contratacoes[0]?.id ?? "");
+                      setMensagemPropostaFinal(null);
+                    }}
+                  >
+                    {destinos.clientes.map((cliente) => (
+                      <option key={cliente.id} value={cliente.id}>{cliente.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Contratação</span>
+                  <select
+                    className="h-9 rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    value={contratacaoDestino}
+                    onChange={(event) => {
+                      setContratacaoDestino(event.target.value);
+                      setMensagemPropostaFinal(null);
+                    }}
+                  >
+                    <option value="">Criar/usar contratação desta licitação</option>
+                    {contratacoesDestino.map((contratacao) => (
+                      <option key={contratacao.id} value={contratacao.id}>
+                        {contratacao.identificador ? contratacao.identificador + " · " : ""}{contratacao.titulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                Cadastre um cliente em Vital Norte &gt; Clientes para liberar a importação da proposta final.
+              </p>
+            )}
+          </div>
+          {propostaFinal && <p className="mt-2 truncate text-xs font-medium text-primary">{propostaFinal.name}</p>}
+          {mensagemPropostaFinal && <p className="mt-1 text-xs text-primary">{mensagemPropostaFinal}</p>}
+        </div>
+
         <div className="overflow-hidden rounded-lg border">
           <div className="hidden grid-cols-[32px_minmax(0,1fr)_120px_135px] gap-2 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
             <span /><span>Item</span><span>Marca</span><span>Valor unitário</span>
@@ -587,6 +753,10 @@ function moeda(valor: number): string {
 
 function nomeDownload(disposition: string | null): string {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? "Proposta_Vital_Norte.pdf";
+}
+
+function sanitizarArquivo(nome: string): string {
+  return nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-120);
 }
 
 function Resumo({ rotulo, valor, destaque, alerta }: { rotulo: string; valor: string; destaque?: boolean; alerta?: boolean }) {

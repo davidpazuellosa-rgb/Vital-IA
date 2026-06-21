@@ -104,7 +104,7 @@ export async function gerarPdfProposta({
   paragrafoNumerado(ctx, declaracoes.length + 1, "Declaramos que examinamos o edital e seus anexos e que os preços contemplam todos os custos necessários ao cumprimento da contratação.");
 
   if (!declaracoesAssinadas) {
-    adicionarPaginasDeclaracoes(ctx, { empresa, configuracao, licitacao, analise });
+    adicionarPaginasDeclaracoes(ctx, { empresa, licitacao, analise });
   }
 
   secao(ctx, "5. LOCAL, DATA E ASSINATURA");
@@ -165,7 +165,8 @@ export async function gerarPdfDeclaracoes({
   espaco(ctx, 12);
   texto(ctx, "Este arquivo reúne as declarações identificadas no edital em páginas individuais, para conferência e assinatura do representante legal.", { size: 9, lineHeight: 13 });
 
-  adicionarPaginasDeclaracoes(ctx, { empresa, configuracao, licitacao, analise });
+  adicionarPaginasDeclaracoes(ctx, { empresa, licitacao, analise });
+  adicionarAssinaturaFinal(ctx, { empresa, configuracao, licitacao });
   rodape(ctx);
   doc.setTitle("Declarações - " + limpar(licitacao.numero_controle_pncp));
   doc.setAuthor(empresa.razao_social || "Vital Norte");
@@ -187,12 +188,10 @@ function adicionarPaginasDeclaracoes(
   ctx: Contexto,
   {
     empresa,
-    configuracao,
     licitacao,
     analise,
   }: {
     empresa: EmpresaDados;
-    configuracao: PropostaConfiguracao;
     licitacao: LicitacaoPropostaPdf;
     analise: AnaliseEdital;
   },
@@ -212,11 +211,26 @@ function adicionarPaginasDeclaracoes(
       espaco(ctx, 8);
       texto(ctx, "Fonte no edital: " + resumir(declaracao.fonte, 500), { size: 7.5, lineHeight: 11, color: CINZA });
     }
-    espaco(ctx, 28);
-    texto(ctx, (empresa.municipio || licitacao.municipio) + ", " + formatarData(new Date()) + ".", { align: "center" });
-    espaco(ctx, 34);
-    linhaAssinatura(ctx, configuracao.representante_legal || "David", configuracao.representante_cargo, empresa.razao_social);
   });
+}
+
+function adicionarAssinaturaFinal(
+  ctx: Contexto,
+  {
+    empresa,
+    configuracao,
+    licitacao,
+  }: {
+    empresa: EmpresaDados;
+    configuracao: PropostaConfiguracao;
+    licitacao: LicitacaoPropostaPdf;
+  },
+) {
+  garantir(ctx, 95);
+  espaco(ctx, 26);
+  texto(ctx, (empresa.municipio || licitacao.municipio) + ", " + formatarData(new Date()) + ".", { align: "center" });
+  espaco(ctx, 34);
+  linhaAssinatura(ctx, configuracao.representante_legal || "David", configuracao.representante_cargo, empresa.razao_social);
 }
 
 function declaracoesParaAssinatura(analise: AnaliseEdital): Array<{ titulo: string; texto: string; fonte: string }> {
@@ -411,14 +425,18 @@ function resumir(valor: string, maximo: number): string {
 
 function declaracaoSegura(nome: string): string {
   const valor = limpar(nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (/atendimento|cumprimento|concordancia|termo de referencia/.test(valor)) return "Declaramos que atendemos integralmente ao edital, ao Termo de Referência e a seus anexos.";
-  if (/fato impeditivo|inidoneidade/.test(valor)) return "Declaramos a inexistência de fato impeditivo à habilitação e que não fomos declarados inidôneos para licitar ou contratar.";
-  if (/proposta independente|elaboracao independente/.test(valor)) return "Declaramos que esta proposta foi elaborada de maneira independente, nos termos exigidos pelo edital.";
-  if (/trabalho escravo|discriminacao/.test(valor)) return "Declaramos que não utilizamos trabalho escravo ou análogo e que observamos as normas de combate à discriminação.";
-  if (/pessoa com deficiencia|reserva de cargos|reabilitado/.test(valor)) return "Declaramos o cumprimento das exigências legais de reserva de cargos para pessoas com deficiência e reabilitados da Previdência Social.";
-  if (/integralidade|custos trabalhistas|direitos trabalhistas/.test(valor)) return "Declaramos que a proposta contempla a integralidade dos custos necessários ao cumprimento dos direitos trabalhistas.";
-  if (/vistoria|renuncia/.test(valor)) return "Declaramos ciência das condições de execução e atendimento às regras de vistoria ou renúncia previstas no edital.";
-  return `Declaramos, sob as penas da lei, o cumprimento da exigência descrita no edital como: ${limpar(nome)}.`;
+  if (/atendimento|cumprimento|concordancia|termo de referencia/.test(valor)) return "Declaramos, para os devidos fins, que a empresa tomou conhecimento integral do edital, do Termo de Referência, de seus anexos e das condições de participação da contratação. Declaramos, ainda, que atendemos às exigências aplicáveis ao objeto, assumindo o compromisso de cumprir integralmente as obrigações, prazos, especificações técnicas, condições comerciais e demais regras estabelecidas no instrumento convocatório.";
+  if (/fato impeditivo|inidoneidade/.test(valor)) return "Declaramos, sob as penas da lei, que até a presente data não existe fato impeditivo para a habilitação da empresa nesta licitação. Declaramos também que a empresa não foi declarada inidônea para licitar ou contratar com a Administração Pública e que comunicaremos imediatamente qualquer fato superveniente que possa alterar esta condição.";
+  if (/proposta independente|elaboracao independente/.test(valor)) return "Declaramos que a proposta apresentada foi elaborada de forma independente, sem ajuste, combinação ou qualquer prática que comprometa o caráter competitivo do certame. Declaramos que os preços, condições e informações apresentados refletem decisão própria da empresa, observadas as regras do edital e a legislação aplicável.";
+  if (/trabalho escravo|discriminacao/.test(valor)) return "Declaramos que a empresa não utiliza trabalho escravo, trabalho análogo ao escravo ou qualquer forma de trabalho forçado em suas atividades. Declaramos, ainda, que observamos as normas de proteção ao trabalho, dignidade da pessoa humana, igualdade de tratamento e combate a práticas discriminatórias, mantendo compromisso com conduta ética e regular.";
+  if (/pessoa com deficiencia|reserva de cargos|reabilitado/.test(valor)) return "Declaramos que a empresa cumpre, quando aplicável, as exigências legais relativas à reserva de cargos para pessoas com deficiência, reabilitados da Previdência Social e demais hipóteses previstas na legislação específica. Declaramos também que manteremos a regularidade dessa condição durante a contratação, quando exigida.";
+  if (/integralidade|custos trabalhistas|direitos trabalhistas/.test(valor)) return "Declaramos que a proposta econômica contempla todos os custos necessários à execução do objeto, incluindo tributos, encargos, despesas operacionais, custos diretos e indiretos e a integralidade dos direitos trabalhistas assegurados pela Constituição Federal, legislação trabalhista, normas infralegais e instrumentos coletivos aplicáveis.";
+  if (/vistoria|renuncia/.test(valor)) return "Declaramos ciência das condições locais, técnicas e operacionais necessárias à execução do objeto, bem como das regras de vistoria ou renúncia previstas no edital. Declaramos que a ausência de vistoria, quando admitida pelo edital, não será utilizada como argumento para descumprimento de obrigações assumidas na proposta.";
+  if (/menor|art.? ?7|xxxiii/.test(valor)) return "Declaramos, para fins de habilitação, que a empresa cumpre o disposto no inciso XXXIII do art. 7º da Constituição Federal, não empregando menor de dezoito anos em trabalho noturno, perigoso ou insalubre e não empregando menor de dezesseis anos, salvo na condição de aprendiz, a partir de quatorze anos, quando aplicável.";
+  if (/sustentabilidade|ambiental/.test(valor)) return "Declaramos que a empresa observa, naquilo que for aplicável ao objeto contratado, critérios de sustentabilidade ambiental, uso racional de recursos, descarte adequado de materiais e cumprimento da legislação ambiental pertinente, comprometendo-se a executar o objeto em conformidade com as exigências ambientais previstas no edital.";
+  if (/parentesco|nepotismo/.test(valor)) return "Declaramos, sob as penas da lei, que as informações relativas a parentesco, impedimentos, conflitos de interesse ou situações vedadas pelo edital são verdadeiras e completas. Declaramos também que comunicaremos imediatamente qualquer alteração que possa caracterizar impedimento de participação ou contratação.";
+  if (/autenticidade|conformidade/.test(valor)) return "Declaramos que os documentos, informações e arquivos apresentados no certame são autênticos, íntegros e correspondem à realidade da empresa, responsabilizando-nos pela veracidade de seu conteúdo. Declaramos ciência de que a apresentação de declaração ou documentação falsa sujeita a empresa às sanções legais e administrativas cabíveis.";
+  return "Declaramos, sob as penas da lei, que a empresa cumpre a exigência descrita no edital como \"" + limpar(nome) + "\". Declaramos que a obrigação foi compreendida em seu contexto, que as informações prestadas são verdadeiras e que a empresa se responsabiliza por manter a conformidade com essa exigência durante todas as fases do certame e da eventual contratação.";
 }
 
 function enderecoEmpresa(empresa: EmpresaDados): string {
