@@ -78,10 +78,11 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     // Chat do usuário
     const { data: config } = await supabase
       .from("notificacoes_config")
-      .select("telegram_chat_id")
+      .select("telegram_chat_id, telegram_bot_token")
       .eq("user_id", a.user_id)
       .maybeSingle();
     const chatId = config?.telegram_chat_id;
+    const botToken = config?.telegram_bot_token;
     if (!chatId) continue;
 
     const linhas = novas.slice(0, 8).map((i, idx) => {
@@ -97,7 +98,7 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     const extra = novas.length > 8 ? `\n\n+${novas.length - 8} outra(s).` : "";
     const texto = `🔔 <b>${escapeHtml(a.nome)}</b> — ${novas.length} nova(s) oportunidade(s)\n\n${linhas.join("\n\n")}${extra}`;
 
-    const resultado = await enviarTelegram(chatId, texto);
+    const resultado = await enviarTelegram(chatId, texto, botToken);
     if (resultado.ok) totalEnviados += novas.length;
   }
 

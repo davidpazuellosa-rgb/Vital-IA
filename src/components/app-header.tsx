@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Search, Bookmark } from "lucide-react";
+import { Search, Bookmark, Settings } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
 const TITLES: Record<string, { label: string; icon: typeof Search }> = {
   "/busca": { label: "Busca de Licitações", icon: Search },
   "/minhas-licitacoes": { label: "Minhas Licitações", icon: Bookmark },
+  "/configuracoes": { label: "Configurações", icon: Settings },
 };
 
 export function AppHeader() {

@@ -342,8 +342,11 @@ alter table public.alerta_envios enable row level security;
 create table if not exists public.notificacoes_config (
   user_id uuid primary key references auth.users (id) on delete cascade,
   telegram_chat_id text not null default '',
+  telegram_bot_token text not null default '',
   updated_at timestamptz not null default now()
 );
+alter table public.notificacoes_config
+  add column if not exists telegram_bot_token text not null default '';
 alter table public.notificacoes_config enable row level security;
 drop policy if exists "Usuários veem sua configuração de notificação" on public.notificacoes_config;
 create policy "Usuários veem sua configuração de notificação"

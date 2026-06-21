@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -99,6 +99,16 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/60">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === "/configuracoes"} tooltip="Configurações">
+              <Link href="/configuracoes">
+                <Settings />
+                <span>Configurações</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <div className="flex items-center gap-2 px-1.5 py-1.5 group-data-[collapsible=icon]:hidden">
           <Avatar className="size-8">
             <AvatarFallback className="bg-sidebar-accent text-xs font-medium text-sidebar-accent-foreground">

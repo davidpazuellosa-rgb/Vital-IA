@@ -3,30 +3,35 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
-import { AlertaDialog, AlertaToggle, AlertaRemover, TelegramConfig } from "@/components/alertas-client";
+import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
 import type { Alerta } from "@/lib/alertas/actions";
 
 export default async function AlertasPage() {
   const supabase = await createClient();
   const [{ data }, { data: config }] = await Promise.all([
     supabase.from("alertas").select("*").order("created_at", { ascending: false }),
-    supabase.from("notificacoes_config").select("telegram_chat_id").maybeSingle(),
+    supabase.from("notificacoes_config").select("telegram_chat_id, telegram_bot_token").maybeSingle(),
   ]);
   const alertas = (data ?? []) as Alerta[];
   const chatId = (config?.telegram_chat_id as string) ?? "";
+  const botTokenConfigurado = Boolean((config?.telegram_bot_token as string)?.trim());
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Alertas</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Buscas automáticas de licitações. A cada execução, novas oportunidades que batem com seus
-            filtros são notificadas. Você pode ter quantos alertas quiser.
-          </p>
         </div>
         <AlertaDialog />
       </div>
+
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Buscas e filtros dos alertas</h2>
+          <p className="text-sm text-muted-foreground">
+            Cada alerta abaixo representa uma busca automática que será rastreada periodicamente.
+          </p>
+        </div>
 
       {alertas.length === 0 ? (
         <Card className="border-dashed">
@@ -73,27 +78,24 @@ export default async function AlertasPage() {
                 </div>
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="size-3.5" />
-                  {a.ultima_execucao ? `Última verificação: ${formatarData(a.ultima_execucao)}` : "Ainda não executado"}
+                    {a.ultima_execucao ? `Última verificação: ${formatarData(a.ultima_execucao)}` : "Executado"}
                 </p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+      </section>
 
-      <Card className="shadow-sm">
-        <CardContent className="flex flex-col gap-3">
-          <div>
-            <h2 className="font-semibold">Notificações por Telegram</h2>
-            <p className="text-sm text-muted-foreground">
-              Informe seu <strong>chat id</strong> do Telegram para receber os alertas no celular.
-              Para descobrir: mande qualquer mensagem ao seu bot e acesse
-              {" "}<code className="rounded bg-muted px-1">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> — o número em <code className="rounded bg-muted px-1">chat.id</code> é o seu.
-            </p>
-          </div>
-          <TelegramConfig chatId={chatId} />
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Canais de notificação</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure onde o Vital.IA deve avisar quando uma nova licitação bater com seus filtros.
+          </p>
+        </div>
+        <CanaisNotificacao chatId={chatId} botTokenConfigurado={botTokenConfigurado} />
+      </section>
     </div>
   );
 }

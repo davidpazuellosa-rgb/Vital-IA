@@ -90,31 +90,44 @@ export async function enviarTesteTelegram() {
 
   const { data } = await supabase
     .from("notificacoes_config")
-    .select("telegram_chat_id")
+    .select("telegram_chat_id, telegram_bot_token")
     .eq("user_id", user.id)
     .maybeSingle();
   const chatId = (data?.telegram_chat_id as string)?.trim();
+  const botToken = (data?.telegram_bot_token as string)?.trim();
   if (!chatId) throw new Error("Configure seu chat id do Telegram primeiro.");
+  if (!botToken && !process.env.TELEGRAM_BOT_TOKEN) return { ok: false, erro: "Configure o token do bot do Telegram primeiro." };
 
   const resultado = await enviarTelegram(
     chatId,
     "✅ <b>Vital.IA — Alertas</b>\nNotificações configuradas! Você vai receber novas oportunidades de licitação por aqui. 🚀",
+    botToken,
   );
   if (!resultado.ok) return { ok: false, erro: resultado.erro ?? "Não foi possível enviar. Verifique o token do bot e se você já iniciou conversa com ele." };
   return { ok: true };
 }
 
-export async function salvarChatTelegram(chatId: string) {
+export async function salvarChatTelegram(chatId: string, botToken?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
   const valor = chatId.trim();
+  const token = botToken?.trim() ?? "";
   if (!/^-?\d+$/.test(valor)) {
     return { ok: false, erro: "O chat id do Telegram deve ser numérico. Ex.: 5989023725." };
   }
+  if (token && !/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+    return { ok: false, erro: "O token do bot parece inválido. Ele deve ter o formato 123456:ABC..." };
+  }
+  const valores: { user_id: string; telegram_chat_id: string; telegram_bot_token?: string; updated_at: string } = {
+    user_id: user.id,
+    telegram_chat_id: valor,
+    updated_at: new Date().toISOString(),
+  };
+  if (token) valores.telegram_bot_token = token;
   const { error } = await supabase
     .from("notificacoes_config")
-    .upsert({ user_id: user.id, telegram_chat_id: valor, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    .upsert(valores, { onConflict: "user_id" });
   if (error) return { ok: false, erro: error.message };
   revalidatePath("/vital-norte/alertas");
   return { ok: true };

@@ -2,31 +2,145 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Play, Pause } from "lucide-react";
+import { Mail, MessageCircle, Plus, Pencil, Trash2, Loader2, Play, Pause, Send } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Send } from "lucide-react";
 import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, type Alerta } from "@/lib/alertas/actions";
 
-export function TelegramConfig({ chatId }: { chatId: string }) {
+export function CanaisNotificacao({
+  chatId,
+  botTokenConfigurado,
+}: {
+  chatId: string;
+  botTokenConfigurado: boolean;
+}) {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      <Dialog>
+        <DialogTrigger asChild>
+          <Card className="cursor-pointer shadow-sm transition-colors hover:bg-muted/40">
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Send className="size-5" />
+                </div>
+                <Badge variant={chatId && botTokenConfigurado ? "secondary" : "outline"}>
+                  {chatId && botTokenConfigurado ? "Configurado" : "Pendente"}
+                </Badge>
+              </div>
+              <div>
+                <p className="font-semibold">Telegram</p>
+                <p className="text-sm text-muted-foreground">Token do bot, chat id e envio de teste.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Configurar Telegram</DialogTitle>
+            <DialogDescription>
+              Informe o token do bot e seu chat id. O token fica salvo no banco e não é exibido novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <TelegramConfig chatId={chatId} botTokenConfigurado={botTokenConfigurado} />
+        </DialogContent>
+      </Dialog>
+
+      <CanalEmBreve
+        titulo="WhatsApp"
+        descricao="Número, provedor/API e token para alertas por WhatsApp."
+        icon={MessageCircle}
+        campos={["Número do WhatsApp", "Token/API do provedor", "Identificador do remetente"]}
+      />
+
+      <CanalEmBreve
+        titulo="E-mail"
+        descricao="Endereço, remetente e credenciais para alertas por e-mail."
+        icon={Mail}
+        campos={["E-mail de destino", "Remetente", "Token/API de envio"]}
+      />
+    </div>
+  );
+}
+
+function CanalEmBreve({
+  titulo,
+  descricao,
+  icon: Icon,
+  campos,
+}: {
+  titulo: string;
+  descricao: string;
+  icon: typeof Mail;
+  campos: string[];
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Card className="cursor-pointer shadow-sm transition-colors hover:bg-muted/40">
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Icon className="size-5" />
+              </div>
+              <Badge variant="outline">Em breve</Badge>
+            </div>
+            <div>
+              <p className="font-semibold">{titulo}</p>
+              <p className="text-sm text-muted-foreground">{descricao}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Configurar {titulo}</DialogTitle>
+          <DialogDescription>{descricao}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          {campos.map((campo) => (
+            <div key={campo} className="flex flex-col gap-1.5">
+              <Label>{campo}</Label>
+              <Input disabled placeholder="Será habilitado na próxima etapa" />
+            </div>
+          ))}
+          <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            Estrutura visual pronta. O envio por {titulo} ainda não está conectado.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function TelegramConfig({ chatId, botTokenConfigurado }: { chatId: string; botTokenConfigurado: boolean }) {
   const [valor, setValor] = useState(chatId);
   const [salvo, setSalvo] = useState(chatId);
+  const [token, setToken] = useState("");
+  const [tokenSalvo, setTokenSalvo] = useState(botTokenConfigurado);
   const [pendente, startTransition] = useTransition();
   const [testando, startTeste] = useTransition();
+  const mudou = valor !== salvo || Boolean(token.trim());
 
   function salvar() {
     const t = toast.loading("Salvando…");
     startTransition(async () => {
       try {
-        const resultado = await salvarChatTelegram(valor);
+        const resultado = await salvarChatTelegram(valor, token);
         if (resultado.ok) {
           setSalvo(valor.trim());
           setValor(valor.trim());
+          if (token.trim()) {
+            setToken("");
+            setTokenSalvo(true);
+          }
           toast.success("Telegram configurado", { id: t });
         } else {
           toast.error("Não foi possível salvar", { id: t, description: resultado.erro });
@@ -57,6 +171,17 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="telegram_bot_token">Token do bot</Label>
+          <Input
+            id="telegram_bot_token"
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={tokenSalvo ? "Token já salvo — cole outro para trocar" : "Cole o token do bot"}
+            autoComplete="off"
+          />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5">
           <Label htmlFor="telegram_chat_id">Telegram chat id</Label>
           <Input
             id="telegram_chat_id"
@@ -66,20 +191,20 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
             placeholder="Ex.: 123456789"
           />
         </div>
-        <Button onClick={salvar} disabled={pendente || valor === salvo} className="shrink-0">
+        <Button onClick={salvar} disabled={pendente || !mudou} className="shrink-0">
           {pendente && <Loader2 className="animate-spin" />} Salvar
         </Button>
         <Button
           variant="outline"
           onClick={testar}
-          disabled={testando || !salvo || valor !== salvo}
+          disabled={testando || !salvo || valor !== salvo || !tokenSalvo}
           className="shrink-0"
-          title={!salvo ? "Salve o chat id primeiro" : "Enviar mensagem de teste"}
+          title={!salvo || !tokenSalvo ? "Salve o token e o chat id primeiro" : "Enviar mensagem de teste"}
         >
           {testando ? <Loader2 className="animate-spin" /> : <Send />} Enviar teste
         </Button>
       </div>
-      {!salvo && <p className="text-xs text-muted-foreground">Salve o chat id para liberar o teste.</p>}
+      {(!salvo || !tokenSalvo) && <p className="text-xs text-muted-foreground">Salve o token do bot e o chat id para liberar o teste.</p>}
     </div>
   );
 }
