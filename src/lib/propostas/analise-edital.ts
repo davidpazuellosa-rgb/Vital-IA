@@ -1,6 +1,7 @@
 import { avaliarValidade, type Documento } from "@/lib/documentos/types";
 import type { ArquivoEditalLido } from "@/lib/licitacoes/providers/pncp-arquivos";
 import type { LicitacaoItem } from "@/lib/licitacoes/types";
+import { analisarTextosComGroq, groq } from "./groq";
 
 export type StatusRequisito = "disponivel" | "faltante" | "vencido" | "a_gerar";
 
@@ -25,6 +26,7 @@ export type AnaliseEdital = {
     titulo: string;
     tipo: string;
     status: ArquivoEditalLido["status"];
+    metodoLeitura: ArquivoEditalLido["metodoLeitura"];
     paginas: number;
   }>;
   documentos: RequisitoEdital[];
@@ -34,11 +36,7 @@ export type AnaliseEdital = {
   alertas: string[];
 };
 
-type DefinicaoDocumento = {
-  tipo: string;
-  nome: string;
-  padrao: RegExp;
-};
+type DefinicaoDocumento = { tipo: string; nome: string; padrao: RegExp };
 
 const DOCUMENTOS_EXIGIVEIS: DefinicaoDocumento[] = [
   { tipo: "cnd_federal", nome: "CND Federal", padrao: /certid[aã]o.{0,90}(federal|d[ií]vida ativa|fazenda nacional)|regularidade.{0,80}federal/i },
@@ -77,42 +75,26 @@ const CONDICOES = [
   { nome: "Garantia", padrao: /prazo de garantia|garantia (?:m[ií]nima|contratual)/i },
 ] as const;
 
-export function analisarConteudoEdital({
-  arquivos,
-  documentosEmpresa,
-  itens,
-}: {
+export function analisarConteudoEdital({ arquivos, documentosEmpresa, itens }: {
   arquivos: ArquivoEditalLido[];
   documentosEmpresa: Documento[];
   itens: LicitacaoItem[];
 }): AnaliseEdital {
   const lidos = arquivos.filter((arquivo) => arquivo.status === "lido");
-  const porTipo = new Map<string, Documento>();
-  for (const documento of documentosEmpresa) {
-    if (!porTipo.has(documento.tipo)) porTipo.set(documento.tipo, documento);
-  }
-
+  const porTipo = documentosPorTipo(documentosEmpresa);
   const documentos: RequisitoEdital[] = [];
+
   for (const definicao of DOCUMENTOS_EXIGIVEIS) {
     const achado = localizarPadrao(lidos, definicao.padrao);
     if (!achado) continue;
-    const documento = porTipo.get(definicao.tipo);
-    const validade = documento ? avaliarValidade(documento.data_validade) : null;
-    documentos.push({
-      nome: definicao.nome,
-      tipoDocumento: definicao.tipo,
-      status: !documento ? "faltante" : validade?.status === "vencido" ? "vencido" : "disponivel",
-      origem: achado.origem,
-      trecho: achado.trecho,
-    });
+    documentos.push(cruzarDocumento({ nome: definicao.nome, tipoDocumento: definicao.tipo, ...achado }, porTipo, documentosEmpresa));
   }
   adicionarDocumentosGenericos(documentos, lidos, documentosEmpresa);
 
   const declaracoes: RequisitoEdital[] = [];
   for (const definicao of DECLARACOES_ESPECIFICAS) {
     const achado = localizarPadrao(lidos, definicao.padrao);
-    if (!achado) continue;
-    declaracoes.push({ nome: definicao.nome, tipoDocumento: null, status: "a_gerar", ...achado });
+    if (achado) declaracoes.push({ nome: definicao.nome, tipoDocumento: null, status: "a_gerar", ...achado });
   }
   adicionarDeclaracoesGenericas(declaracoes, lidos);
 
@@ -120,14 +102,11 @@ export function analisarConteudoEdital({
     const achado = localizarPadrao(lidos, definicao.padrao);
     return achado ? [{ nome: definicao.nome, ...achado }] : [];
   });
-
   const alertas: string[] = [];
-  if (arquivos.length === 0) alertas.push("Nenhum arquivo foi publicado no PNCP para esta contratação.");
+  if (!arquivos.length) alertas.push("Nenhum arquivo foi publicado no PNCP para esta contratação.");
   const semLeitura = arquivos.filter((arquivo) => arquivo.status !== "lido");
-  if (semLeitura.length > 0) {
-    alertas.push(`${semLeitura.length} arquivo(s) não puderam ser lidos integralmente. Revise-os manualmente antes de enviar a proposta.`);
-  }
-  if (itens.length === 0) alertas.push("O PNCP não retornou itens para esta contratação.");
+  if (semLeitura.length) alertas.push(`${semLeitura.length} arquivo(s) não puderam ser lidos integralmente. Revise-os manualmente antes do envio.`);
+  if (!itens.length) alertas.push("O PNCP não retornou itens para esta contratação.");
 
   return {
     analisadoEm: new Date().toISOString(),
@@ -137,7 +116,7 @@ export function analisarConteudoEdital({
       paginasLidas: lidos.reduce((total, arquivo) => total + arquivo.paginas, 0),
       leituraCompleta: arquivos.length > 0 && arquivos.length === lidos.length,
     },
-    arquivos: arquivos.map(({ sequencial, titulo, tipo, status, paginas }) => ({ sequencial, titulo, tipo, status, paginas })),
+    arquivos: arquivos.map(({ sequencial, titulo, tipo, status, metodoLeitura, paginas }) => ({ sequencial, titulo, tipo, status, metodoLeitura, paginas })),
     documentos,
     declaracoes,
     condicoes,
@@ -146,22 +125,103 @@ export function analisarConteudoEdital({
   };
 }
 
-function adicionarDocumentosGenericos(
-  requisitos: RequisitoEdital[],
-  arquivos: ArquivoEditalLido[],
+export async function analisarEditalHibrido({ arquivos, documentosEmpresa, itens, contextoEmpresa }: {
+  arquivos: ArquivoEditalLido[];
+  documentosEmpresa: Documento[];
+  itens: LicitacaoItem[];
+  contextoEmpresa: string;
+}): Promise<AnaliseEdital> {
+  const local = analisarConteudoEdital({ arquivos, documentosEmpresa, itens });
+  const legiveis = arquivos.filter((arquivo) => arquivo.status === "lido" && arquivo.texto.trim());
+  if (!groq || !legiveis.length) return local;
+
+  const resultados = await analisarTextosComGroq({
+    arquivos: legiveis.map(({ titulo, texto }) => ({ titulo, texto })),
+    contextoEmpresa,
+  });
+  const porTipo = documentosPorTipo(documentosEmpresa);
+  const dispensadosTipos = new Set<string>();
+  const dispensadosNomes: string[] = [];
+  for (const { analise } of resultados) {
+    for (const dispensado of analise.documentosDispensados) {
+      if (dispensado.tipoDocumento) dispensadosTipos.add(dispensado.tipoDocumento);
+      dispensadosNomes.push(normalizar(dispensado.nome));
+    }
+  }
+
+  const documentos: RequisitoEdital[] = [];
+  const declaracoes: RequisitoEdital[] = [];
+  const condicoes: AnaliseEdital["condicoes"] = [];
+  const alertas = new Set(local.alertas);
+
+  for (const { analise, origem } of resultados) {
+    for (const exigido of analise.documentosExigidos) {
+      adicionarUnico(documentos, cruzarDocumento({ ...exigido, origem }, porTipo, documentosEmpresa));
+    }
+    for (const declaracao of analise.declaracoesExigidas) {
+      adicionarUnico(declaracoes, { ...declaracao, tipoDocumento: null, status: "a_gerar", origem });
+    }
+    for (const condicao of analise.condicoesComerciais) {
+      if (!condicoes.some((item) => item.nome === condicao.nome)) condicoes.push({ ...condicao, origem });
+    }
+    analise.alertas.forEach((alerta) => alertas.add(alerta));
+  }
+
+  for (const documento of local.documentos) {
+    const dispensado = (documento.tipoDocumento && dispensadosTipos.has(documento.tipoDocumento))
+      || dispensadosNomes.some((nome) => similar(nome, normalizar(documento.nome)));
+    if (!dispensado) adicionarUnico(documentos, documento);
+  }
+  local.declaracoes.forEach((declaracao) => adicionarUnico(declaracoes, declaracao));
+  for (const condicao of local.condicoes) {
+    if (!condicoes.some((item) => item.nome === condicao.nome)) condicoes.push(condicao);
+  }
+  const arquivosOcr = arquivos.filter((arquivo) => arquivo.metodoLeitura === "ocr").length;
+  if (arquivosOcr) alertas.add(`OCR da Groq aplicado com sucesso em ${arquivosOcr} arquivo(s) escaneado(s).`);
+
+  return { ...local, analisadoEm: new Date().toISOString(), documentos, declaracoes, condicoes, alertas: [...alertas] };
+}
+
+function documentosPorTipo(documentos: Documento[]): Map<string, Documento> {
+  const porTipo = new Map<string, Documento>();
+  for (const documento of documentos) if (!porTipo.has(documento.tipo)) porTipo.set(documento.tipo, documento);
+  return porTipo;
+}
+
+function cruzarDocumento(
+  exigido: { nome: string; tipoDocumento: string | null; origem: string; trecho: string },
+  porTipo: Map<string, Documento>,
   documentosEmpresa: Documento[],
-) {
+): RequisitoEdital {
+  const documento = exigido.tipoDocumento
+    ? porTipo.get(exigido.tipoDocumento)
+    : documentosEmpresa.find((item) => similar(normalizar(item.nome), normalizar(exigido.nome)));
+  const validade = documento ? avaliarValidade(documento.data_validade) : null;
+  return {
+    ...exigido,
+    tipoDocumento: exigido.tipoDocumento ?? documento?.tipo ?? null,
+    status: !documento ? "faltante" : validade?.status === "vencido" ? "vencido" : "disponivel",
+  };
+}
+
+function adicionarUnico(destino: RequisitoEdital[], item: RequisitoEdital) {
+  const duplicado = destino.some((existente) =>
+    Boolean(item.tipoDocumento && existente.tipoDocumento === item.tipoDocumento)
+    || similar(normalizar(existente.nome), normalizar(item.nome)),
+  );
+  if (!duplicado) destino.push(item);
+}
+
+function adicionarDocumentosGenericos(requisitos: RequisitoEdital[], arquivos: ArquivoEditalLido[], documentosEmpresa: Documento[]) {
   const palavrasDocumento = /(certid[aã]o|certificado|licen[cç]a|alvar[aá]|registro|comprovante|atestado|autoriza[cç][aã]o)/i;
   const contextoExigencia = /(dever[aá]|dever[aã]o|apresentar|exigid[oa]|habilita[cç][aã]o|comprovar)/i;
   const vistos = new Set(requisitos.map((item) => normalizar(item.nome)));
-
   for (const arquivo of arquivos) {
     for (const linhaOriginal of arquivo.texto.split(/\n+/)) {
       const linha = linhaOriginal.replace(/\s+/g, " ").trim();
       if (linha.length < 20 || linha.length > 240 || !palavrasDocumento.test(linha) || !contextoExigencia.test(linha)) continue;
       const chave = normalizar(linha);
       if ([...vistos].some((visto) => similar(visto, chave))) continue;
-
       const documento = documentosEmpresa.find((item) => similar(normalizar(item.nome), chave));
       const validade = documento ? avaliarValidade(documento.data_validade) : null;
       requisitos.push({
@@ -177,10 +237,7 @@ function adicionarDocumentosGenericos(
   }
 }
 
-function adicionarDeclaracoesGenericas(
-  declaracoes: RequisitoEdital[],
-  arquivos: ArquivoEditalLido[],
-) {
+function adicionarDeclaracoesGenericas(declaracoes: RequisitoEdital[], arquivos: ArquivoEditalLido[]) {
   const vistos = new Set(declaracoes.map((item) => normalizar(item.nome)));
   for (const arquivo of arquivos) {
     for (const linhaOriginal of arquivo.texto.split(/\n+/)) {
@@ -211,16 +268,12 @@ function normalizar(valor: string): string {
 
 function similar(a: string, b: string): boolean {
   const palavrasA = a.split(" ").filter((palavra) => palavra.length >= 4 && !PALAVRAS_IGNORADAS.has(palavra));
-  if (palavrasA.length === 0) return false;
+  if (!palavrasA.length) return false;
   const palavrasB = new Set(b.split(" "));
-  const comuns = palavrasA.filter((palavra) => palavrasB.has(palavra)).length;
-  return comuns / palavrasA.length >= 0.6;
+  return palavrasA.filter((palavra) => palavrasB.has(palavra)).length / palavrasA.length >= 0.6;
 }
 
-function localizarPadrao(
-  arquivos: ArquivoEditalLido[],
-  padrao: RegExp,
-): { origem: string; trecho: string } | null {
+function localizarPadrao(arquivos: ArquivoEditalLido[], padrao: RegExp): { origem: string; trecho: string } | null {
   for (const arquivo of arquivos) {
     const texto = arquivo.texto.replace(/\s+/g, " ");
     const correspondencia = padrao.exec(texto);

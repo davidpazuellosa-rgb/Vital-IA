@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@napi-rs/canvas"],
   experimental: {
     serverActions: {
       // Documentos (contrato social, PDFs escaneados) podem passar de 1 MB,

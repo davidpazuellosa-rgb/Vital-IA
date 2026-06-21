@@ -13,6 +13,7 @@ export type ArquivoPncp = {
 
 export type ArquivoEditalLido = ArquivoPncp & {
   status: "lido" | "sem_texto" | "nao_suportado" | "erro";
+  metodoLeitura: "texto" | "ocr" | null;
   paginas: number;
   caracteres: number;
   texto: string;
@@ -44,7 +45,10 @@ export async function buscarArquivosPncp(numeroControlePNCP: string): Promise<Ar
   }));
 }
 
-export async function lerArquivoEdital(arquivo: ArquivoPncp): Promise<ArquivoEditalLido> {
+export async function lerArquivoEdital(
+  arquivo: ArquivoPncp,
+  opcoes?: { ocr?: (buffer: Uint8Array, totalPaginas: number, titulo: string) => Promise<string> },
+): Promise<ArquivoEditalLido> {
   try {
     const resposta = await fetch(arquivo.url, {
       headers: { Accept: "application/pdf,application/octet-stream,*/*" },
@@ -61,11 +65,21 @@ export async function lerArquivoEdital(arquivo: ArquivoPncp): Promise<ArquivoEdi
 
     const buffer = new Uint8Array(await resposta.arrayBuffer());
     const pdf = await getDocumentProxy(buffer);
-    const { text, totalPages } = await extractText(pdf, { mergePages: true });
-    const texto = (Array.isArray(text) ? text.join("\n") : text).trim();
+    const { text, totalPages } = await extractText(pdf, { mergePages: false });
+    let texto = text.map((pagina, indice) => `[Página ${indice + 1}]\n${pagina}`).join("\n\n").trim();
+    let metodoLeitura: ArquivoEditalLido["metodoLeitura"] = texto ? "texto" : null;
+    if (!texto && opcoes?.ocr) {
+      try {
+        texto = (await opcoes.ocr(buffer, totalPages, arquivo.titulo)).trim();
+        if (texto) metodoLeitura = "ocr";
+      } catch (error) {
+        console.error(`[OCR] Falha ao ler ${arquivo.titulo}:`, error instanceof Error ? error.message : error);
+      }
+    }
     return {
       ...arquivo,
       status: texto ? "lido" : "sem_texto",
+      metodoLeitura,
       paginas: totalPages,
       caracteres: texto.length,
       texto,
@@ -79,5 +93,5 @@ function resultadoVazio(
   arquivo: ArquivoPncp,
   status: ArquivoEditalLido["status"],
 ): ArquivoEditalLido {
-  return { ...arquivo, status, paginas: 0, caracteres: 0, texto: "" };
+  return { ...arquivo, status, metodoLeitura: null, paginas: 0, caracteres: 0, texto: "" };
 }

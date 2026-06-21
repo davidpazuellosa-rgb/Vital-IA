@@ -176,7 +176,7 @@ function ResultadoAnalise({ analise, licitacaoId }: { analise: AnaliseEdital; li
         {analise.arquivos.map((arquivo) => (
           <div key={arquivo.sequencial} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
             <FileCheck2 className={cn("size-4 shrink-0", arquivo.status === "lido" ? "text-primary" : "text-destructive")} />
-            <div className="min-w-0 flex-1"><p className="truncate font-medium">{arquivo.titulo}</p><p className="text-xs text-muted-foreground">{arquivo.tipo} · {arquivo.paginas} página(s)</p></div>
+            <div className="min-w-0 flex-1"><p className="truncate font-medium">{arquivo.titulo}</p><p className="text-xs text-muted-foreground">{arquivo.metodoLeitura === "ocr" ? "OCR Groq" : arquivo.tipo} · {arquivo.paginas} página(s)</p></div>
             <Badge variant="outline" className={arquivo.status === "lido" ? "border-transparent bg-primary/10 text-primary" : "text-destructive"}>{rotuloArquivo(arquivo.status)}</Badge>
           </div>
         ))}

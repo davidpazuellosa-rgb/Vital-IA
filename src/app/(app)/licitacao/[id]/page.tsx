@@ -26,6 +26,8 @@ import { PLATAFORMAS } from "@/lib/licitacoes/types";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 
+export const maxDuration = 300;
+
 const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
   PLATAFORMAS.map((p) => [p.id, p.nome]),
 );

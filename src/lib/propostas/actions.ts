@@ -5,7 +5,8 @@ import type { Documento } from "@/lib/documentos/types";
 import { buscarArquivosPncp, lerArquivoEdital } from "@/lib/licitacoes/providers/pncp-arquivos";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { createClient } from "@/lib/supabase/server";
-import { analisarConteudoEdital, type AnaliseEdital } from "./analise-edital";
+import { analisarConteudoEdital, analisarEditalHibrido, type AnaliseEdital } from "./analise-edital";
+import { extrairTextoPdfComOcrGroq } from "./groq";
 import { REPRESENTANTES_LEGAIS } from "./types";
 
 function texto(formData: FormData, campo: string): string {
@@ -46,7 +47,7 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const [{ data: licitacao }, { data: documentos }] = await Promise.all([
+  const [{ data: licitacao }, { data: documentos }, { data: empresa }] = await Promise.all([
     supabase
       .from("saved_licitacoes")
       .select("id, numero_controle_pncp")
@@ -54,6 +55,7 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
       .eq("user_id", user.id)
       .single(),
     supabase.from("documentos").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+    supabase.from("empresa").select("porte, natureza_juridica").eq("user_id", user.id).maybeSingle(),
   ]);
   if (!licitacao) throw new Error("Licitação não encontrada");
 
@@ -61,12 +63,34 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     buscarArquivosPncp(licitacao.numero_controle_pncp),
     buscarItensPncp(licitacao.numero_controle_pncp),
   ]);
-  const arquivos = await Promise.all(arquivosPncp.map(lerArquivoEdital));
-  const analise = analisarConteudoEdital({
+  const arquivos: Awaited<ReturnType<typeof lerArquivoEdital>>[] = [];
+  for (const arquivo of arquivosPncp) {
+    arquivos.push(await lerArquivoEdital(arquivo, {
+      ocr: process.env.GROQ_API_KEY ? extrairTextoPdfComOcrGroq : undefined,
+    }));
+  }
+  let analise: AnaliseEdital = analisarConteudoEdital({
     arquivos,
     documentosEmpresa: (documentos ?? []) as Documento[],
     itens,
   });
+
+  if (process.env.GROQ_API_KEY) {
+    try {
+      console.info("[Análise] Executando análise híbrida RegEx + Groq.");
+      analise = await analisarEditalHibrido({
+        arquivos,
+        documentosEmpresa: (documentos ?? []) as Documento[],
+        itens,
+        contextoEmpresa: [empresa?.porte && `Porte: ${empresa.porte}`, empresa?.natureza_juridica && `Natureza jurídica: ${empresa.natureza_juridica}`].filter(Boolean).join("; "),
+      });
+    } catch (error) {
+      console.error("[Análise] Groq indisponível; resultado local preservado:", error instanceof Error ? error.message : error);
+      analise.alertas.push("A análise semântica da Groq não pôde ser concluída. O checklist foi gerado pelo parser local e deve ser revisado.");
+    }
+  } else {
+    analise.alertas.push("GROQ_API_KEY não configurada. Análise realizada somente pelo parser local.");
+  }
 
   const { error } = await supabase.from("propostas").upsert({
     user_id: user.id,
