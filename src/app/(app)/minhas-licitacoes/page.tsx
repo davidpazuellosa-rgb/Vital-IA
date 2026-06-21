@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { Bookmark, Search, ChevronRight } from "lucide-react";
+import { Bookmark, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import { PLATAFORMAS, ETAPAS_LICITACAO, ETAPA_PADRAO, type EtapaSlug } from "@/lib/licitacoes/types";
+import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
 import { LicitacaoCard } from "@/components/licitacao-card";
 import { RemoverLicitacaoButton } from "@/components/remover-licitacao-button";
 import { EtapaSelect } from "@/components/etapa-select";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
+import { EtapasLicitacaoFilter } from "@/components/etapas-licitacao-filter";
 
 const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
   PLATAFORMAS.map((p) => [p.id, p.nome]),
@@ -49,7 +49,7 @@ export default async function MinhasLicitacoesPage() {
   // Agrupa por etapa do funil
   const porEtapa = new Map<string, SavedLicitacao[]>();
   for (const l of licitacoes) {
-    const etapa = l.etapa ?? ETAPA_PADRAO;
+    const etapa = normalizarEtapa(l.etapa);
     const lista = porEtapa.get(etapa) ?? [];
     lista.push(l);
     porEtapa.set(etapa, lista);
@@ -87,17 +87,15 @@ export default async function MinhasLicitacoesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
-          {ETAPAS_LICITACAO.map((etapa) => {
+        <EtapasLicitacaoFilter
+          etapas={ETAPAS_LICITACAO.map((etapa) => {
             const itens = porEtapa.get(etapa.slug) ?? [];
-            return (
-              <GrupoEtapa
-                key={etapa.slug}
-                titulo={etapa.nome}
-                descricao={etapa.descricao}
-                quantidade={itens.length}
-              >
-                {itens.length === 0 ? (
+            return {
+              slug: etapa.slug,
+              nome: etapa.nome,
+              descricao: etapa.descricao,
+              quantidade: itens.length,
+              conteudo: itens.length === 0 ? (
                   <p className="rounded-lg border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
                     Nenhuma licitação nesta etapa.
                   </p>
@@ -121,46 +119,17 @@ export default async function MinhasLicitacoesPage() {
                       action={
                         <div className="flex items-center gap-1.5">
                           <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />
-                          <EtapaSelect id={item.id} etapa={(item.etapa ?? ETAPA_PADRAO) as EtapaSlug} />
+                          <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
                           <RemoverLicitacaoButton id={item.id} />
                         </div>
                       }
                     />
                   ))
-                )}
-              </GrupoEtapa>
-            );
+                ),
+            };
           })}
-        </div>
+        />
       )}
     </div>
-  );
-}
-
-function GrupoEtapa({
-  titulo,
-  descricao,
-  quantidade,
-  children,
-}: {
-  titulo: string;
-  descricao: string;
-  quantidade: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <details open className="group rounded-xl border bg-card shadow-sm [&_summary::-webkit-details-marker]:hidden">
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 [details[open]_&]:rotate-90" />
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-tight">{titulo}</p>
-          <p className="truncate text-xs text-muted-foreground">{descricao}</p>
-        </div>
-        <Badge variant="secondary" className="shrink-0 font-medium tabular-nums">
-          {quantidade}
-        </Badge>
-      </summary>
-      <div className="flex flex-col gap-3 border-t p-3">{children}</div>
-    </details>
   );
 }

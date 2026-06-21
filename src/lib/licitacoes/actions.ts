@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { UnifiedLicitacao, type EtapaSlug } from "./types";
+import { normalizarEtapa, UnifiedLicitacao, type EtapaSlug } from "./types";
 import { buscarArquivosPncp } from "./providers/pncp-arquivos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -118,7 +118,7 @@ export async function atualizarEtapaLicitacao(id: string, etapa: EtapaSlug) {
 
   const { error } = await supabase
     .from("saved_licitacoes")
-    .update({ etapa })
+    .update({ etapa: normalizarEtapa(etapa) })
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw new Error(error.message);

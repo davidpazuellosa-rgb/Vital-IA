@@ -25,8 +25,24 @@ export const ETAPAS_LICITACAO: EtapaInfo[] = [
 
 export const ETAPA_PADRAO: EtapaSlug = "oportunidade";
 
+const ETAPAS_VALIDAS = new Set<string>(ETAPAS_LICITACAO.map((etapa) => etapa.slug));
+
+export const ETAPAS_LEGADAS: Record<string, EtapaSlug> = {
+  aberta: "oportunidade",
+  participando: "proposta_enviada",
+  recusada: "perdida",
+  concluida: "vencida",
+};
+
+export function normalizarEtapa(slug: string | null | undefined): EtapaSlug {
+  if (!slug) return ETAPA_PADRAO;
+  if (ETAPAS_VALIDAS.has(slug)) return slug as EtapaSlug;
+  return ETAPAS_LEGADAS[slug] ?? ETAPA_PADRAO;
+}
+
 export function nomeEtapa(slug: string): string {
-  return ETAPAS_LICITACAO.find((e) => e.slug === slug)?.nome ?? "Oportunidade";
+  const etapa = normalizarEtapa(slug);
+  return ETAPAS_LICITACAO.find((e) => e.slug === etapa)?.nome ?? "Oportunidade";
 }
 
 export const PLATAFORMAS: PlatformInfo[] = [
