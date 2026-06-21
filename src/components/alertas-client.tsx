@@ -10,17 +10,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, type Alerta } from "@/lib/alertas/actions";
+import { Send } from "lucide-react";
+import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, type Alerta } from "@/lib/alertas/actions";
 
 export function TelegramConfig({ chatId }: { chatId: string }) {
   const [valor, setValor] = useState(chatId);
+  const [salvo, setSalvo] = useState(chatId);
   const [pendente, startTransition] = useTransition();
+  const [testando, startTeste] = useTransition();
 
   function salvar() {
     const t = toast.loading("Salvando…");
     startTransition(async () => {
       try {
         await salvarChatTelegram(valor);
+        setSalvo(valor);
         toast.success("Telegram configurado", { id: t });
       } catch (e) {
         toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
@@ -28,20 +32,44 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
     });
   }
 
+  function testar() {
+    const t = toast.loading("Enviando mensagem de teste…");
+    startTeste(async () => {
+      try {
+        await enviarTesteTelegram();
+        toast.success("Teste enviado", { id: t, description: "Confira o Telegram." });
+      } catch (e) {
+        toast.error("Falha no envio", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <div className="flex flex-1 flex-col gap-1.5">
-        <Label htmlFor="telegram_chat_id">Telegram chat id</Label>
-        <Input
-          id="telegram_chat_id"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="Ex.: 123456789"
-        />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="telegram_chat_id">Telegram chat id</Label>
+          <Input
+            id="telegram_chat_id"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            placeholder="Ex.: 123456789"
+          />
+        </div>
+        <Button onClick={salvar} disabled={pendente || valor === salvo} className="shrink-0">
+          {pendente && <Loader2 className="animate-spin" />} Salvar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={testar}
+          disabled={testando || !salvo || valor !== salvo}
+          className="shrink-0"
+          title={!salvo ? "Salve o chat id primeiro" : "Enviar mensagem de teste"}
+        >
+          {testando ? <Loader2 className="animate-spin" /> : <Send />} Enviar teste
+        </Button>
       </div>
-      <Button onClick={salvar} disabled={pendente || valor === chatId} className="shrink-0">
-        {pendente && <Loader2 className="animate-spin" />} Salvar
-      </Button>
+      {!salvo && <p className="text-xs text-muted-foreground">Salve o chat id para liberar o teste.</p>}
     </div>
   );
 }

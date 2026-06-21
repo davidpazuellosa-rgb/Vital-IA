@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { enviarTelegram } from "@/lib/notificacoes/telegram";
 
 export type Alerta = {
   id: string;
@@ -80,6 +81,28 @@ export async function removerAlerta(id: string) {
   const { error } = await supabase.from("alertas").delete().eq("id", id).eq("user_id", user.id);
   if (error) throw new Error(error.message);
   revalidatePath("/vital-norte/alertas");
+}
+
+export async function enviarTesteTelegram() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { data } = await supabase
+    .from("notificacoes_config")
+    .select("telegram_chat_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const chatId = (data?.telegram_chat_id as string)?.trim();
+  if (!chatId) throw new Error("Configure seu chat id do Telegram primeiro.");
+
+  const ok = await enviarTelegram(
+    chatId,
+    "✅ <b>Vital.IA — Alertas</b>\nNotificações configuradas! Você vai receber novas oportunidades de licitação por aqui. 🚀",
+  );
+  if (!ok) {
+    throw new Error("Não foi possível enviar. Verifique o token do bot e se você já iniciou conversa com ele.");
+  }
 }
 
 export async function salvarChatTelegram(chatId: string) {
