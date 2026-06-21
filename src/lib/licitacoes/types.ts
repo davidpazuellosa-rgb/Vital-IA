@@ -19,8 +19,8 @@ export const ETAPAS_LICITACAO: EtapaInfo[] = [
   { slug: "oportunidade", nome: "Oportunidade", descricao: "Licitações salvas em análise" },
   { slug: "proposta_pronta", nome: "Proposta Pronta", descricao: "Proposta montada (assinada/anexada ou não)" },
   { slug: "proposta_enviada", nome: "Proposta Enviada", descricao: "Proposta enviada ao órgão, aguardando resultado" },
-  { slug: "vencida", nome: "Vencida", descricao: "Ganha — vira cliente" },
-  { slug: "perdida", nome: "Perdida", descricao: "Não seguirá adiante" },
+  { slug: "vencida", nome: "Licitação Vencida", descricao: "Ganha — vira cliente" },
+  { slug: "perdida", nome: "Licitação Perdida", descricao: "Não seguirá adiante" },
 ];
 
 export const ETAPA_PADRAO: EtapaSlug = "oportunidade";
