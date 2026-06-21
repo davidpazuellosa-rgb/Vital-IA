@@ -97,7 +97,8 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     const extra = novas.length > 8 ? `\n\n+${novas.length - 8} outra(s).` : "";
     const texto = `🔔 <b>${escapeHtml(a.nome)}</b> — ${novas.length} nova(s) oportunidade(s)\n\n${linhas.join("\n\n")}${extra}`;
 
-    if (await enviarTelegram(chatId, texto)) totalEnviados += novas.length;
+    const resultado = await enviarTelegram(chatId, texto);
+    if (resultado.ok) totalEnviados += novas.length;
   }
 
   return { alertas: alertas.length, novas: totalNovas, enviados: totalEnviados };

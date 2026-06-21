@@ -96,22 +96,26 @@ export async function enviarTesteTelegram() {
   const chatId = (data?.telegram_chat_id as string)?.trim();
   if (!chatId) throw new Error("Configure seu chat id do Telegram primeiro.");
 
-  const ok = await enviarTelegram(
+  const resultado = await enviarTelegram(
     chatId,
     "✅ <b>Vital.IA — Alertas</b>\nNotificações configuradas! Você vai receber novas oportunidades de licitação por aqui. 🚀",
   );
-  if (!ok) {
-    throw new Error("Não foi possível enviar. Verifique o token do bot e se você já iniciou conversa com ele.");
-  }
+  if (!resultado.ok) return { ok: false, erro: resultado.erro ?? "Não foi possível enviar. Verifique o token do bot e se você já iniciou conversa com ele." };
+  return { ok: true };
 }
 
 export async function salvarChatTelegram(chatId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const valor = chatId.trim();
+  if (!/^-?\d+$/.test(valor)) {
+    return { ok: false, erro: "O chat id do Telegram deve ser numérico. Ex.: 5989023725." };
+  }
   const { error } = await supabase
     .from("notificacoes_config")
-    .upsert({ user_id: user.id, telegram_chat_id: chatId.trim(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-  if (error) throw new Error(error.message);
+    .upsert({ user_id: user.id, telegram_chat_id: valor, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) return { ok: false, erro: error.message };
   revalidatePath("/vital-norte/alertas");
+  return { ok: true };
 }

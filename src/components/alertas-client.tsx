@@ -23,9 +23,14 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
     const t = toast.loading("Salvando…");
     startTransition(async () => {
       try {
-        await salvarChatTelegram(valor);
-        setSalvo(valor);
-        toast.success("Telegram configurado", { id: t });
+        const resultado = await salvarChatTelegram(valor);
+        if (resultado.ok) {
+          setSalvo(valor.trim());
+          setValor(valor.trim());
+          toast.success("Telegram configurado", { id: t });
+        } else {
+          toast.error("Não foi possível salvar", { id: t, description: resultado.erro });
+        }
       } catch (e) {
         toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
       }
@@ -36,8 +41,12 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
     const t = toast.loading("Enviando mensagem de teste…");
     startTeste(async () => {
       try {
-        await enviarTesteTelegram();
-        toast.success("Teste enviado", { id: t, description: "Confira o Telegram." });
+        const resultado = await enviarTesteTelegram();
+        if (resultado.ok) {
+          toast.success("Teste enviado", { id: t, description: "Confira o Telegram." });
+        } else {
+          toast.error("Falha no envio", { id: t, description: resultado.erro });
+        }
       } catch (e) {
         toast.error("Falha no envio", { id: t, description: e instanceof Error ? e.message : undefined });
       }
@@ -53,6 +62,7 @@ export function TelegramConfig({ chatId }: { chatId: string }) {
             id="telegram_chat_id"
             value={valor}
             onChange={(e) => setValor(e.target.value)}
+            inputMode="numeric"
             placeholder="Ex.: 123456789"
           />
         </div>

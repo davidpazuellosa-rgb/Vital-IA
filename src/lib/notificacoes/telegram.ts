@@ -1,9 +1,15 @@
-/** Envia uma mensagem via Telegram Bot API. Retorna true se OK. */
-export async function enviarTelegram(chatId: string, texto: string): Promise<boolean> {
+export type ResultadoTelegram = {
+  ok: boolean;
+  erro?: string;
+};
+
+/** Envia uma mensagem via Telegram Bot API. */
+export async function enviarTelegram(chatId: string, texto: string): Promise<ResultadoTelegram> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || !chatId) return false;
+  if (!token) return { ok: false, erro: "TELEGRAM_BOT_TOKEN não configurado no ambiente." };
+  if (!chatId) return { ok: false, erro: "Chat id do Telegram não configurado." };
   try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const r = await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -14,8 +20,10 @@ export async function enviarTelegram(chatId: string, texto: string): Promise<boo
       }),
       signal: AbortSignal.timeout(15000),
     });
-    return r.ok;
+    if (r.ok) return { ok: true };
+    const corpo = await r.json().catch(() => null) as { description?: string } | null;
+    return { ok: false, erro: corpo?.description ?? "Telegram retornou HTTP " + r.status + "." };
   } catch {
-    return false;
+    return { ok: false, erro: "Não foi possível conectar ao Telegram." };
   }
 }
