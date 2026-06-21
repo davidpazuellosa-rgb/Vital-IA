@@ -21,7 +21,8 @@ export async function buscarCompraPncp(numeroControlePNCP: string): Promise<Unif
   const ref = parseNumeroControle(numeroControlePNCP);
   if (!ref) return null;
 
-  const url = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
+  // O detalhe da compra foi movido para a API de consulta (/api/consulta/v1)
+  const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
   let compra: PncpCompraBruta;
   try {
     const resposta = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
