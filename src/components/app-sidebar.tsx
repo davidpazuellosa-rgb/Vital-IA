@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +32,7 @@ const VITAL_NORTE_ITEMS = [
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
   { href: "/vital-norte/dados", label: "Dados da Empresa", icon: FileText },
   { href: "/vital-norte/clientes", label: "Clientes", icon: Users },
+  { href: "/vital-norte/alertas", label: "Alertas", icon: Bell },
 ];
 
 export function AppSidebar({ userEmail }: { userEmail: string }) {
