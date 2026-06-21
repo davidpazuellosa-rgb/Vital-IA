@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { analisarEditalLicitacao } from "@/lib/propostas/actions";
+import { analisarEditalLicitacao, obterPropostaLicitacao, salvarRascunhoProposta, type ItemPropostaRascunho } from "@/lib/propostas/actions";
 import type { AnaliseEdital, RequisitoEdital, StatusRequisito } from "@/lib/propostas/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,8 @@ export function CriarPropostaDialog({
 }) {
   const [aberto, setAberto] = useState(false);
   const [analise, setAnalise] = useState<AnaliseEdital | null>(null);
+  const [itensSalvos, setItensSalvos] = useState<ItemPropostaRascunho[]>([]);
+  const [rascunhoCarregado, setRascunhoCarregado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
   const [pendente, startTransition] = useTransition();
@@ -56,15 +58,37 @@ export function CriarPropostaDialog({
     startTransition(async () => {
       try {
         setAnalise(await analisarEditalLicitacao(licitacaoId));
+        setItensSalvos([]);
+        setRascunhoCarregado(false);
       } catch (error) {
         setErro(error instanceof Error ? error.message : "Não foi possível analisar o edital.");
       }
     });
   }
 
+  function carregarProposta() {
+    setErro(null);
+    startTransition(async () => {
+      try {
+        const proposta = await obterPropostaLicitacao(licitacaoId);
+        if (proposta) {
+          setAnalise(proposta.analise);
+          setItensSalvos(proposta.itens);
+          setRascunhoCarregado(true);
+        } else {
+          setAnalise(await analisarEditalLicitacao(licitacaoId));
+          setItensSalvos([]);
+          setRascunhoCarregado(false);
+        }
+      } catch (error) {
+        setErro(error instanceof Error ? error.message : "Não foi possível carregar a proposta.");
+      }
+    });
+  }
+
   function alterarAbertura(novoEstado: boolean) {
     setAberto(novoEstado);
-    if (novoEstado && !analise && !pendente) executarAnalise();
+    if (novoEstado && !analise && !pendente) carregarProposta();
   }
 
   return (
@@ -90,9 +114,12 @@ export function CriarPropostaDialog({
           {analise && !pendente && (
             <ResultadoAnalise
               analise={analise}
+              itensSalvos={itensSalvos}
+              rascunhoCarregado={rascunhoCarregado}
               licitacaoId={licitacaoId}
               formularioId={formularioId}
               onExportandoChange={setExportando}
+              onItensSalvosChange={setItensSalvos}
             />
           )}
         </div>
@@ -141,14 +168,20 @@ function EstadoErro({ mensagem, onTentarNovamente }: { mensagem: string; onTenta
 
 function ResultadoAnalise({
   analise,
+  itensSalvos,
+  rascunhoCarregado,
   licitacaoId,
   formularioId,
   onExportandoChange,
+  onItensSalvosChange,
 }: {
   analise: AnaliseEdital;
+  itensSalvos: ItemPropostaRascunho[];
+  rascunhoCarregado: boolean;
   licitacaoId: string;
   formularioId: string;
   onExportandoChange: (exportando: boolean) => void;
+  onItensSalvosChange: (itens: ItemPropostaRascunho[]) => void;
 }) {
   const disponiveis = analise.documentos.filter((item) => item.status === "disponivel").length;
   const pendencias = analise.documentos.filter((item) => item.status === "faltante" || item.status === "vencido").length;
@@ -169,6 +202,12 @@ function ResultadoAnalise({
         <Resumo rotulo="Pendências" valor={String(pendencias)} alerta={pendencias > 0} />
       </div>
 
+      {rascunhoCarregado && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+          Proposta já existente carregada. Use “Analisar novamente” só se quiser refazer a leitura do edital.
+        </div>
+      )}
+
       <GrupoResultado titulo="Documentos exigidos" descricao="Cruzamento com o acervo da Vital Norte" quantidade={analise.documentos.length} aberto>
         {analise.documentos.length > 0 ? analise.documentos.map((item) => <LinhaRequisito key={`${item.nome}-${item.origem}`} item={item} />) : <Vazio texto="Nenhum documento de habilitação foi identificado automaticamente." />}
       </GrupoResultado>
@@ -178,10 +217,13 @@ function ResultadoAnalise({
       </GrupoResultado>
 
       <MontagemProposta
+        key={analise.analisadoEm}
         analise={analise}
+        itensSalvos={itensSalvos}
         licitacaoId={licitacaoId}
         formularioId={formularioId}
         onExportandoChange={onExportandoChange}
+        onItensSalvosChange={onItensSalvosChange}
       />
 
       <GrupoResultado titulo="Condições identificadas" descricao="Validade, entrega, pagamento, local e garantia" quantidade={analise.condicoes.length}>
@@ -213,25 +255,35 @@ type ItemEmEdicao = AnaliseEdital["itens"][number] & {
 
 function MontagemProposta({
   analise,
+  itensSalvos,
   licitacaoId,
   formularioId,
   onExportandoChange,
+  onItensSalvosChange,
 }: {
   analise: AnaliseEdital;
+  itensSalvos: ItemPropostaRascunho[];
   licitacaoId: string;
   formularioId: string;
   onExportandoChange: (exportando: boolean) => void;
+  onItensSalvosChange: (itens: ItemPropostaRascunho[]) => void;
 }) {
   const [itens, setItens] = useState<ItemEmEdicao[]>(() => analise.itens.map((item) => ({
     ...item,
-    selecionado: true,
-    marca: "",
-    valorUnitario: item.valorUnitarioEstimado ? String(item.valorUnitarioEstimado) : "",
+    selecionado: itensSalvos.find((salvo) => salvo.numeroItem === item.numeroItem)?.selecionado ?? true,
+    marca: itensSalvos.find((salvo) => salvo.numeroItem === item.numeroItem)?.marca ?? "",
+    valorUnitario: String(itensSalvos.find((salvo) => salvo.numeroItem === item.numeroItem)?.valorUnitario || item.valorUnitarioEstimado || ""),
   })));
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [declaracoesAssinadas, setDeclaracoesAssinadas] = useState<File | null>(null);
   const [mensagemArquivo, setMensagemArquivo] = useState<string | null>(null);
+  const [mensagemDeclaracoes, setMensagemDeclaracoes] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [salvandoRascunho, setSalvandoRascunho] = useState(false);
+  const [mensagemRascunho, setMensagemRascunho] = useState<string | null>(null);
+  const [baixandoDeclaracoes, setBaixandoDeclaracoes] = useState(false);
   const inputArquivo = useRef<HTMLInputElement>(null);
+  const inputDeclaracoes = useRef<HTMLInputElement>(null);
   const total = itens.reduce((soma, item) => {
     if (!item.selecionado) return soma;
     return soma + (item.quantidade ?? 0) * numeroEntrada(item.valorUnitario);
@@ -241,6 +293,35 @@ function MontagemProposta({
 
   function atualizar(numeroItem: number, campo: "selecionado" | "marca" | "valorUnitario", valor: boolean | string) {
     setItens((atuais) => atuais.map((item) => item.numeroItem === numeroItem ? { ...item, [campo]: valor } : item));
+    setMensagemRascunho(null);
+  }
+
+  function itensParaRascunho(): ItemPropostaRascunho[] {
+    return itens.map((item) => ({
+      numeroItem: item.numeroItem,
+      descricao: item.descricao,
+      quantidade: item.quantidade ?? null,
+      unidadeMedida: item.unidadeMedida,
+      marca: item.marca,
+      valorUnitario: numeroEntrada(item.valorUnitario),
+      selecionado: item.selecionado,
+    }));
+  }
+
+  async function salvarRascunho() {
+    setErro(null);
+    setMensagemRascunho(null);
+    setSalvandoRascunho(true);
+    try {
+      const rascunho = itensParaRascunho();
+      await salvarRascunhoProposta(licitacaoId, rascunho);
+      onItensSalvosChange(rascunho);
+      setMensagemRascunho("Rascunho salvo. Ao abrir esta licitação novamente, a mesma proposta será carregada.");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível salvar o rascunho.");
+    } finally {
+      setSalvandoRascunho(false);
+    }
   }
 
   async function importarArquivo(novoArquivo: File | null) {
@@ -282,6 +363,48 @@ function MontagemProposta({
     }
   }
 
+  async function baixarDeclaracoes() {
+    setErro(null);
+    setBaixandoDeclaracoes(true);
+    try {
+      const resposta = await fetch("/api/propostas/" + licitacaoId + "/declaracoes");
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => null) as { erro?: string } | null;
+        throw new Error(corpo?.erro ?? "Não foi possível gerar as declarações.");
+      }
+      const blob = await resposta.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nomeDownload(resposta.headers.get("content-disposition"));
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível gerar as declarações.");
+    } finally {
+      setBaixandoDeclaracoes(false);
+    }
+  }
+
+  function importarDeclaracoesAssinadas(novoArquivo: File | null) {
+    setErro(null);
+    setMensagemDeclaracoes(null);
+    setDeclaracoesAssinadas(novoArquivo);
+    if (!novoArquivo) return;
+    const ehPdf = novoArquivo.type === "application/pdf" || novoArquivo.name.toLowerCase().endsWith(".pdf");
+    if (!ehPdf) {
+      setDeclaracoesAssinadas(null);
+      setErro("Envie as declarações assinadas em PDF.");
+      return;
+    }
+    if (novoArquivo.size > 20 * 1024 * 1024) {
+      setDeclaracoesAssinadas(null);
+      setErro("O PDF de declarações assinadas deve ter no máximo 20 MB.");
+      return;
+    }
+    setMensagemDeclaracoes("PDF assinado importado. Ele será anexado ao final da proposta exportada.");
+  }
+
   async function exportar() {
     setErro(null);
     if (!selecionados.length) return setErro("Selecione ao menos um item para a proposta.");
@@ -289,6 +412,7 @@ function MontagemProposta({
     onExportandoChange(true);
     try {
       const formData = new FormData();
+      formData.set("rascunho_itens", JSON.stringify(itensParaRascunho()));
       formData.set("itens", JSON.stringify(preenchidos.map((item) => ({
         numeroItem: item.numeroItem,
         descricao: item.descricao,
@@ -298,6 +422,7 @@ function MontagemProposta({
         valorUnitario: numeroEntrada(item.valorUnitario),
       }))));
       if (arquivo?.type.startsWith("image/")) formData.set("arquivo_apoio", arquivo);
+      if (declaracoesAssinadas) formData.set("declaracoes_assinadas", declaracoesAssinadas);
       const resposta = await fetch(`/api/propostas/${licitacaoId}/pdf`, { method: "POST", body: formData });
       if (!resposta.ok) {
         const corpo = await resposta.json().catch(() => null) as { erro?: string } | null;
@@ -347,6 +472,33 @@ function MontagemProposta({
           {mensagemArquivo && <p className="mt-1 text-xs text-muted-foreground">{mensagemArquivo}</p>}
         </div>
 
+        <div className="rounded-lg border border-dashed p-3">
+          <input
+            ref={inputDeclaracoes}
+            type="file"
+            className="sr-only"
+            accept="application/pdf,.pdf"
+            onChange={(event) => importarDeclaracoesAssinadas(event.target.files?.[0] ?? null)}
+          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">Declarações para assinatura</p>
+              <p className="text-xs text-muted-foreground">Baixe um PDF único com uma página por declaração, assine como David e importe o PDF assinado se o edital pedir anexos separados.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => void baixarDeclaracoes()} disabled={baixandoDeclaracoes}>
+                {baixandoDeclaracoes ? <Loader2 className="animate-spin" /> : <Download />}
+                {baixandoDeclaracoes ? "Gerando..." : "Baixar declarações"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => inputDeclaracoes.current?.click()}>
+                <Upload /> Importar assinado
+              </Button>
+            </div>
+          </div>
+          {declaracoesAssinadas && <p className="mt-2 truncate text-xs font-medium text-primary">{declaracoesAssinadas.name}</p>}
+          {mensagemDeclaracoes && <p className="mt-1 text-xs text-muted-foreground">{mensagemDeclaracoes}</p>}
+        </div>
+
         <div className="overflow-hidden rounded-lg border">
           <div className="hidden grid-cols-[32px_minmax(0,1fr)_120px_135px] gap-2 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
             <span /><span>Item</span><span>Marca</span><span>Valor unitário</span>
@@ -363,9 +515,14 @@ function MontagemProposta({
           </div>
         </div>
 
-        <div className="rounded-lg bg-muted/50 p-3">
+        <div className="flex flex-col gap-3 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-xs text-muted-foreground">Valor global da proposta</p><p className="text-lg font-semibold tabular-nums text-primary">{moeda(total)}</p><p className="text-[11px] text-muted-foreground">{selecionados.length} item(ns) selecionado(s)</p></div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void salvarRascunho()} disabled={salvandoRascunho}>
+            {salvandoRascunho ? <Loader2 className="animate-spin" /> : <Check />}
+            {salvandoRascunho ? "Salvando..." : "Salvar rascunho"}
+          </Button>
         </div>
+        {mensagemRascunho && <p className="text-xs text-primary">{mensagemRascunho}</p>}
         {erro && <p className="flex items-start gap-2 text-xs text-destructive"><CircleAlert className="mt-0.5 size-3.5 shrink-0" />{erro}</p>}
       </div>
     </form>

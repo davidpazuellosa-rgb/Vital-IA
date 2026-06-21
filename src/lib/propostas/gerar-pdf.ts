@@ -48,6 +48,7 @@ export async function gerarPdfProposta({
   itens,
   imagemApoio,
   anexos,
+  declaracoesAssinadas,
 }: {
   empresa: EmpresaDados;
   configuracao: PropostaConfiguracao;
@@ -56,6 +57,7 @@ export async function gerarPdfProposta({
   itens: ItemPropostaPdf[];
   imagemApoio?: { nome: string; tipo: string; bytes: Uint8Array } | null;
   anexos?: AnexoPdf[];
+  declaracoesAssinadas?: AnexoPdf | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
@@ -101,6 +103,10 @@ export async function gerarPdfProposta({
   declaracoes.forEach((item, indice) => paragrafoNumerado(ctx, indice + 1, declaracaoSegura(item.nome)));
   paragrafoNumerado(ctx, declaracoes.length + 1, "Declaramos que examinamos o edital e seus anexos e que os preços contemplam todos os custos necessários ao cumprimento da contratação.");
 
+  if (!declaracoesAssinadas) {
+    adicionarPaginasDeclaracoes(ctx, { empresa, configuracao, licitacao, analise });
+  }
+
   secao(ctx, "5. LOCAL, DATA E ASSINATURA");
   texto(ctx, `${empresa.municipio || licitacao.municipio}, ${formatarData(new Date())}.`, { align: "center" });
   espaco(ctx, 32);
@@ -115,14 +121,17 @@ export async function gerarPdfProposta({
     espaco(ctx, 14);
     anexos.forEach((anexo, indice) => texto(ctx, `${indice + 1}. ${limpar(anexo.nome)}`, { size: 9 }));
     for (const anexo of anexos) {
-      try {
-        const origem = await PDFDocument.load(anexo.bytes, { ignoreEncryption: true });
-        const paginas = await doc.copyPages(origem, origem.getPageIndices());
-        paginas.forEach((pagina) => doc.addPage(pagina));
-      } catch {
-        // Um anexo corrompido não deve impedir a geração da proposta comercial.
-      }
+      await anexarPdf(doc, anexo);
     }
+  }
+
+  if (declaracoesAssinadas) {
+    novaPagina(ctx);
+    titulo(ctx, "7. DECLARAÇÕES ASSINADAS");
+    texto(ctx, "Caderno de declarações assinado e importado para esta proposta.", { align: "center", color: CINZA });
+    espaco(ctx, 10);
+    texto(ctx, declaracoesAssinadas.nome, { align: "center", size: 8, color: CINZA });
+    await anexarPdf(doc, declaracoesAssinadas);
   }
 
   rodape(ctx);
@@ -130,6 +139,102 @@ export async function gerarPdfProposta({
   doc.setAuthor(empresa.razao_social || "Vital Norte");
   doc.setCreator("Vital.IA");
   return doc.save();
+}
+
+export async function gerarPdfDeclaracoes({
+  empresa,
+  configuracao,
+  licitacao,
+  analise,
+}: {
+  empresa: EmpresaDados;
+  configuracao: PropostaConfiguracao;
+  licitacao: LicitacaoPropostaPdf;
+  analise: AnaliseEdital;
+}): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const regular = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage(A4);
+  const ctx: Contexto = { doc, page, regular, bold, y: 788, pagina: 1 };
+
+  cabecalho(ctx, empresa.nome_fantasia || empresa.razao_social || "Vital Norte");
+  titulo(ctx, "CADERNO DE DECLARAÇÕES");
+  texto(ctx, limpar(licitacao.descricao || licitacao.titulo), { size: 9, lineHeight: 13, align: "center" });
+  texto(ctx, limpar(licitacao.modalidade) + " - " + limpar(licitacao.numero_controle_pncp), { size: 8, align: "center", color: CINZA });
+  espaco(ctx, 12);
+  texto(ctx, "Este arquivo reúne as declarações identificadas no edital em páginas individuais, para conferência e assinatura do representante legal.", { size: 9, lineHeight: 13 });
+
+  adicionarPaginasDeclaracoes(ctx, { empresa, configuracao, licitacao, analise });
+  rodape(ctx);
+  doc.setTitle("Declarações - " + limpar(licitacao.numero_controle_pncp));
+  doc.setAuthor(empresa.razao_social || "Vital Norte");
+  doc.setCreator("Vital.IA");
+  return doc.save();
+}
+
+async function anexarPdf(doc: PDFDocument, anexo: AnexoPdf) {
+  try {
+    const origem = await PDFDocument.load(anexo.bytes, { ignoreEncryption: true });
+    const paginas = await doc.copyPages(origem, origem.getPageIndices());
+    paginas.forEach((pagina) => doc.addPage(pagina));
+  } catch {
+    // Um anexo corrompido não deve impedir a geração da proposta comercial.
+  }
+}
+
+function adicionarPaginasDeclaracoes(
+  ctx: Contexto,
+  {
+    empresa,
+    configuracao,
+    licitacao,
+    analise,
+  }: {
+    empresa: EmpresaDados;
+    configuracao: PropostaConfiguracao;
+    licitacao: LicitacaoPropostaPdf;
+    analise: AnaliseEdital;
+  },
+) {
+  const declaracoes = declaracoesParaAssinatura(analise);
+  declaracoes.forEach((declaracao, indice) => {
+    novaPagina(ctx);
+    titulo(ctx, "DECLARAÇÃO " + (indice + 1));
+    texto(ctx, declaracao.titulo, { bold: true, align: "center", size: 11 });
+    espaco(ctx, 10);
+    campo(ctx, "Licitação", licitacao.numero_controle_pncp);
+    campo(ctx, "Órgão", licitacao.orgao);
+    campo(ctx, "Empresa", [empresa.razao_social, empresa.cnpj && "CNPJ " + empresa.cnpj].filter(Boolean).join(" - "));
+    espaco(ctx, 12);
+    texto(ctx, declaracao.texto, { size: 10, lineHeight: 15 });
+    if (declaracao.fonte) {
+      espaco(ctx, 8);
+      texto(ctx, "Fonte no edital: " + resumir(declaracao.fonte, 500), { size: 7.5, lineHeight: 11, color: CINZA });
+    }
+    espaco(ctx, 28);
+    texto(ctx, (empresa.municipio || licitacao.municipio) + ", " + formatarData(new Date()) + ".", { align: "center" });
+    espaco(ctx, 34);
+    linhaAssinatura(ctx, configuracao.representante_legal || "David", configuracao.representante_cargo, empresa.razao_social);
+  });
+}
+
+function declaracoesParaAssinatura(analise: AnaliseEdital): Array<{ titulo: string; texto: string; fonte: string }> {
+  const base = analise.declaracoes.length > 0
+    ? analise.declaracoes.map((item) => ({ titulo: item.nome, texto: declaracaoSegura(item.nome), fonte: item.trecho }))
+    : [{
+      titulo: "Declaração de atendimento ao edital e ao Termo de Referência",
+      texto: declaracaoSegura("Declaração de atendimento ao edital e ao Termo de Referência"),
+      fonte: "",
+    }];
+  return [
+    ...base,
+    {
+      titulo: "Declaração de ciência dos custos da contratação",
+      texto: "Declaramos que examinamos o edital e seus anexos e que os preços contemplam todos os custos necessários ao cumprimento da contratação.",
+      fonte: "",
+    },
+  ];
 }
 
 function cabecalho(ctx: Contexto, empresa: string) {

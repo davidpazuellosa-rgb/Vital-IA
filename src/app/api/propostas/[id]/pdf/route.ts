@@ -20,6 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const formData = await request.formData();
     const itens = validarItens(formData.get("itens"));
+    const rascunhoItens = validarItensRascunho(formData.get("rascunho_itens"));
     if (itens.length === 0) return NextResponse.json({ erro: "Selecione e preencha ao menos um item." }, { status: 400 });
 
     const [{ data: licitacao }, { data: proposta }, { data: empresa }, { data: configuracao }, { data: documentos }] = await Promise.all([
@@ -36,6 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const arquivo = formData.get("arquivo_apoio");
     const imagemApoio = await lerImagemApoio(arquivo);
+    const declaracoesAssinadas = await lerDeclaracoesAssinadas(formData.get("declaracoes_assinadas"));
     const anexos = await baixarDocumentosExigidos(
       supabase,
       analise,
@@ -50,6 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       itens,
       imagemApoio,
       anexos,
+      declaracoesAssinadas,
     });
 
     await supabase.from("propostas").upsert({
@@ -58,7 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       status: "gerada",
       validade_dias: configuracao?.validade_dias ?? CONFIGURACAO_PROPOSTA_PADRAO.validade_dias,
       observacoes: configuracao?.observacoes_padrao ?? "",
-      itens,
+      itens: rascunhoItens.length ? rascunhoItens : itens,
       analise_edital: analise,
       edital_analisado_em: analise.analisadoEm,
       updated_at: new Date().toISOString(),
@@ -100,11 +103,42 @@ function validarItens(valor: FormDataEntryValue | null): ItemPropostaPdf[] {
   });
 }
 
+function validarItensRascunho(valor: FormDataEntryValue | null) {
+  if (typeof valor !== "string") return [];
+  const dados = JSON.parse(valor) as unknown;
+  if (!Array.isArray(dados)) return [];
+  return dados.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const registro = item as Record<string, unknown>;
+    const numeroItem = Number(registro.numeroItem);
+    if (!Number.isFinite(numeroItem)) return [];
+    const quantidade = registro.quantidade == null ? null : Number(registro.quantidade);
+    const valorUnitario = Number(registro.valorUnitario);
+    return [{
+      numeroItem,
+      descricao: String(registro.descricao ?? ""),
+      quantidade: Number.isFinite(quantidade) ? quantidade : null,
+      unidadeMedida: String(registro.unidadeMedida ?? ""),
+      marca: String(registro.marca ?? ""),
+      valorUnitario: Number.isFinite(valorUnitario) ? valorUnitario : 0,
+      selecionado: registro.selecionado !== false,
+    }];
+  });
+}
+
 async function lerImagemApoio(valor: FormDataEntryValue | null) {
   if (!(valor instanceof File) || valor.size === 0) return null;
   if (valor.size > 10 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 10 MB.");
   if (!new Set(["image/png", "image/jpeg"]).has(valor.type)) return null;
   return { nome: valor.name, tipo: valor.type, bytes: new Uint8Array(await valor.arrayBuffer()) };
+}
+
+async function lerDeclaracoesAssinadas(valor: FormDataEntryValue | null): Promise<AnexoPdf | null> {
+  if (!(valor instanceof File) || valor.size === 0) return null;
+  if (valor.size > 20 * 1024 * 1024) throw new Error("O PDF de declarações assinadas deve ter no máximo 20 MB.");
+  const ehPdf = valor.type === "application/pdf" || valor.name.toLowerCase().endsWith(".pdf");
+  if (!ehPdf) throw new Error("Envie as declarações assinadas em PDF.");
+  return { nome: valor.name, bytes: new Uint8Array(await valor.arrayBuffer()) };
 }
 
 async function baixarDocumentosExigidos(

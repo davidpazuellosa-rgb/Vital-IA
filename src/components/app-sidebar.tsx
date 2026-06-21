@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileText, Users } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +25,7 @@ import { signOut } from "@/app/login/actions";
 const NAV_ITEMS = [
   { href: "/busca", label: "Busca", icon: Search },
   { href: "/minhas-licitacoes", label: "Minhas Licitações", icon: Bookmark },
+  { href: "/assinador-propostas", label: "Assinador de Propostas", icon: FileSignature },
 ];
 
 const VITAL_NORTE_ITEMS = [
