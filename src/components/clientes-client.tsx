@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +38,12 @@ export function AdicionarCliente() {
       try {
         const id = await criarCliente(fd);
         setAberto(false);
+        toast.success("Cliente criado");
         router.push(`/vital-norte/clientes/${id}`);
       } catch (err) {
-        setErro(err instanceof Error ? err.message : "Erro ao criar cliente.");
+        const msg = err instanceof Error ? err.message : "Erro ao criar cliente.";
+        setErro(msg);
+        toast.error("Não foi possível criar o cliente", { description: msg });
       }
     });
   }
@@ -98,6 +102,7 @@ export function ClienteDocUpload({
     const nome = (fd.get("nome") as string)?.trim();
     if (!(file instanceof File) || file.size === 0) { setErro("Selecione um arquivo."); return; }
 
+    const tToast = toast.loading("Enviando documento…");
     startTransition(async () => {
       try {
         const supabase = createClient();
@@ -112,8 +117,11 @@ export function ClienteDocUpload({
         await registrarClienteDocumento({ clienteId, contratacaoId, tipo, nome: nome || file.name, path, arquivoNome: file.name });
         form.reset();
         setAberto(false);
+        toast.success("Documento enviado", { id: tToast });
       } catch (err) {
-        setErro(err instanceof Error ? err.message : "Erro ao enviar.");
+        const msg = err instanceof Error ? err.message : "Erro ao enviar.";
+        setErro(msg);
+        toast.error("Falha ao enviar", { id: tToast, description: msg });
       }
     });
   }
@@ -154,7 +162,15 @@ export function ClienteDocAcoes({ id, clienteId, contratacaoId, url }: { id: str
   const [pendente, startTransition] = useTransition();
   function remover() {
     if (!confirm("Remover este documento? O arquivo será apagado.")) return;
-    startTransition(async () => { await removerClienteDocumento(id, clienteId, contratacaoId); });
+    const t = toast.loading("Removendo documento…");
+    startTransition(async () => {
+      try {
+        await removerClienteDocumento(id, clienteId, contratacaoId);
+        toast.success("Documento removido", { id: t });
+      } catch (e) {
+        toast.error("Não foi possível remover", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
   }
   return (
     <DropdownMenu>
@@ -194,9 +210,12 @@ export function AdicionarContratacao({ clienteId }: { clienteId: string }) {
       try {
         const id = await criarContratacao(fd);
         setAberto(false);
+        toast.success("Licitação criada");
         router.push(`/vital-norte/clientes/${clienteId}/contratacao/${id}`);
       } catch (err) {
-        setErro(err instanceof Error ? err.message : "Erro ao criar.");
+        const msg = err instanceof Error ? err.message : "Erro ao criar.";
+        setErro(msg);
+        toast.error("Não foi possível criar", { description: msg });
       }
     });
   }
@@ -245,9 +264,14 @@ export function ContratacaoStatus({
   function salvar() {
     setSalvo(false);
     startTransition(async () => {
-      await atualizarContratacaoStatus(id, clienteId, s, p);
-      setSalvo(true);
-      setTimeout(() => setSalvo(false), 2500);
+      try {
+        await atualizarContratacaoStatus(id, clienteId, s, p);
+        setSalvo(true);
+        setTimeout(() => setSalvo(false), 2500);
+        toast.success("Status atualizado");
+      } catch (e) {
+        toast.error("Não foi possível salvar", { description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 
@@ -279,9 +303,15 @@ export function RemoverContratacaoButton({ id, clienteId }: { id: string; client
   const router = useRouter();
   function remover() {
     if (!confirm("Remover esta licitação e todos os seus documentos?")) return;
+    const t = toast.loading("Removendo licitação…");
     startTransition(async () => {
-      await removerContratacao(id, clienteId);
-      router.push(`/vital-norte/clientes/${clienteId}`);
+      try {
+        await removerContratacao(id, clienteId);
+        toast.success("Licitação removida", { id: t });
+        router.push(`/vital-norte/clientes/${clienteId}`);
+      } catch (e) {
+        toast.error("Não foi possível remover", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
   return (
@@ -308,9 +338,14 @@ export function ClienteStatus({
   function salvar() {
     setSalvo(false);
     startTransition(async () => {
-      await atualizarClienteStatus(id, s, p);
-      setSalvo(true);
-      setTimeout(() => setSalvo(false), 2500);
+      try {
+        await atualizarClienteStatus(id, s, p);
+        setSalvo(true);
+        setTimeout(() => setSalvo(false), 2500);
+        toast.success("Status atualizado");
+      } catch (e) {
+        toast.error("Não foi possível salvar", { description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 
@@ -342,9 +377,15 @@ export function RemoverClienteButton({ id }: { id: string }) {
   const router = useRouter();
   function remover() {
     if (!confirm("Remover este cliente e todos os seus documentos?")) return;
+    const t = toast.loading("Removendo cliente…");
     startTransition(async () => {
-      await removerCliente(id);
-      router.push("/vital-norte/clientes");
+      try {
+        await removerCliente(id);
+        toast.success("Cliente removido", { id: t });
+        router.push("/vital-norte/clientes");
+      } catch (e) {
+        toast.error("Não foi possível remover", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
   return (

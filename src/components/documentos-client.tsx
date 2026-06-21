@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ export function UploadDocumento({
       return;
     }
 
+    const tToast = toast.loading("Enviando documento…");
     startTransition(async () => {
       try {
         const supabase = createClient();
@@ -104,8 +106,11 @@ export function UploadDocumento({
 
         form.reset();
         setAberto(false);
+        toast.success("Documento enviado", { id: tToast });
       } catch (err) {
-        setErro(err instanceof Error ? err.message : "Erro ao enviar o documento.");
+        const msg = err instanceof Error ? err.message : "Erro ao enviar o documento.";
+        setErro(msg);
+        toast.error("Falha ao enviar", { id: tToast, description: msg });
       }
     });
   }
@@ -194,23 +199,41 @@ export function DocumentoAcoes({
   const [pendente, startTransition] = useTransition();
 
   function salvarData() {
+    const t = toast.loading("Salvando validade…");
     startTransition(async () => {
-      await atualizarValidade(id, valor || null);
-      setEditando(false);
+      try {
+        await atualizarValidade(id, valor || null);
+        setEditando(false);
+        toast.success("Validade atualizada", { id: t });
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 
   function salvarNome() {
+    const t = toast.loading("Renomeando…");
     startTransition(async () => {
-      await renomearDocumento(id, novoNome);
-      setRenomeando(false);
+      try {
+        await renomearDocumento(id, novoNome);
+        setRenomeando(false);
+        toast.success("Documento renomeado", { id: t });
+      } catch (e) {
+        toast.error("Não foi possível renomear", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 
   function remover() {
     if (!confirm("Remover este documento? O arquivo será apagado.")) return;
+    const t = toast.loading("Removendo documento…");
     startTransition(async () => {
-      await removerDocumento(id);
+      try {
+        await removerDocumento(id);
+        toast.success("Documento removido", { id: t });
+      } catch (e) {
+        toast.error("Não foi possível remover", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 

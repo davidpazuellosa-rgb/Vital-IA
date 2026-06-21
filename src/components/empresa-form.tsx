@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { toast } from "sonner";
 import { Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,10 +64,16 @@ export function EmpresaForm({ dados }: { dados: EmpresaDados }) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setSalvo(false);
+    const t = toast.loading("Salvando dados da empresa…");
     startTransition(async () => {
-      await salvarEmpresa(fd);
-      setSalvo(true);
-      setTimeout(() => setSalvo(false), 2500);
+      try {
+        await salvarEmpresa(fd);
+        setSalvo(true);
+        setTimeout(() => setSalvo(false), 2500);
+        toast.success("Dados da empresa salvos", { id: t });
+      } catch (err) {
+        toast.error("Não foi possível salvar", { id: t, description: err instanceof Error ? err.message : undefined });
+      }
     });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import {
   Select,
@@ -9,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ETAPAS_LICITACAO, type EtapaSlug } from "@/lib/licitacoes/types";
+import { ETAPAS_LICITACAO, nomeEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
 import { atualizarEtapaLicitacao } from "@/lib/licitacoes/actions";
 
 export function EtapaSelect({ id, etapa }: { id: string; etapa: EtapaSlug }) {
@@ -17,7 +18,12 @@ export function EtapaSelect({ id, etapa }: { id: string; etapa: EtapaSlug }) {
 
   function onChange(valor: string) {
     startTransition(async () => {
-      await atualizarEtapaLicitacao(id, valor as EtapaSlug);
+      try {
+        await atualizarEtapaLicitacao(id, valor as EtapaSlug);
+        toast.success(`Movida para “${nomeEtapa(valor)}”`);
+      } catch (e) {
+        toast.error("Não foi possível mover a etapa", { description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 

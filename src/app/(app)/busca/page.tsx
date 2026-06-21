@@ -168,9 +168,15 @@ export default function BuscaPage() {
 
   function salvar(licitacao: UnifiedLicitacao) {
     const chave = `${licitacao.plataforma}-${licitacao.numeroControlePNCP}`;
+    const t = toast.loading("Salvando licitação…");
     salvarTransition(async () => {
-      await salvarLicitacao(licitacao);
-      setSalvas((prev) => new Set(prev).add(chave));
+      try {
+        await salvarLicitacao(licitacao);
+        setSalvas((prev) => new Set(prev).add(chave));
+        toast.success("Licitação salva", { id: t, description: "Disponível em Minhas Licitações." });
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
     });
   }
 
