@@ -1,15 +1,10 @@
 "use client";
 
-import { Download, FileSpreadsheet, Scale } from "lucide-react";
+import { FileSpreadsheet, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
 import { EtapaSelect } from "@/components/etapa-select";
+import { BaixarEditalButton } from "@/components/baixar-edital-button";
 import { LicitacaoItem, type EtapaSlug } from "@/lib/licitacoes/types";
 
 type ArquivoEdital = { titulo: string; url: string };
@@ -77,40 +72,7 @@ export function LicitacaoAcoes({
         Comparar preços
         <span className="ml-auto text-xs text-muted-foreground">em breve</span>
       </Button>
-      {arquivosEdital.length === 0 ? (
-        <Button variant="outline" disabled className="justify-start">
-          <Download />
-          Baixar edital
-          <span className="ml-auto text-xs text-muted-foreground">indisponível</span>
-        </Button>
-      ) : arquivosEdital.length === 1 ? (
-        <Button asChild variant="outline" className="justify-start">
-          <a href={arquivosEdital[0].url} target="_blank" rel="noreferrer">
-            <Download />
-            Baixar edital
-          </a>
-        </Button>
-      ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="justify-start">
-              <Download />
-              Baixar edital
-              <span className="ml-auto text-xs text-muted-foreground">{arquivosEdital.length} arquivos</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-w-[20rem]">
-            {arquivosEdital.map((a, i) => (
-              <DropdownMenuItem key={i} asChild>
-                <a href={a.url} target="_blank" rel="noreferrer" className="truncate">
-                  <Download className="size-4" />
-                  <span className="truncate">{a.titulo}</span>
-                </a>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+      <BaixarEditalButton numeroControle={numeroControle} disponivel={arquivosEdital.length > 0} />
     </div>
   );
 }
