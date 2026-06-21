@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   Check,
@@ -24,7 +25,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -65,20 +65,30 @@ export function CriarPropostaDialog({
 
   function executarAnalise() {
     setErro(null);
+    const id = toast.loading("Lendo o edital…", { description: "Analisando documentos no PNCP." });
     startTransition(async () => {
       try {
         setAnalise(await analisarEditalLicitacao(licitacaoId));
         setItensSalvos([]);
         setRascunhoCarregado(false);
         setTemProposta(true);
+        toast.success("Edital analisado", { id });
       } catch (error) {
-        setErro(error instanceof Error ? error.message : "Não foi possível analisar o edital.");
+        const msg = error instanceof Error ? error.message : "Não foi possível analisar o edital.";
+        setErro(msg);
+        toast.error("Falha ao analisar o edital", { id, description: msg });
       }
     });
   }
 
-  function carregarProposta() {
+  /** Inicia a análise em segundo plano (toast) e só abre o dialog quando pronto. */
+  function iniciar() {
+    if (analise) {
+      setAberto(true);
+      return;
+    }
     setErro(null);
+    const id = toast.loading("Lendo o edital…", { description: "Baixando anexos e conferindo documentos." });
     startTransition(async () => {
       try {
         const proposta = await obterPropostaLicitacao(licitacaoId);
@@ -86,33 +96,36 @@ export function CriarPropostaDialog({
           setAnalise(proposta.analise);
           setItensSalvos(proposta.itens);
           setRascunhoCarregado(true);
-          setTemProposta(true);
         } else {
           setAnalise(await analisarEditalLicitacao(licitacaoId));
           setItensSalvos([]);
           setRascunhoCarregado(false);
-          setTemProposta(true);
         }
+        setTemProposta(true);
+        toast.success(temPropostaInicial ? "Rascunho carregado" : "Proposta pronta", { id });
+        setAberto(true);
       } catch (error) {
-        setErro(error instanceof Error ? error.message : "Não foi possível carregar a proposta.");
+        const msg = error instanceof Error ? error.message : "Não foi possível analisar o edital.";
+        setErro(msg);
+        toast.error("Falha ao preparar a proposta", { id, description: msg });
       }
     });
   }
 
-  function alterarAbertura(novoEstado: boolean) {
-    setAberto(novoEstado);
-    if (novoEstado && !analise && !pendente) carregarProposta();
-  }
-
   return (
-    <Dialog open={aberto} onOpenChange={alterarAbertura}>
-      <DialogTrigger asChild>
-        <Button variant={variant} size={size} className={className} aria-label={temProposta ? "Abrir rascunho da proposta" : "Criar proposta"}>
-          <FileText />
-          {!compacto && (temProposta ? "Abrir rascunho" : "Criar proposta")}
-          {compacto && <span className="hidden xl:inline">{temProposta ? "Abrir" : "Proposta"}</span>}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <Button
+        variant={variant}
+        size={size}
+        className={className}
+        onClick={iniciar}
+        disabled={pendente}
+        aria-label={temProposta ? "Abrir rascunho da proposta" : "Criar proposta"}
+      >
+        {pendente ? <Loader2 className="animate-spin" /> : <FileText />}
+        {!compacto && (temProposta ? "Abrir rascunho" : "Criar proposta")}
+        {compacto && <span className="hidden xl:inline">{temProposta ? "Abrir" : "Proposta"}</span>}
+      </Button>
       <DialogContent className="max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><FileSearch className="size-5 text-primary" /> {temProposta ? "Proposta em rascunho" : "Criar proposta"}</DialogTitle>

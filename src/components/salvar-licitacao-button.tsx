@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { BookmarkPlus, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { salvarLicitacao } from "@/lib/licitacoes/actions";
@@ -11,12 +12,14 @@ export function SalvarLicitacaoButton({ licitacao }: { licitacao: UnifiedLicitac
   const [pendente, startTransition] = useTransition();
 
   function salvar() {
+    const id = toast.loading("Salvando licitação…");
     startTransition(async () => {
       try {
         await salvarLicitacao(licitacao);
         setSalva(true);
-      } catch {
-        // mantém o botão habilitado para nova tentativa
+        toast.success("Licitação salva", { id, description: "Disponível em Minhas Licitações." });
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id, description: e instanceof Error ? e.message : undefined });
       }
     });
   }

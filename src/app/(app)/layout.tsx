@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Toaster } from "sonner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </SidebarInset>
+      <Toaster position="top-right" richColors closeButton />
     </SidebarProvider>
   );
 }
