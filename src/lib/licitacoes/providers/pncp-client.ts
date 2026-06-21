@@ -78,9 +78,11 @@ function mapItem(item: PncpItem): UnifiedLicitacao {
 }
 
 async function buscarPagina(baseUrl: string, params: URLSearchParams): Promise<PncpResponse> {
+  // Timeout para o PNCP não pendurar a busca quando estiver lento/instável.
   const res = await fetch(`${baseUrl}?${params.toString()}`, {
     headers: { Accept: "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(20000),
   });
   if (res.status === 204) {
     return { data: [], totalRegistros: 0, totalPaginas: 0 };
