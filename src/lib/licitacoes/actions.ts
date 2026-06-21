@@ -3,6 +3,76 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { UnifiedLicitacao, type EtapaSlug } from "./types";
+import { buscarArquivosPncp } from "./providers/pncp-arquivos";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const BUCKET_DOCS = "documentos";
+
+function sanitizarNomeArquivo(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9.\-_]/g, "_")
+    .slice(-120) || "documento.pdf";
+}
+
+/**
+ * Anexa os arquivos do edital (PNCP) a uma contratação, como tipo "edital".
+ * Best-effort: ignora falhas individuais e não duplica se já houver edital.
+ */
+async function anexarEditalDaLicitacao(
+  supabase: SupabaseClient,
+  userId: string,
+  clienteId: string,
+  contratacaoId: string,
+  numeroControlePNCP: string,
+) {
+  if (!numeroControlePNCP) return;
+
+  const { count } = await supabase
+    .from("cliente_documentos")
+    .select("id", { count: "exact", head: true })
+    .eq("contratacao_id", contratacaoId)
+    .eq("tipo", "edital");
+  if ((count ?? 0) > 0) return; // já tem edital anexado
+
+  let arquivos: Awaited<ReturnType<typeof buscarArquivosPncp>> = [];
+  try {
+    arquivos = await buscarArquivosPncp(numeroControlePNCP);
+  } catch {
+    return;
+  }
+
+  for (const arquivo of arquivos) {
+    try {
+      const resp = await fetch(arquivo.url, { cache: "no-store" });
+      if (!resp.ok) continue;
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      const contentType = resp.headers.get("content-type") || "application/pdf";
+      const baseNome = arquivo.titulo.toLowerCase().endsWith(".pdf") ? arquivo.titulo : `${arquivo.titulo}.pdf`;
+      const docId = crypto.randomUUID();
+      const path = `${userId}/clientes/${clienteId}/${docId}/${sanitizarNomeArquivo(baseNome)}`;
+
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET_DOCS)
+        .upload(path, bytes, { contentType, upsert: false });
+      if (upErr) continue;
+
+      const { error: insErr } = await supabase.from("cliente_documentos").insert({
+        cliente_id: clienteId,
+        contratacao_id: contratacaoId,
+        user_id: userId,
+        tipo: "edital",
+        nome: arquivo.titulo,
+        arquivo_path: path,
+        arquivo_nome: baseNome,
+      });
+      if (insErr) await supabase.storage.from(BUCKET_DOCS).remove([path]);
+    } catch {
+      // ignora arquivo problemático
+    }
+  }
+}
 
 export async function salvarLicitacao(licitacao: UnifiedLicitacao) {
   const supabase = await createClient();
@@ -156,6 +226,9 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
     .eq("id", id)
     .eq("user_id", user.id);
   if (etapaError) throw new Error(etapaError.message);
+
+  // Anexa os documentos do edital (PNCP) à contratação
+  await anexarEditalDaLicitacao(supabase, user.id, clienteId, contratacaoId, identificador);
 
   revalidatePath("/minhas-licitacoes");
   revalidatePath("/vital-norte/clientes");
