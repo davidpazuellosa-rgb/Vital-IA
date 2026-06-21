@@ -1,15 +1,13 @@
 import { LicitacaoProvider, Paginacao, ResultadoBusca, UniversalFilter } from "../types";
-import { buscarPncp } from "./pncp-client";
+import { buscarPncpComFiltroLocal } from "./pncp-client";
 
 export const comprasnetProvider: LicitacaoProvider = {
   id: "comprasnet",
   async buscar(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca> {
-    const resultado = await buscarPncp(filtro, paginacao);
+    const resultado = await buscarPncpComFiltroLocal(filtro, paginacao, (item) => item.esfera === "F");
     return {
       ...resultado,
-      itens: resultado.itens
-        .filter((item) => item.esfera === "F")
-        .map((item) => ({ ...item, plataforma: "comprasnet" as const })),
+      itens: resultado.itens.map((item) => ({ ...item, plataforma: "comprasnet" as const })),
     };
   },
 };

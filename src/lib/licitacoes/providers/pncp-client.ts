@@ -196,6 +196,62 @@ export async function buscarPncp(
   return { itens, totalPaginas, totalRegistros, incompleto };
 }
 
+const TAMANHO_COLETA_FILTRO_LOCAL = 50;
+const LIMITE_PAGINAS_COLETA = 25;
+
+/**
+ * Alguns adaptadores são recortes do PNCP (ex.: Compras.gov.br/Federal ou Manaus)
+ * e precisam filtrar localmente campos que a API pública nem sempre expõe como
+ * parâmetro. Se filtrarmos só a página atual, uma página de 20 pode virar 2 itens.
+ * Aqui coletamos páginas PNCP suficientes antes de aplicar o recorte e só então
+ * cortamos a página exibida.
+ */
+export async function buscarPncpComFiltroLocal(
+  filtro: UniversalFilter,
+  paginacao: Paginacao,
+  predicado: (item: UnifiedLicitacao) => boolean,
+): Promise<ResultadoBusca> {
+  const alvo = paginacao.pagina * paginacao.tamanhoPagina;
+  const vistos = new Set<string>();
+  const coletados: UnifiedLicitacao[] = [];
+  let paginaPncp = 1;
+  let totalPaginasPncp = 1;
+  let incompleto = false;
+
+  do {
+    const resultado = await buscarPncp(filtro, {
+      pagina: paginaPncp,
+      tamanhoPagina: TAMANHO_COLETA_FILTRO_LOCAL,
+    });
+    totalPaginasPncp = Math.max(totalPaginasPncp, resultado.totalPaginas);
+    incompleto ||= Boolean(resultado.incompleto);
+
+    for (const item of resultado.itens) {
+      if (!predicado(item) || vistos.has(item.numeroControlePNCP)) continue;
+      vistos.add(item.numeroControlePNCP);
+      coletados.push(item);
+    }
+
+    paginaPncp += 1;
+  } while (
+    coletados.length < alvo + 1 &&
+    paginaPncp <= totalPaginasPncp &&
+    paginaPncp <= LIMITE_PAGINAS_COLETA
+  );
+
+  const inicio = (paginacao.pagina - 1) * paginacao.tamanhoPagina;
+  const itens = coletados.slice(inicio, inicio + paginacao.tamanhoPagina);
+  const chegouAoFim = paginaPncp > totalPaginasPncp;
+  const totalRegistros = chegouAoFim ? coletados.length : Math.max(coletados.length, alvo + 1);
+
+  return {
+    itens,
+    totalPaginas: Math.ceil(totalRegistros / paginacao.tamanhoPagina),
+    totalRegistros,
+    incompleto,
+  };
+}
+
 export function nomeModalidade(id: number): string {
   return MODALIDADES.find((m) => m.id === id)?.nome ?? String(id);
 }
