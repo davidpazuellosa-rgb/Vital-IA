@@ -114,7 +114,6 @@ export default async function LicitacaoDetalhePage({
               <SecaoTitulo>Sobre esta licitação</SecaoTitulo>
               <Campo rotulo="Objeto" valor={lic.titulo} />
               <Campo rotulo="Órgão" valor={lic.orgao} />
-              <Campo rotulo="Plataforma" valor={PLATAFORMA_NOME[lic.plataforma] ?? lic.plataforma} />
               <Campo rotulo="Modalidade" valor={lic.modalidade || "—"} />
               <Campo rotulo="Esfera" valor={esferaNome(lic)} />
               <Campo rotulo="Estado" valor={lic.uf || "—"} />
