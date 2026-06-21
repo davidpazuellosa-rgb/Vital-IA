@@ -1,7 +1,7 @@
 import { avaliarValidade, type Documento } from "@/lib/documentos/types";
 import type { ArquivoEditalLido } from "@/lib/licitacoes/providers/pncp-arquivos";
 import type { LicitacaoItem } from "@/lib/licitacoes/types";
-import { analisarTextosComGroq, groq } from "./groq";
+import { analisarTextosComGroq, obterClienteGroq } from "./groq";
 
 export type StatusRequisito = "disponivel" | "faltante" | "vencido" | "a_gerar";
 
@@ -136,7 +136,7 @@ export async function analisarEditalHibrido({ arquivos, documentosEmpresa, itens
 }): Promise<AnaliseEdital> {
   const local = analisarConteudoEdital({ arquivos, documentosEmpresa, itens });
   const legiveis = arquivos.filter((arquivo) => arquivo.status === "lido" && arquivo.texto.trim());
-  if (!groq || !legiveis.length) return local;
+  if (!obterClienteGroq() || !legiveis.length) return local;
 
   const resultados = await analisarTextosComGroq({
     arquivos: legiveis.map(({ titulo, texto }) => ({ titulo, texto })),

@@ -1,12 +1,28 @@
 import Groq from "groq-sdk";
 import { createIsomorphicCanvasFactory, getDocumentProxy, renderPageAsImage } from "unpdf";
 
-const CHAVE_GROQ = process.env.GROQ_API_KEY;
 const MODELO_TEXTO = process.env.GROQ_TEXT_MODEL || "openai/gpt-oss-20b";
 const MODELO_VISAO = process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
 const TAMANHO_CONTEXTO_SEMANTICO = 16_000;
 
-export const groq = CHAVE_GROQ ? new Groq({ apiKey: CHAVE_GROQ, maxRetries: 2, timeout: 90_000 }) : null;
+let clienteGroq: Groq | null = null;
+let chaveDoCliente: string | null = null;
+
+export function obterClienteGroq(): Groq | null {
+  const chave = process.env.GROQ_API_KEY?.trim();
+  if (!chave) return null;
+  if (!clienteGroq || chaveDoCliente !== chave) {
+    clienteGroq = new Groq({ apiKey: chave, maxRetries: 2, timeout: 90_000 });
+    chaveDoCliente = chave;
+  }
+  return clienteGroq;
+}
+
+function exigirClienteGroq(): Groq {
+  const cliente = obterClienteGroq();
+  if (!cliente) throw new Error("GROQ_API_KEY não configurada.");
+  return cliente;
+}
 
 const TIPOS_DOCUMENTO = [
   "cnd_federal", "fgts", "trabalhista", "estadual", "municipal", "contrato_social", "cnpj",
@@ -84,7 +100,7 @@ export async function extrairTextoPdfComOcrGroq(
   totalPaginas: number,
   titulo: string,
 ): Promise<string> {
-  if (!groq) throw new Error("GROQ_API_KEY não configurada.");
+  const cliente = exigirClienteGroq();
   const canvasImport = () => import("@napi-rs/canvas");
   const CanvasFactory = await createIsomorphicCanvasFactory(canvasImport);
   const pdf = await getDocumentProxy(buffer, { CanvasFactory });
@@ -93,7 +109,7 @@ export async function extrairTextoPdfComOcrGroq(
   let tamanhoLote = 0;
 
   async function enviarLote() {
-    if (!lote.length || !groq) return;
+    if (!lote.length) return;
     const paginas = lote.map((item) => item.pagina).join(", ");
     const conteudo: Groq.Chat.Completions.ChatCompletionContentPart[] = [
       {
@@ -102,7 +118,7 @@ export async function extrairTextoPdfComOcrGroq(
       },
       ...lote.map((item) => ({ type: "image_url" as const, image_url: { url: item.url } })),
     ];
-    const resposta = await groq.chat.completions.create({
+    const resposta = await cliente.chat.completions.create({
       model: MODELO_VISAO,
       messages: [{ role: "user", content: conteudo }],
       temperature: 0,
@@ -137,9 +153,9 @@ export async function analisarTextosComGroq({
   arquivos: Array<{ titulo: string; texto: string }>;
   contextoEmpresa: string;
 }): Promise<Array<{ analise: AnaliseGroq; origem: string }>> {
-  if (!groq) throw new Error("GROQ_API_KEY não configurada.");
+  const cliente = exigirClienteGroq();
   const trechos = selecionarTrechosRelevantes(arquivos, TAMANHO_CONTEXTO_SEMANTICO);
-  const resposta = await groq.chat.completions.create({
+  const resposta = await cliente.chat.completions.create({
     model: MODELO_TEXTO,
     messages: [
       {

@@ -7,7 +7,7 @@ import { buscarArquivosPncp, lerArquivoEdital } from "@/lib/licitacoes/providers
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { createClient } from "@/lib/supabase/server";
 import { analisarConteudoEdital, analisarEditalHibrido, type AnaliseEdital } from "./analise-edital";
-import { extrairTextoPdfComOcrGroq } from "./groq";
+import { extrairTextoPdfComOcrGroq, obterClienteGroq } from "./groq";
 import { REPRESENTANTES_LEGAIS } from "./types";
 
 function texto(formData: FormData, campo: string): string {
@@ -66,10 +66,11 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     buscarArquivosPncp(licitacao.numero_controle_pncp),
     buscarItensPncp(licitacao.numero_controle_pncp),
   ]);
+  const groqConfigurado = Boolean(obterClienteGroq());
   const arquivos: Awaited<ReturnType<typeof lerArquivoEdital>>[] = [];
   for (const arquivo of arquivosPncp) {
     arquivos.push(await lerArquivoEdital(arquivo, {
-      ocr: process.env.GROQ_API_KEY ? extrairTextoPdfComOcrGroq : undefined,
+      ocr: groqConfigurado ? extrairTextoPdfComOcrGroq : undefined,
     }));
   }
   let analise: AnaliseEdital = analisarConteudoEdital({
@@ -78,7 +79,7 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     itens,
   });
 
-  if (process.env.GROQ_API_KEY) {
+  if (groqConfigurado) {
     try {
       console.info("[Análise] Executando análise híbrida RegEx + Groq.");
       analise = await analisarEditalHibrido({
