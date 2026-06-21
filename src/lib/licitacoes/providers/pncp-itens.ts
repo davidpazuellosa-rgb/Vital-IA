@@ -1,6 +1,56 @@
-import { LicitacaoItem } from "../types";
+import { LicitacaoItem, UnifiedLicitacao } from "../types";
 
 const PNCP_API = "https://pncp.gov.br/api/pncp/v1";
+
+interface PncpCompraBruta {
+  numeroControlePNCP: string;
+  objetoCompra: string | null;
+  orgaoEntidade?: { razaoSocial?: string | null; esferaId?: string | null } | null;
+  unidadeOrgao?: { ufSigla?: string | null; municipioNome?: string | null } | null;
+  modalidadeNome: string | null;
+  situacaoCompraNome: string | null;
+  valorTotalEstimado: number | null;
+  dataPublicacaoPncp: string | null;
+  dataAberturaProposta: string | null;
+  dataEncerramentoProposta: string | null;
+  linkSistemaOrigem: string | null;
+}
+
+/** Busca os dados de uma contratação (perfil) a partir do numeroControlePNCP. */
+export async function buscarCompraPncp(numeroControlePNCP: string): Promise<UnifiedLicitacao | null> {
+  const ref = parseNumeroControle(numeroControlePNCP);
+  if (!ref) return null;
+
+  const url = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
+  let compra: PncpCompraBruta;
+  try {
+    const resposta = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+    if (!resposta.ok) return null;
+    compra = (await resposta.json()) as PncpCompraBruta;
+  } catch {
+    return null;
+  }
+
+  const objeto = compra.objetoCompra ?? "";
+  return {
+    id: compra.numeroControlePNCP,
+    plataforma: "pncp",
+    numeroControlePNCP: compra.numeroControlePNCP,
+    titulo: objeto.slice(0, 140),
+    descricao: objeto,
+    orgao: compra.orgaoEntidade?.razaoSocial ?? "",
+    esfera: compra.orgaoEntidade?.esferaId ?? "",
+    uf: compra.unidadeOrgao?.ufSigla ?? "",
+    municipio: compra.unidadeOrgao?.municipioNome ?? "",
+    modalidade: compra.modalidadeNome ?? "",
+    situacao: compra.situacaoCompraNome ?? "",
+    valorEstimado: compra.valorTotalEstimado ?? null,
+    dataPublicacao: compra.dataPublicacaoPncp ?? null,
+    dataAberturaProposta: compra.dataAberturaProposta ?? null,
+    dataEncerramentoProposta: compra.dataEncerramentoProposta ?? null,
+    linkOrigem: compra.linkSistemaOrigem ?? null,
+  };
+}
 
 interface NumeroControle {
   cnpj: string;
