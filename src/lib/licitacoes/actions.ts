@@ -132,7 +132,7 @@ export async function marcarPropostaRecusada(id: string) {
 
   const { error } = await supabase
     .from("saved_licitacoes")
-    .update({ etapa: "recusada" satisfies EtapaSlug })
+    .update({ etapa: "perdida" satisfies EtapaSlug })
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw new Error(error.message);
@@ -222,7 +222,7 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
 
   const { error: etapaError } = await supabase
     .from("saved_licitacoes")
-    .update({ etapa: "proposta_enviada" satisfies EtapaSlug })
+    .update({ etapa: "vencida" satisfies EtapaSlug })
     .eq("id", id)
     .eq("user_id", user.id);
   if (etapaError) throw new Error(etapaError.message);

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
-import { PLATAFORMAS } from "@/lib/licitacoes/types";
+import { PLATAFORMAS, type EtapaSlug } from "@/lib/licitacoes/types";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
@@ -200,7 +200,7 @@ export default async function LicitacaoDetalhePage({
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} temProposta={Boolean(propostaExistente)} />
+              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={(lic.etapa ?? "oportunidade") as EtapaSlug} temProposta={Boolean(propostaExistente)} />
             </CardContent>
           </Card>
         </div>

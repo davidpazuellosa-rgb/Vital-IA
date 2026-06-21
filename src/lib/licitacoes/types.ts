@@ -6,8 +6,8 @@ export interface PlatformInfo {
   descricao: string;
 }
 
-/** Etapa do funil de acompanhamento de uma licitação salva. */
-export type EtapaSlug = "aberta" | "participando" | "proposta_enviada" | "recusada" | "concluida";
+/** Etapa do funil/pipeline de acompanhamento de uma licitação salva. */
+export type EtapaSlug = "oportunidade" | "proposta_pronta" | "vencida" | "perdida";
 
 export type EtapaInfo = {
   slug: EtapaSlug;
@@ -16,17 +16,16 @@ export type EtapaInfo = {
 };
 
 export const ETAPAS_LICITACAO: EtapaInfo[] = [
-  { slug: "aberta", nome: "Aberta", descricao: "Salvas, ainda em análise" },
-  { slug: "participando", nome: "Participando", descricao: "Em disputa / habilitação" },
-  { slug: "proposta_enviada", nome: "Proposta enviada", descricao: "Aguardando resultado" },
-  { slug: "recusada", nome: "Proposta recusada", descricao: "Propostas que não seguirão adiante" },
-  { slug: "concluida", nome: "Concluída", descricao: "Encerradas / finalizadas" },
+  { slug: "oportunidade", nome: "Oportunidade", descricao: "Licitações salvas em análise" },
+  { slug: "proposta_pronta", nome: "Proposta Pronta", descricao: "Proposta montada (assinada/anexada ou não)" },
+  { slug: "vencida", nome: "Vencida", descricao: "Ganha — vira cliente" },
+  { slug: "perdida", nome: "Perdida", descricao: "Não seguirá adiante" },
 ];
 
-export const ETAPA_PADRAO: EtapaSlug = "aberta";
+export const ETAPA_PADRAO: EtapaSlug = "oportunidade";
 
 export function nomeEtapa(slug: string): string {
-  return ETAPAS_LICITACAO.find((e) => e.slug === slug)?.nome ?? "Aberta";
+  return ETAPAS_LICITACAO.find((e) => e.slug === slug)?.nome ?? "Oportunidade";
 }
 
 export const PLATAFORMAS: PlatformInfo[] = [
