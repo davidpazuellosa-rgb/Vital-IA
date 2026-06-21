@@ -68,12 +68,12 @@ export function EtapasLicitacaoFilter({ etapas }: { etapas: EtapaFiltrada[] }) {
         aria-labelledby={`etapa-tab-${etapaSelecionada.slug}`}
         className="overflow-hidden rounded-xl border bg-card shadow-sm"
       >
-        <header className="flex items-center justify-between gap-4 border-b px-4 py-3">
+        <header className="flex items-center justify-between gap-4 border-b border-primary/15 bg-primary/8 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="font-semibold">{etapaSelecionada.nome}</h2>
-            <p className="truncate text-sm text-muted-foreground">{etapaSelecionada.descricao}</p>
+            <h2 className="font-semibold text-primary">{etapaSelecionada.nome}</h2>
+            <p className="truncate text-sm text-primary/70">{etapaSelecionada.descricao}</p>
           </div>
-          <span className="shrink-0 text-sm text-muted-foreground">
+          <span className="shrink-0 text-sm font-medium text-primary/80">
             {etapaSelecionada.quantidade} {etapaSelecionada.quantidade === 1 ? "licitação" : "licitações"}
           </span>
         </header>
