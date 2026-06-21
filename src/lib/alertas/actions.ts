@@ -81,3 +81,14 @@ export async function removerAlerta(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/vital-norte/alertas");
 }
+
+export async function salvarChatTelegram(chatId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+  const { error } = await supabase
+    .from("notificacoes_config")
+    .upsert({ user_id: user.id, telegram_chat_id: chatId.trim(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/vital-norte/alertas");
+}

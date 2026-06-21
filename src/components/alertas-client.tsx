@@ -10,7 +10,41 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { salvarAlerta, alternarAlerta, removerAlerta, type Alerta } from "@/lib/alertas/actions";
+import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, type Alerta } from "@/lib/alertas/actions";
+
+export function TelegramConfig({ chatId }: { chatId: string }) {
+  const [valor, setValor] = useState(chatId);
+  const [pendente, startTransition] = useTransition();
+
+  function salvar() {
+    const t = toast.loading("Salvando…");
+    startTransition(async () => {
+      try {
+        await salvarChatTelegram(valor);
+        toast.success("Telegram configurado", { id: t });
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <div className="flex flex-1 flex-col gap-1.5">
+        <Label htmlFor="telegram_chat_id">Telegram chat id</Label>
+        <Input
+          id="telegram_chat_id"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          placeholder="Ex.: 123456789"
+        />
+      </div>
+      <Button onClick={salvar} disabled={pendente || valor === chatId} className="shrink-0">
+        {pendente && <Loader2 className="animate-spin" />} Salvar
+      </Button>
+    </div>
+  );
+}
 
 export function AlertaDialog({ alerta }: { alerta?: Alerta }) {
   const [aberto, setAberto] = useState(false);
