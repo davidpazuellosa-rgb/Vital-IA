@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resolverEmpresaUserId } from "./escopo";
 
 export type EmpresaDados = {
   razao_social: string;
@@ -35,8 +36,9 @@ export async function salvarEmpresa(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
-  const valores: Record<string, string | null> = { user_id: user.id, updated_at: new Date().toISOString() };
+  const valores: Record<string, string | null> = { user_id: empresaUserId, updated_at: new Date().toISOString() };
   for (const campo of CAMPOS) {
     const v = ((formData.get(campo) as string) ?? "").trim();
     valores[campo] = campo === "data_abertura" ? (v || null) : v;

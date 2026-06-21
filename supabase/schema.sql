@@ -1,3 +1,33 @@
+-- =====================================================================
+-- Escopo da empresa (mais de um usuário pode operar o mesmo acervo)
+-- =====================================================================
+create table if not exists public.empresa_membros (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  empresa_user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.empresa_membros enable row level security;
+drop policy if exists "Usuários veem seu vínculo de empresa" on public.empresa_membros;
+create policy "Usuários veem seu vínculo de empresa" on public.empresa_membros
+  for select using (auth.uid() = user_id);
+
+create or replace function public.empresa_user_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select empresa_user_id from public.empresa_membros where user_id = auth.uid()),
+    auth.uid()
+  );
+$$;
+
+revoke all on function public.empresa_user_id() from public;
+grant execute on function public.empresa_user_id() to authenticated;
+
 create table if not exists public.saved_licitacoes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -63,13 +93,13 @@ alter table public.proposta_configuracao drop column if exists condicoes_pagamen
 alter table public.proposta_configuracao enable row level security;
 drop policy if exists "Usuários veem sua configuração de proposta" on public.proposta_configuracao;
 create policy "Usuários veem sua configuração de proposta" on public.proposta_configuracao
-  for select using (auth.uid() = user_id);
+  for select using (public.empresa_user_id() = user_id);
 drop policy if exists "Usuários inserem sua configuração de proposta" on public.proposta_configuracao;
 create policy "Usuários inserem sua configuração de proposta" on public.proposta_configuracao
-  for insert with check (auth.uid() = user_id);
+  for insert with check (public.empresa_user_id() = user_id);
 drop policy if exists "Usuários atualizam sua configuração de proposta" on public.proposta_configuracao;
 create policy "Usuários atualizam sua configuração de proposta" on public.proposta_configuracao
-  for update using (auth.uid() = user_id);
+  for update using (public.empresa_user_id() = user_id);
 
 create table if not exists public.propostas (
   id uuid primary key default gen_random_uuid(),
@@ -123,21 +153,25 @@ create table if not exists public.documentos (
 
 alter table public.documentos enable row level security;
 
+drop policy if exists "Usuários veem apenas seus documentos" on public.documentos;
 create policy "Usuários veem apenas seus documentos"
   on public.documentos for select
-  using (auth.uid() = user_id);
+  using (public.empresa_user_id() = user_id);
 
+drop policy if exists "Usuários inserem seus próprios documentos" on public.documentos;
 create policy "Usuários inserem seus próprios documentos"
   on public.documentos for insert
-  with check (auth.uid() = user_id);
+  with check (public.empresa_user_id() = user_id);
 
+drop policy if exists "Usuários atualizam seus próprios documentos" on public.documentos;
 create policy "Usuários atualizam seus próprios documentos"
   on public.documentos for update
-  using (auth.uid() = user_id);
+  using (public.empresa_user_id() = user_id);
 
+drop policy if exists "Usuários removem seus próprios documentos" on public.documentos;
 create policy "Usuários removem seus próprios documentos"
   on public.documentos for delete
-  using (auth.uid() = user_id);
+  using (public.empresa_user_id() = user_id);
 
 -- Bucket privado de armazenamento dos arquivos
 insert into storage.buckets (id, name, public)
@@ -145,17 +179,20 @@ values ('documentos', 'documentos', false)
 on conflict (id) do nothing;
 
 -- Políticas de storage: cada usuário só acessa arquivos sob seu próprio prefixo (user_id/...)
+drop policy if exists "Usuários leem seus arquivos de documentos" on storage.objects;
 create policy "Usuários leem seus arquivos de documentos"
   on storage.objects for select
-  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = public.empresa_user_id()::text);
 
+drop policy if exists "Usuários enviam seus arquivos de documentos" on storage.objects;
 create policy "Usuários enviam seus arquivos de documentos"
   on storage.objects for insert
-  with check (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+  with check (bucket_id = 'documentos' and (storage.foldername(name))[1] = public.empresa_user_id()::text);
 
+drop policy if exists "Usuários removem seus arquivos de documentos" on storage.objects;
 create policy "Usuários removem seus arquivos de documentos"
   on storage.objects for delete
-  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = auth.uid()::text);
+  using (bucket_id = 'documentos' and (storage.foldername(name))[1] = public.empresa_user_id()::text);
 create table if not exists public.empresa (
   user_id uuid primary key references auth.users (id) on delete cascade,
   razao_social text not null default '',
@@ -183,11 +220,11 @@ create table if not exists public.empresa (
 alter table public.empresa enable row level security;
 
 drop policy if exists "Usuários veem seus dados de empresa" on public.empresa;
-create policy "Usuários veem seus dados de empresa" on public.empresa for select using (auth.uid() = user_id);
+create policy "Usuários veem seus dados de empresa" on public.empresa for select using (public.empresa_user_id() = user_id);
 drop policy if exists "Usuários inserem seus dados de empresa" on public.empresa;
-create policy "Usuários inserem seus dados de empresa" on public.empresa for insert with check (auth.uid() = user_id);
+create policy "Usuários inserem seus dados de empresa" on public.empresa for insert with check (public.empresa_user_id() = user_id);
 drop policy if exists "Usuários atualizam seus dados de empresa" on public.empresa;
-create policy "Usuários atualizam seus dados de empresa" on public.empresa for update using (auth.uid() = user_id);
+create policy "Usuários atualizam seus dados de empresa" on public.empresa for update using (public.empresa_user_id() = user_id);
 
 create table if not exists public.clientes (
   id uuid primary key default gen_random_uuid(),

@@ -423,7 +423,14 @@ function LinhaRequisito({ item }: { item: RequisitoEdital }) {
   return (
     <div className="flex items-start gap-3 rounded-lg border px-3 py-2.5">
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted"><Icon className="size-4 text-muted-foreground" /></div>
-      <div className="min-w-0 flex-1"><p className="font-medium">{item.nome}</p><p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.trecho}</p><p className="mt-1 text-[11px] text-primary">Fonte: {item.origem}</p></div>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{item.nome}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.trecho}</p>
+        {item.documentoArquivo && (
+          <p className="mt-1 truncate text-[11px] font-medium text-foreground">No sistema: {item.documentoNome ?? item.documentoArquivo} · {item.documentoArquivo}</p>
+        )}
+        <p className="mt-1 text-[11px] text-primary">Fonte: {item.origem}</p>
+      </div>
       <Badge variant="outline" className={cn("shrink-0", status.classe)}>{status.rotulo}</Badge>
     </div>
   );

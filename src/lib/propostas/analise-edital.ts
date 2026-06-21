@@ -11,6 +11,9 @@ export type RequisitoEdital = {
   status: StatusRequisito;
   origem: string;
   trecho: string;
+  documentoId?: string;
+  documentoNome?: string;
+  documentoArquivo?: string;
 };
 
 export type AnaliseEdital = {
@@ -201,6 +204,9 @@ function cruzarDocumento(
     ...exigido,
     tipoDocumento: exigido.tipoDocumento ?? documento?.tipo ?? null,
     status: !documento ? "faltante" : validade?.status === "vencido" ? "vencido" : "disponivel",
+    documentoId: documento?.id,
+    documentoNome: documento?.nome,
+    documentoArquivo: documento?.arquivo_nome,
   };
 }
 
@@ -223,14 +229,12 @@ function adicionarDocumentosGenericos(requisitos: RequisitoEdital[], arquivos: A
       const chave = normalizar(linha);
       if ([...vistos].some((visto) => similar(visto, chave))) continue;
       const documento = documentosEmpresa.find((item) => similar(normalizar(item.nome), chave));
-      const validade = documento ? avaliarValidade(documento.data_validade) : null;
-      requisitos.push({
+      requisitos.push(cruzarDocumento({
         nome: linha.length > 150 ? `${linha.slice(0, 147)}...` : linha,
         tipoDocumento: documento?.tipo ?? null,
-        status: !documento ? "faltante" : validade?.status === "vencido" ? "vencido" : "disponivel",
         origem: arquivo.titulo,
         trecho: linha,
-      });
+      }, documentosPorTipo(documentosEmpresa), documentosEmpresa));
       vistos.add(chave);
       if (requisitos.length >= 40) return;
     }

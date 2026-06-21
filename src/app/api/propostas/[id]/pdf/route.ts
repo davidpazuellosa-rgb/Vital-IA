@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Documento } from "@/lib/documentos/types";
 import type { EmpresaDados } from "@/lib/empresa/actions";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { gerarPdfProposta, type AnexoPdf, type ItemPropostaPdf } from "@/lib/propostas/gerar-pdf";
 import type { AnaliseEdital } from "@/lib/propostas/types";
 import { CONFIGURACAO_PROPOSTA_PADRAO, type PropostaConfiguracao } from "@/lib/propostas/types";
@@ -15,6 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ erro: "Não autenticado" }, { status: 401 });
+    const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
     const formData = await request.formData();
     const itens = validarItens(formData.get("itens"));
@@ -23,9 +25,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const [{ data: licitacao }, { data: proposta }, { data: empresa }, { data: configuracao }, { data: documentos }] = await Promise.all([
       supabase.from("saved_licitacoes").select("*").eq("id", id).eq("user_id", user.id).single(),
       supabase.from("propostas").select("*").eq("licitacao_id", id).eq("user_id", user.id).maybeSingle(),
-      supabase.from("empresa").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("proposta_configuracao").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("documentos").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("empresa").select("*").eq("user_id", empresaUserId).maybeSingle(),
+      supabase.from("proposta_configuracao").select("*").eq("user_id", empresaUserId).maybeSingle(),
+      supabase.from("documentos").select("*").eq("user_id", empresaUserId).order("created_at", { ascending: false }),
     ]);
 
     if (!licitacao) return NextResponse.json({ erro: "Licitação não encontrada." }, { status: 404 });
@@ -115,10 +117,21 @@ async function baixarDocumentosExigidos(
       .filter((requisito) => requisito.status === "disponivel" && requisito.tipoDocumento)
       .map((requisito) => requisito.tipoDocumento as string),
   );
+  const ids = new Set(
+    analise.documentos
+      .filter((requisito) => requisito.status === "disponivel" && requisito.documentoId)
+      .map((requisito) => requisito.documentoId as string),
+  );
+  const tiposVinculados = new Set(
+    analise.documentos
+      .filter((requisito) => requisito.status === "disponivel" && requisito.documentoId && requisito.tipoDocumento)
+      .map((requisito) => requisito.tipoDocumento as string),
+  );
   const usados = new Set<string>();
   const anexos: AnexoPdf[] = [];
   for (const documento of documentos) {
-    if (!tipos.has(documento.tipo) || usados.has(documento.tipo)) continue;
+    const corresponde = ids.has(documento.id) || (tipos.has(documento.tipo) && !tiposVinculados.has(documento.tipo));
+    if (!corresponde || usados.has(documento.tipo)) continue;
     if (!documento.arquivo_nome.toLowerCase().endsWith(".pdf")) continue;
     const { data, error } = await supabase.storage.from("documentos").download(documento.arquivo_path);
     if (error || !data) continue;

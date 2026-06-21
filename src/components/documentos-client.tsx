@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO } from "@/lib/documentos/types";
-import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento } from "@/lib/documentos/actions";
+import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 
 const BUCKET = "documentos";
@@ -84,8 +84,9 @@ export function UploadDocumento({
         if (!user) throw new Error("Sessão expirada. Faça login novamente.");
 
         // Upload direto do navegador para o Storage (sem passar pelo Server Action)
+        const empresaUserId = await obterEmpresaUserId();
         const id = crypto.randomUUID();
-        const path = `${user.id}/${id}/${sanitizarNome(file.name)}`;
+        const path = `${empresaUserId}/${id}/${sanitizarNome(file.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });

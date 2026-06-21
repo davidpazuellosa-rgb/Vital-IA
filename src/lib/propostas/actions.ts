@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { Documento } from "@/lib/documentos/types";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { buscarArquivosPncp, lerArquivoEdital } from "@/lib/licitacoes/providers/pncp-arquivos";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { createClient } from "@/lib/supabase/server";
@@ -23,13 +24,14 @@ export async function salvarConfiguracaoProposta(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
   const validade = numero(formData.get("validade_dias"));
   const representante = REPRESENTANTES_LEGAIS.find(
     (item) => item.nome === texto(formData, "representante_legal"),
   );
   const { error } = await supabase.from("proposta_configuracao").upsert({
-    user_id: user.id,
+    user_id: empresaUserId,
     validade_dias: validade && validade > 0 ? Math.round(validade) : 60,
     impostos_inclusos: formData.get("impostos_inclusos") === "on",
     representante_legal: representante?.nome ?? "",
@@ -46,6 +48,7 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
   const [{ data: licitacao }, { data: documentos }, { data: empresa }] = await Promise.all([
     supabase
@@ -54,8 +57,8 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
       .eq("id", licitacaoId)
       .eq("user_id", user.id)
       .single(),
-    supabase.from("documentos").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-    supabase.from("empresa").select("porte, natureza_juridica").eq("user_id", user.id).maybeSingle(),
+    supabase.from("documentos").select("*").eq("user_id", empresaUserId).order("created_at", { ascending: false }),
+    supabase.from("empresa").select("porte, natureza_juridica").eq("user_id", empresaUserId).maybeSingle(),
   ]);
   if (!licitacao) throw new Error("Licitação não encontrada");
 

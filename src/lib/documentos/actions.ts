@@ -2,10 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { extrairDatasDoPdf } from "./extract";
 import { TIPO_AVULSO, tipoSemValidade } from "./types";
 
 const BUCKET = "documentos";
+
+export async function obterEmpresaUserId(): Promise<string> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+  return resolverEmpresaUserId(supabase, user.id);
+}
 
 export type RegistrarDocumentoInput = {
   id: string;
@@ -26,9 +34,10 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
-  // segurança: o arquivo precisa estar sob o prefixo do próprio usuário
-  if (!input.path.startsWith(`${user.id}/`)) {
+  // segurança: o arquivo precisa estar sob o prefixo da empresa vinculada
+  if (!input.path.startsWith(`${empresaUserId}/`)) {
     throw new Error("Caminho de arquivo inválido.");
   }
 
@@ -47,7 +56,7 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
 
   const { error: insErr } = await supabase.from("documentos").insert({
     id: input.id,
-    user_id: user.id,
+    user_id: empresaUserId,
     tipo: input.tipo || TIPO_AVULSO,
     nome: input.nome,
     arquivo_path: input.path,
@@ -69,19 +78,20 @@ export async function removerDocumento(id: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
   const { data: doc } = await supabase
     .from("documentos")
     .select("arquivo_path")
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", empresaUserId)
     .single();
 
   if (doc?.arquivo_path) {
     await supabase.storage.from(BUCKET).remove([doc.arquivo_path]);
   }
 
-  const { error } = await supabase.from("documentos").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("documentos").delete().eq("id", id).eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
   revalidatePath("/documentos");
 }
@@ -90,6 +100,7 @@ export async function renomearDocumento(id: string, nome: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
   const limpo = nome.trim();
   if (!limpo) throw new Error("Informe um nome.");
@@ -98,7 +109,7 @@ export async function renomearDocumento(id: string, nome: string) {
     .from("documentos")
     .update({ nome: limpo })
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
   revalidatePath("/documentos");
 }
@@ -107,12 +118,13 @@ export async function atualizarValidade(id: string, dataValidade: string | null)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
   const { error } = await supabase
     .from("documentos")
     .update({ data_validade: dataValidade || null, validade_automatica: false })
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
   revalidatePath("/documentos");
 }
