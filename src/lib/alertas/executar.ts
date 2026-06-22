@@ -70,11 +70,6 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     if (novas.length === 0) continue;
     totalNovas += novas.length;
 
-    // Registra como enviados (mesmo se o Telegram falhar, evita repetir)
-    await supabase.from("alerta_envios").insert(
-      novas.map((i) => ({ alerta_id: a.id, numero_controle_pncp: i.numeroControlePNCP })),
-    );
-
     // Chat do usuário
     let { data: config, error: configError }: {
       data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
@@ -93,10 +88,23 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
       config = fallback.data;
       configError = fallback.error;
     }
-    if (configError) continue;
+    if (configError) {
+      console.error("[Alertas] Falha ao carregar configuração de notificação", {
+        alertaId: a.id,
+        userId: a.user_id,
+        erro: configError.message,
+      });
+      continue;
+    }
     const chatId = config?.telegram_chat_id;
     const botToken = config?.telegram_bot_token;
-    if (!chatId) continue;
+    if (!chatId) {
+      console.error("[Alertas] Chat id do Telegram não configurado", {
+        alertaId: a.id,
+        userId: a.user_id,
+      });
+      continue;
+    }
 
     const linhas = novas.slice(0, 8).map((i, idx) => {
       const link = linkPncp(i.numeroControlePNCP);
@@ -112,7 +120,19 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     const texto = `🔔 <b>${escapeHtml(a.nome)}</b> — ${novas.length} nova(s) oportunidade(s)\n\n${linhas.join("\n\n")}${extra}`;
 
     const resultado = await enviarTelegram(chatId, texto, botToken);
-    if (resultado.ok) totalEnviados += novas.length;
+    if (!resultado.ok) {
+      console.error("[Alertas] Falha Telegram", {
+        alertaId: a.id,
+        userId: a.user_id,
+        erro: resultado.erro,
+      });
+      continue;
+    }
+
+    await supabase.from("alerta_envios").insert(
+      novas.map((i) => ({ alerta_id: a.id, numero_controle_pncp: i.numeroControlePNCP })),
+    );
+    totalEnviados += novas.length;
   }
 
   return { alertas: alertas.length, novas: totalNovas, enviados: totalEnviados };

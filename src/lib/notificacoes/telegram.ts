@@ -5,7 +5,7 @@ export type ResultadoTelegram = {
 
 /** Envia uma mensagem via Telegram Bot API. */
 export async function enviarTelegram(chatId: string, texto: string, tokenConfigurado?: string | null): Promise<ResultadoTelegram> {
-  const token = tokenConfigurado?.trim() || process.env.TELEGRAM_BOT_TOKEN;
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim() || tokenConfigurado?.trim();
   if (!token) return { ok: false, erro: "TELEGRAM_BOT_TOKEN não configurado no ambiente." };
   if (!chatId) return { ok: false, erro: "Chat id do Telegram não configurado." };
   try {
