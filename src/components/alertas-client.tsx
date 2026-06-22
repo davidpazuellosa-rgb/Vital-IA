@@ -164,7 +164,7 @@ export function EmailConfig({
 }) {
   const [destino, setDestino] = useState(emailDestino);
   const [destinoSalvo, setDestinoSalvo] = useState(emailDestino);
-  const remetente = emailRemetente || "Vital Norte <vitalnorteco@gmail.com>";
+  const remetente = emailRemetente || "Vital Norte <onboarding@resend.dev>";
   const [apiKey, setApiKey] = useState("");
   const [apiKeySalva, setApiKeySalva] = useState(emailApiConfigurada);
   const [pendente, startTransition] = useTransition();

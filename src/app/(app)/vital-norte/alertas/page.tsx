@@ -69,7 +69,8 @@ export default async function AlertasPage() {
     (config?.telegram_bot_token as string)?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim(),
   );
   const emailDestino = (config?.email_destino as string) ?? "";
-  const emailRemetente = (config?.email_remetente as string) ?? process.env.EMAIL_FROM ?? "Vital Norte <vitalnorteco@gmail.com>";
+  const emailRemetente =
+    process.env.EMAIL_FROM?.trim() || (config?.email_remetente as string) || "Vital Norte <onboarding@resend.dev>";
   const emailApiConfigurada = Boolean((config?.email_api_key as string)?.trim() || process.env.RESEND_API_KEY?.trim());
 
   return (

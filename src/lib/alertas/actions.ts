@@ -54,7 +54,7 @@ function erroPersistenciaEmail(error: { code?: string; message: string } | null)
 }
 
 function remetentePadraoEmail(): string {
-  return process.env.EMAIL_FROM?.trim() || "Vital Norte <vitalnorteco@gmail.com>";
+  return process.env.EMAIL_FROM?.trim() || "Vital Norte <onboarding@resend.dev>";
 }
 
 function emailValido(email: string): boolean {
@@ -232,7 +232,7 @@ export async function enviarTesteEmailAlertas(apiKey?: string, emailDestino?: st
   data = { ...data, ...emailStorage };
 
   const destino = normalizarEmails(emailDestino?.trim() || String(data?.email_destino ?? ""));
-  const remetente = String(emailRemetente?.trim() || data?.email_remetente || remetentePadraoEmail()).trim();
+  const remetente = String(emailRemetente?.trim() || remetentePadraoEmail() || data?.email_remetente).trim();
   const chave = apiKey?.trim() || String(data?.email_api_key ?? "").trim();
 
   const erroEmails = validarListaEmails(destino);
