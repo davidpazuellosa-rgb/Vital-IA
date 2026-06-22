@@ -12,9 +12,9 @@ export type EmailPayload = {
   apiKey?: string;
 };
 
-/** Envia e-mail via Resend. A chave pode vir do Vercel (RESEND_API_KEY) ou da configuração salva. */
+/** Envia e-mail via Resend. A chave pode vir da configuração salva/digitada ou do Vercel (RESEND_API_KEY). */
 export async function enviarEmail(payload: EmailPayload): Promise<ResultadoEmail> {
-  const apiKey = process.env.RESEND_API_KEY?.trim() || payload.apiKey?.trim();
+  const apiKey = payload.apiKey?.trim() || process.env.RESEND_API_KEY?.trim();
   const remetente = payload.remetente?.trim() || process.env.EMAIL_FROM?.trim();
   const destinatarios = payload.para
     .split(/[,\n;]/)
@@ -44,11 +44,25 @@ export async function enviarEmail(payload: EmailPayload): Promise<ResultadoEmail
     if (!resposta.ok) {
       const corpo = await resposta.json().catch(() => null);
       const mensagem = typeof corpo?.message === "string" ? corpo.message : "Falha ao enviar e-mail.";
-      return { ok: false, erro: mensagem };
+      return { ok: false, erro: explicarErroResend(mensagem, resposta.status) };
     }
 
     return { ok: true };
   } catch {
     return { ok: false, erro: "Não foi possível conectar ao serviço de e-mail." };
   }
+}
+
+function explicarErroResend(mensagem: string, status: number): string {
+  const texto = mensagem.toLowerCase();
+
+  if (status === 401 || texto.includes("api key")) {
+    return "A API key do Resend foi recusada. Gere uma nova chave com permissão de envio e salve novamente.";
+  }
+
+  if (texto.includes("domain") || texto.includes("sender") || texto.includes("from")) {
+    return `${mensagem} Confira se o remetente usa um domínio verificado no Resend, ou use Vital Norte <onboarding@resend.dev> para teste.`;
+  }
+
+  return mensagem;
 }

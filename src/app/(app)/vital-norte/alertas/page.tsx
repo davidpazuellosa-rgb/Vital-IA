@@ -2,6 +2,7 @@ import { Bell, Search, MapPin, Wallet, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
 import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
@@ -50,7 +51,7 @@ export default async function AlertasPage() {
     config = fallback.data;
     configError = fallback.error;
     if (user) {
-      const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+      const emailStorage = await carregarEmailConfigStorage(createServiceClient(), user.id);
       config = { ...config, ...emailStorage };
     }
   }
@@ -60,7 +61,7 @@ export default async function AlertasPage() {
     configError = fallback.error;
   }
   if (user) {
-    const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+    const emailStorage = await carregarEmailConfigStorage(createServiceClient(), user.id);
     config = { ...config, ...emailStorage };
   }
   const alertas = (data ?? []) as Alerta[];

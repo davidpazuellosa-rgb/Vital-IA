@@ -224,11 +224,11 @@ export async function enviarTesteEmailAlertas(apiKey?: string, emailDestino?: st
   let data: { email_destino?: string | null; email_remetente?: string | null; email_api_key?: string | null } | null =
     configEmail;
   if (erroColunasEmail(error)) {
-    data = await carregarEmailConfigStorage(supabase, user.id);
+    data = await carregarEmailConfigStorage(createServiceClient(), user.id);
   } else if (error) {
     return { ok: false, erro: error.message };
   }
-  const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+  const emailStorage = await carregarEmailConfigStorage(createServiceClient(), user.id);
   data = { ...data, ...emailStorage };
 
   const destino = normalizarEmails(emailDestino?.trim() || String(data?.email_destino ?? ""));
@@ -287,7 +287,7 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
   const { error } = await persistencia.from("notificacoes_config").upsert(valores, { onConflict: "user_id" });
 
   if (erroPersistenciaEmail(error)) {
-    const atual = await carregarEmailConfigStorage(supabase, user.id);
+    const atual = await carregarEmailConfigStorage(createServiceClient(), user.id);
     const salvoStorage = await salvarEmailConfigStorage(persistencia, user.id, {
       email_destino: destino,
       email_remetente: remetente,
@@ -323,7 +323,7 @@ export async function salvarEmailsCadastrados(emailDestino: string) {
   let remetente = String(configAtual?.email_remetente ?? "").trim();
   let apiKey = String(configAtual?.email_api_key ?? "").trim();
   if (erroPersistenciaEmail(configError)) {
-    const storage = await carregarEmailConfigStorage(supabase, user.id);
+  const storage = await carregarEmailConfigStorage(createServiceClient(), user.id);
     remetente = String(storage.email_remetente ?? "").trim();
     apiKey = String(storage.email_api_key ?? "").trim();
   } else if (configError) {
