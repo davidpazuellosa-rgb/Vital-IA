@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
+import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
 import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
 import type { Alerta } from "@/lib/alertas/actions";
 
@@ -13,16 +14,46 @@ function erroColunaTelegramToken(error: { code?: string; message: string } | nul
   );
 }
 
+function erroColunasEmail(error: { code?: string; message: string } | null): boolean {
+  return Boolean(
+    (error?.message.includes("email_destino") ||
+      error?.message.includes("email_remetente") ||
+      error?.message.includes("email_api_key")) &&
+      (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
 export default async function AlertasPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data } = await supabase.from("alertas").select("*").order("created_at", { ascending: false });
   let { data: config, error: configError }: {
-    data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
+    data: {
+      telegram_chat_id?: string | null;
+      telegram_bot_token?: string | null;
+      email_destino?: string | null;
+      email_remetente?: string | null;
+      email_api_key?: string | null;
+    } | null;
     error: { code?: string; message: string } | null;
   } = await supabase
     .from("notificacoes_config")
-    .select("telegram_chat_id, telegram_bot_token")
+    .select("telegram_chat_id, telegram_bot_token, email_destino, email_remetente, email_api_key")
     .maybeSingle();
+  if (erroColunasEmail(configError)) {
+    const fallback = await supabase
+      .from("notificacoes_config")
+      .select("telegram_chat_id, telegram_bot_token")
+      .maybeSingle();
+    config = fallback.data;
+    configError = fallback.error;
+    if (user) {
+      const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+      config = { ...config, ...emailStorage };
+    }
+  }
   if (erroColunaTelegramToken(configError)) {
     const fallback = await supabase.from("notificacoes_config").select("telegram_chat_id").maybeSingle();
     config = fallback.data;
@@ -30,9 +61,12 @@ export default async function AlertasPage() {
   }
   const alertas = (data ?? []) as Alerta[];
   const chatId = (config?.telegram_chat_id as string) ?? "";
- const botTokenConfigurado = Boolean(
-   (config?.telegram_bot_token as string)?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim(),
- );
+  const botTokenConfigurado = Boolean(
+    (config?.telegram_bot_token as string)?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim(),
+  );
+  const emailDestino = (config?.email_destino as string) ?? "";
+  const emailRemetente = (config?.email_remetente as string) ?? process.env.EMAIL_FROM ?? "";
+  const emailApiConfigurada = Boolean((config?.email_api_key as string)?.trim() || process.env.RESEND_API_KEY?.trim());
 
   return (
     <div className="flex flex-col gap-5">
@@ -112,7 +146,13 @@ export default async function AlertasPage() {
             Configure onde o Vital.IA deve avisar quando uma nova licitação bater com seus filtros.
           </p>
         </div>
-        <CanaisNotificacao chatId={chatId} botTokenConfigurado={botTokenConfigurado} />
+        <CanaisNotificacao
+          chatId={chatId}
+          botTokenConfigurado={botTokenConfigurado}
+          emailDestino={emailDestino}
+          emailRemetente={emailRemetente}
+          emailApiConfigurada={emailApiConfigurada}
+        />
       </section>
     </div>
   );

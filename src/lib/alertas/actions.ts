@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { carregarEmailConfigStorage, salvarEmailConfigStorage } from "@/lib/notificacoes/email-config";
+import { enviarEmail } from "@/lib/notificacoes/email";
 import { enviarTelegram } from "@/lib/notificacoes/telegram";
 
 export type Alerta = {
@@ -35,6 +37,19 @@ function erroColunaTelegramToken(error: { code?: string; message: string } | nul
     error?.message.includes("telegram_bot_token") &&
       (error.code === "PGRST204" || error.message.includes("does not exist")),
   );
+}
+
+function erroColunasEmail(error: { code?: string; message: string } | null): boolean {
+  return Boolean(
+    (error?.message.includes("email_destino") ||
+      error?.message.includes("email_remetente") ||
+      error?.message.includes("email_api_key")) &&
+      (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
+function emailValido(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export async function salvarAlerta(formData: FormData) {
@@ -163,4 +178,94 @@ export async function salvarChatTelegram(chatId: string, botToken?: string) {
   if (error) return { ok: false, erro: error.message };
   revalidatePath("/vital-norte/alertas");
   return { ok: true, tokenSalvo: true };
+}
+
+export async function enviarTesteEmailAlertas(apiKey?: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { data: configEmail, error } = await supabase
+    .from("notificacoes_config")
+    .select("email_destino, email_remetente, email_api_key")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let data: { email_destino?: string | null; email_remetente?: string | null; email_api_key?: string | null } | null =
+    configEmail;
+  if (erroColunasEmail(error)) {
+    data = await carregarEmailConfigStorage(supabase, user.id);
+  } else if (error) {
+    return { ok: false, erro: error.message };
+  }
+
+  const destino = String(data?.email_destino ?? "").trim();
+  const remetente = String(data?.email_remetente ?? process.env.EMAIL_FROM ?? "").trim();
+  const chave = apiKey?.trim() || String(data?.email_api_key ?? "").trim();
+
+  if (!destino || !emailValido(destino)) return { ok: false, erro: "Configure um e-mail de destino válido primeiro." };
+  if (!remetente) return { ok: false, erro: "Configure o remetente primeiro. Ex.: Vital.IA <alertas@seudominio.com>" };
+  if (!chave && !process.env.RESEND_API_KEY) return { ok: false, erro: "Configure a API key do Resend primeiro." };
+
+  const resultado = await enviarEmail({
+    para: destino,
+    remetente,
+    apiKey: chave,
+    assunto: "✅ Vital.IA — Alertas por e-mail configurados",
+    texto: "Notificações por e-mail configuradas. Você vai receber novas oportunidades de licitação por aqui.",
+    html:
+      "<h2>✅ Vital.IA — Alertas</h2><p>Notificações por e-mail configuradas.</p><p>Você vai receber novas oportunidades de licitação por aqui. 🚀</p>",
+  });
+
+  if (!resultado.ok) return { ok: false, erro: resultado.erro ?? "Não foi possível enviar o e-mail de teste." };
+  return { ok: true };
+}
+
+export async function salvarEmailAlertas(emailDestino: string, emailRemetente: string, apiKey?: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const destino = emailDestino.trim();
+  const remetente = emailRemetente.trim();
+  const chave = apiKey?.trim() ?? "";
+
+  if (!emailValido(destino)) return { ok: false, erro: "Informe um e-mail de destino válido." };
+  if (!remetente) return { ok: false, erro: "Informe o remetente. Ex.: Vital.IA <alertas@seudominio.com>" };
+
+  const valores: {
+    user_id: string;
+    email_destino: string;
+    email_remetente: string;
+    email_api_key?: string;
+    updated_at: string;
+  } = {
+    user_id: user.id,
+    email_destino: destino,
+    email_remetente: remetente,
+    updated_at: new Date().toISOString(),
+  };
+  if (chave) valores.email_api_key = chave;
+
+  const { error } = await supabase.from("notificacoes_config").upsert(valores, { onConflict: "user_id" });
+
+  if (erroColunasEmail(error)) {
+    const atual = await carregarEmailConfigStorage(supabase, user.id);
+    const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
+      email_destino: destino,
+      email_remetente: remetente,
+      email_api_key: chave || String(atual.email_api_key ?? ""),
+    });
+    if (!salvoStorage.ok) return { ok: false, erro: salvoStorage.erro };
+    revalidatePath("/vital-norte/alertas");
+    return { ok: true, apiKeySalva: true, aviso: "Configuração salva no storage privado do Supabase." };
+  }
+  if (error) return { ok: false, erro: error.message };
+
+  revalidatePath("/vital-norte/alertas");
+  return { ok: true, apiKeySalva: true };
 }

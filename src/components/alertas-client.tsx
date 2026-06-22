@@ -12,14 +12,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, type Alerta } from "@/lib/alertas/actions";
+import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, salvarEmailAlertas, enviarTesteEmailAlertas, type Alerta } from "@/lib/alertas/actions";
 
 export function CanaisNotificacao({
   chatId,
   botTokenConfigurado,
+  emailDestino,
+  emailRemetente,
+  emailApiConfigurada,
 }: {
   chatId: string;
   botTokenConfigurado: boolean;
+  emailDestino: string;
+  emailRemetente: string;
+  emailApiConfigurada: boolean;
 }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
@@ -60,12 +66,39 @@ export function CanaisNotificacao({
         campos={["Número do WhatsApp", "Token/API do provedor", "Identificador do remetente"]}
       />
 
-      <CanalEmBreve
-        titulo="E-mail"
-        descricao="Endereço, remetente e credenciais para alertas por e-mail."
-        icon={Mail}
-        campos={["E-mail de destino", "Remetente", "Token/API de envio"]}
-      />
+      <Dialog>
+        <DialogTrigger asChild>
+          <Card className="cursor-pointer shadow-sm transition-colors hover:bg-muted/40">
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Mail className="size-5" />
+                </div>
+                <Badge variant={emailDestino && emailRemetente && emailApiConfigurada ? "secondary" : "outline"}>
+                  {emailDestino && emailRemetente && emailApiConfigurada ? "Ativo" : "Pendente"}
+                </Badge>
+              </div>
+              <div>
+                <p className="font-semibold">E-mail</p>
+                <p className="text-sm text-muted-foreground">Endereço, remetente e credenciais para alertas por e-mail.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Configurar E-mail</DialogTitle>
+            <DialogDescription>
+              Informe o destino, o remetente e a API key do Resend. A chave fica salva e não é exibida novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <EmailConfig
+            emailDestino={emailDestino}
+            emailRemetente={emailRemetente}
+            emailApiConfigurada={emailApiConfigurada}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -117,6 +150,127 @@ function CanalEmBreve({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function EmailConfig({
+  emailDestino,
+  emailRemetente,
+  emailApiConfigurada,
+}: {
+  emailDestino: string;
+  emailRemetente: string;
+  emailApiConfigurada: boolean;
+}) {
+  const [destino, setDestino] = useState(emailDestino);
+  const [destinoSalvo, setDestinoSalvo] = useState(emailDestino);
+  const [remetente, setRemetente] = useState(emailRemetente);
+  const [remetenteSalvo, setRemetenteSalvo] = useState(emailRemetente);
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeySalva, setApiKeySalva] = useState(emailApiConfigurada);
+  const [pendente, startTransition] = useTransition();
+  const [testando, startTeste] = useTransition();
+  const mudou = destino !== destinoSalvo || remetente !== remetenteSalvo || Boolean(apiKey.trim());
+
+  function salvar() {
+    const t = toast.loading("Salvando e-mail…");
+    startTransition(async () => {
+      try {
+        const resultado = await salvarEmailAlertas(destino, remetente, apiKey);
+        if (resultado.ok) {
+          setDestino(destino.trim());
+          setDestinoSalvo(destino.trim());
+          setRemetente(remetente.trim());
+          setRemetenteSalvo(remetente.trim());
+          if (apiKey.trim()) {
+            setApiKey("");
+            setApiKeySalva(true);
+          }
+          toast.success("E-mail configurado", { id: t });
+        } else {
+          toast.error("Não foi possível salvar", { id: t, description: resultado.erro });
+        }
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
+  function testar() {
+    const t = toast.loading("Enviando e-mail de teste…");
+    startTeste(async () => {
+      try {
+        const resultado = await enviarTesteEmailAlertas(apiKey);
+        if (resultado.ok) {
+          toast.success("Teste enviado", { id: t, description: "Confira a caixa de entrada." });
+        } else {
+          toast.error("Falha no teste", { id: t, description: resultado.erro });
+        }
+      } catch (e) {
+        toast.error("Falha no teste", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
+  const testeBloqueado = !destinoSalvo || !remetenteSalvo || destino !== destinoSalvo || remetente !== remetenteSalvo || (!apiKeySalva && !apiKey.trim());
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email_destino">E-mail de destino</Label>
+          <Input
+            id="email_destino"
+            type="email"
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            placeholder="seuemail@dominio.com"
+            autoComplete="email"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email_remetente">Remetente</Label>
+          <Input
+            id="email_remetente"
+            value={remetente}
+            onChange={(e) => setRemetente(e.target.value)}
+            placeholder="Vital.IA <alertas@seudominio.com>"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email_api_key">API key do Resend</Label>
+        <Input
+          id="email_api_key"
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={apiKeySalva ? "API key já salva — cole outra para trocar" : "Cole a API key do Resend"}
+          autoComplete="off"
+        />
+      </div>
+      <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+        Para enviar e-mail, o remetente precisa estar liberado/verificado no Resend. Se preferir, também dá para usar
+        RESEND_API_KEY e EMAIL_FROM nas variáveis do Vercel.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={salvar} disabled={pendente || !mudou}>
+          {pendente && <Loader2 className="animate-spin" />} Salvar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={testar}
+          disabled={testando || testeBloqueado}
+          title={testeBloqueado ? "Salve ou informe destino, remetente e API key primeiro" : "Enviar e-mail de teste"}
+        >
+          {testando ? <Loader2 className="animate-spin" /> : <Mail />} Enviar teste
+        </Button>
+      </div>
+      {testeBloqueado && (
+        <p className="text-xs text-muted-foreground">Salve ou informe destino, remetente e API key para liberar o teste.</p>
+      )}
+    </div>
   );
 }
 

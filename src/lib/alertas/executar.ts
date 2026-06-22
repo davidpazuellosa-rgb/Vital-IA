@@ -1,9 +1,11 @@
-import { createServiceClient } from "@/lib/supabase/service";
+import { formatarData, formatarMoeda } from "@/lib/format";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
-import { formatarData, formatarMoeda } from "@/lib/format";
-import { enviarTelegram } from "@/lib/notificacoes/telegram";
 import type { UniversalFilter } from "@/lib/licitacoes/types";
+import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
+import { enviarEmail } from "@/lib/notificacoes/email";
+import { enviarTelegram } from "@/lib/notificacoes/telegram";
+import { createServiceClient } from "@/lib/supabase/service";
 
 function ymd(diasAtras: number): string {
   const d = new Date();
@@ -23,10 +25,29 @@ type AlertaRow = {
   apenas_aberto: boolean;
 };
 
-function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
+type NotificacaoConfig = {
+  telegram_chat_id?: string | null;
+  telegram_bot_token?: string | null;
+  email_destino?: string | null;
+  email_remetente?: string | null;
+  email_api_key?: string | null;
+};
+
+function colunaInexistente(error: { code?: string; message: string } | null, coluna: string): boolean {
   return Boolean(
-    error?.message.includes("telegram_bot_token") &&
-      (error.code === "PGRST204" || error.message.includes("does not exist")),
+    error?.message.includes(coluna) && (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
+function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
+  return colunaInexistente(error, "telegram_bot_token");
+}
+
+function erroColunasEmail(error: { code?: string; message: string } | null): boolean {
+  return (
+    colunaInexistente(error, "email_destino") ||
+    colunaInexistente(error, "email_remetente") ||
+    colunaInexistente(error, "email_api_key")
   );
 }
 
@@ -36,7 +57,7 @@ export type ResumoExecucao = {
   enviados: number;
 };
 
-/** Executa todos os alertas ativos: busca, deduplica e notifica no Telegram. */
+/** Executa todos os alertas ativos: busca, deduplica e notifica nos canais configurados. */
 export async function executarAlertas(): Promise<ResumoExecucao> {
   const supabase = createServiceClient();
   const { data: alertasData } = await supabase.from("alertas").select("*").eq("ativo", true);
@@ -65,7 +86,6 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
       continue;
     }
 
-    // Deduplica contra o que já foi enviado para este alerta
     const { data: jaEnviados } = await supabase
       .from("alerta_envios")
       .select("numero_controle_pncp")
@@ -77,15 +97,26 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     if (novas.length === 0) continue;
     totalNovas += novas.length;
 
-    // Chat do usuário
     let { data: config, error: configError }: {
-      data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
+      data: NotificacaoConfig | null;
       error: { code?: string; message: string } | null;
     } = await supabase
       .from("notificacoes_config")
-      .select("telegram_chat_id, telegram_bot_token")
+      .select("telegram_chat_id, telegram_bot_token, email_destino, email_remetente, email_api_key")
       .eq("user_id", a.user_id)
       .maybeSingle();
+
+    if (erroColunasEmail(configError)) {
+      const fallback = await supabase
+        .from("notificacoes_config")
+        .select("telegram_chat_id, telegram_bot_token")
+        .eq("user_id", a.user_id)
+        .maybeSingle();
+      config = fallback.data;
+      configError = fallback.error;
+      const emailStorage = await carregarEmailConfigStorage(supabase, a.user_id);
+      config = { ...config, ...emailStorage };
+    }
     if (erroColunaTelegramToken(configError)) {
       const fallback = await supabase
         .from("notificacoes_config")
@@ -96,42 +127,70 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
       configError = fallback.error;
     }
     if (configError) {
-      console.error("[Alertas] Falha ao carregar configuração de notificação", {
+      console.error("[Alertas] Falha ao carregar configuração notificação", {
         alertaId: a.id,
         userId: a.user_id,
         erro: configError.message,
       });
       continue;
     }
-    const chatId = config?.telegram_chat_id;
-    const botToken = config?.telegram_bot_token;
-    if (!chatId) {
-      console.error("[Alertas] Chat id do Telegram não configurado", {
-        alertaId: a.id,
-        userId: a.user_id,
-      });
-      continue;
-    }
 
-    const linhas = novas.slice(0, 8).map((i, idx) => {
+    const linhasTelegram = novas.slice(0, 8).map((i, idx) => {
       const link = linkPncp(i.numeroControlePNCP);
       const titulo = (i.titulo || i.descricao || "Licitação").slice(0, 120);
       return (
         `${idx + 1}. <b>${escapeHtml(titulo)}</b>\n` +
-        `   ${escapeHtml(i.orgao)} · ${i.uf || "—"}\n` +
-        `   💰 ${formatarMoeda(i.valorEstimado)} · 📅 encerra ${formatarData(i.dataEncerramentoProposta)}` +
-        (link ? `\n   ${link}` : "")
+        ` ${escapeHtml(i.orgao)} · ${i.uf || "—"}\n` +
+        ` 💰 ${formatarMoeda(i.valorEstimado)} · 📅 encerra ${formatarData(i.dataEncerramentoProposta)}` +
+        (link ? `\n ${link}` : "")
       );
     });
-    const extra = novas.length > 8 ? `\n\n+${novas.length - 8} outra(s).` : "";
-    const texto = `🔔 <b>${escapeHtml(a.nome)}</b> — ${novas.length} nova(s) oportunidade(s)\n\n${linhas.join("\n\n")}${extra}`;
+    const extraTelegram = novas.length > 8 ? `\n\n+${novas.length - 8} outra(s).` : "";
+    const textoTelegram = `🔔 <b>${escapeHtml(a.nome)}</b> ${novas.length} nova(s) oportunidade(s)\n\n${linhasTelegram.join("\n\n")}${extraTelegram}`;
 
-    const resultado = await enviarTelegram(chatId, texto, botToken);
-    if (!resultado.ok) {
-      console.error("[Alertas] Falha Telegram", {
+    let algumCanalEnviado = false;
+
+    const chatId = config?.telegram_chat_id?.trim();
+    if (chatId) {
+      const resultadoTelegram = await enviarTelegram(chatId, textoTelegram, config?.telegram_bot_token ?? undefined);
+      if (resultadoTelegram.ok) {
+        algumCanalEnviado = true;
+      } else {
+        console.error("[Alertas] Falha Telegram", {
+          alertaId: a.id,
+          userId: a.user_id,
+          erro: resultadoTelegram.erro,
+        });
+      }
+    }
+
+    const emailDestino = config?.email_destino?.trim();
+    const emailRemetente = config?.email_remetente?.trim() || process.env.EMAIL_FROM?.trim();
+    const emailApiKey = config?.email_api_key?.trim() || process.env.RESEND_API_KEY?.trim();
+    if (emailDestino && emailRemetente && emailApiKey) {
+      const resultadoEmail = await enviarEmail({
+        para: emailDestino,
+        remetente: emailRemetente,
+        apiKey: emailApiKey,
+        assunto: `🔔 ${a.nome} — ${novas.length} nova(s) oportunidade(s)`,
+        texto: textoTelegram.replace(/<[^>]*>/g, ""),
+        html: montarEmailHtml(a.nome, novas),
+      });
+      if (resultadoEmail.ok) {
+        algumCanalEnviado = true;
+      } else {
+        console.error("[Alertas] Falha E-mail", {
+          alertaId: a.id,
+          userId: a.user_id,
+          erro: resultadoEmail.erro,
+        });
+      }
+    }
+
+    if (!algumCanalEnviado) {
+      console.error("[Alertas] Nenhum canal de notificação configurado ou enviado", {
         alertaId: a.id,
         userId: a.user_id,
-        erro: resultado.erro,
       });
       continue;
     }
@@ -145,6 +204,30 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
   return { alertas: alertas.length, novas: totalNovas, enviados: totalEnviados };
 }
 
+function montarEmailHtml(nomeAlerta: string, novas: Awaited<ReturnType<typeof buscarLicitacoes>>["itens"]): string {
+  const itens = novas
+    .slice(0, 8)
+    .map((i, idx) => {
+      const link = linkPncp(i.numeroControlePNCP);
+      const titulo = escapeHtml((i.titulo || i.descricao || "Licitação").slice(0, 160));
+      return `<li style="margin-bottom:16px">
+        <strong>${idx + 1}. ${titulo}</strong><br>
+        ${escapeHtml(i.orgao)} · ${escapeHtml(i.uf || "—")}<br>
+        💰 ${formatarMoeda(i.valorEstimado)} · 📅 encerra ${formatarData(i.dataEncerramentoProposta)}
+        ${link ? `<br><a href="${escapeHtml(link)}">Abrir no PNCP</a>` : ""}
+      </li>`;
+    })
+    .join("");
+  const extra = novas.length > 8 ? `<p>+${novas.length - 8} outra(s).</p>` : "";
+
+  return `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+    <h2>🔔 ${escapeHtml(nomeAlerta)}</h2>
+    <p>${novas.length} nova(s) oportunidade(s) encontradas pelo Vital.IA.</p>
+    <ol style="padding-left:20px">${itens}</ol>
+    ${extra}
+  </div>`;
+}
+
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
