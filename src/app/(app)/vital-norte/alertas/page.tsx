@@ -6,6 +6,13 @@ import { formatarData, formatarMoeda } from "@/lib/format";
 import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
 import type { Alerta } from "@/lib/alertas/actions";
 
+function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
+  return Boolean(
+    error?.message.includes("telegram_bot_token") &&
+      (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
 export default async function AlertasPage() {
   const supabase = await createClient();
   const { data } = await supabase.from("alertas").select("*").order("created_at", { ascending: false });
@@ -16,7 +23,7 @@ export default async function AlertasPage() {
     .from("notificacoes_config")
     .select("telegram_chat_id, telegram_bot_token")
     .maybeSingle();
-  if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+  if (erroColunaTelegramToken(configError)) {
     const fallback = await supabase.from("notificacoes_config").select("telegram_chat_id").maybeSingle();
     config = fallback.data;
     configError = fallback.error;

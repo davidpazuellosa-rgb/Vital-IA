@@ -23,6 +23,13 @@ type AlertaRow = {
   apenas_aberto: boolean;
 };
 
+function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
+  return Boolean(
+    error?.message.includes("telegram_bot_token") &&
+      (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
 export type ResumoExecucao = {
   alertas: number;
   novas: number;
@@ -79,7 +86,7 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
       .select("telegram_chat_id, telegram_bot_token")
       .eq("user_id", a.user_id)
       .maybeSingle();
-    if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+    if (erroColunaTelegramToken(configError)) {
       const fallback = await supabase
         .from("notificacoes_config")
         .select("telegram_chat_id")

@@ -30,6 +30,13 @@ function parseNumero(valor: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) && (valor as string)?.trim() ? n : null;
 }
 
+function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
+  return Boolean(
+    error?.message.includes("telegram_bot_token") &&
+      (error.code === "PGRST204" || error.message.includes("does not exist")),
+  );
+}
+
 export async function salvarAlerta(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -96,7 +103,7 @@ export async function enviarTesteTelegram(botToken?: string) {
     .select("telegram_chat_id, telegram_bot_token")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+  if (erroColunaTelegramToken(configError)) {
     const fallback = await supabase
       .from("notificacoes_config")
       .select("telegram_chat_id")
@@ -141,7 +148,7 @@ export async function salvarChatTelegram(chatId: string, botToken?: string) {
   const { error } = await supabase
     .from("notificacoes_config")
     .upsert(valores, { onConflict: "user_id" });
-  if (error?.code === "PGRST204" && error.message.includes("telegram_bot_token")) {
+  if (erroColunaTelegramToken(error)) {
     const { error: chatError } = await supabase
       .from("notificacoes_config")
       .upsert({ user_id: user.id, telegram_chat_id: valor, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
