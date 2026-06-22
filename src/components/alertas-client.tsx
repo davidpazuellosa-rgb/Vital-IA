@@ -137,11 +137,12 @@ export function TelegramConfig({ chatId, botTokenConfigurado }: { chatId: string
         if (resultado.ok) {
           setSalvo(valor.trim());
           setValor(valor.trim());
-          if (token.trim()) {
+          if (resultado.tokenSalvo !== false && token.trim()) {
             setToken("");
             setTokenSalvo(true);
           }
-          toast.success("Telegram configurado", { id: t });
+          if (resultado.tokenSalvo === false) setTokenSalvo(false);
+          toast.success("Telegram configurado", { id: t, description: resultado.aviso });
         } else {
           toast.error("Não foi possível salvar", { id: t, description: resultado.erro });
         }
@@ -155,7 +156,7 @@ export function TelegramConfig({ chatId, botTokenConfigurado }: { chatId: string
     const t = toast.loading("Enviando mensagem de teste…");
     startTeste(async () => {
       try {
-        const resultado = await enviarTesteTelegram();
+        const resultado = await enviarTesteTelegram(token);
         if (resultado.ok) {
           toast.success("Teste enviado", { id: t, description: "Confira o Telegram." });
         } else {
@@ -197,14 +198,14 @@ export function TelegramConfig({ chatId, botTokenConfigurado }: { chatId: string
         <Button
           variant="outline"
           onClick={testar}
-          disabled={testando || !salvo || valor !== salvo || !tokenSalvo}
+          disabled={testando || !salvo || valor !== salvo || (!tokenSalvo && !token.trim())}
           className="shrink-0"
-          title={!salvo || !tokenSalvo ? "Salve o token e o chat id primeiro" : "Enviar mensagem de teste"}
+          title={!salvo || (!tokenSalvo && !token.trim()) ? "Salve ou informe o token e o chat id primeiro" : "Enviar mensagem de teste"}
         >
           {testando ? <Loader2 className="animate-spin" /> : <Send />} Enviar teste
         </Button>
       </div>
-      {(!salvo || !tokenSalvo) && <p className="text-xs text-muted-foreground">Salve o token do bot e o chat id para liberar o teste.</p>}
+      {(!salvo || (!tokenSalvo && !token.trim())) && <p className="text-xs text-muted-foreground">Salve ou informe o token do bot e o chat id para liberar o teste.</p>}
     </div>
   );
 }

@@ -83,25 +83,38 @@ export async function removerAlerta(id: string) {
   revalidatePath("/vital-norte/alertas");
 }
 
-export async function enviarTesteTelegram() {
+export async function enviarTesteTelegram(botToken?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const { data } = await supabase
+  let { data, error: configError }: {
+    data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
+    error: { code?: string; message: string } | null;
+  } = await supabase
     .from("notificacoes_config")
     .select("telegram_chat_id, telegram_bot_token")
     .eq("user_id", user.id)
     .maybeSingle();
+  if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+    const fallback = await supabase
+      .from("notificacoes_config")
+      .select("telegram_chat_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    data = fallback.data;
+    configError = fallback.error;
+  }
+  if (configError) return { ok: false, erro: configError.message };
   const chatId = (data?.telegram_chat_id as string)?.trim();
-  const botToken = (data?.telegram_bot_token as string)?.trim();
+  const tokenDigitado = botToken?.trim() || (data?.telegram_bot_token as string)?.trim() || "";
   if (!chatId) throw new Error("Configure seu chat id do Telegram primeiro.");
-  if (!botToken && !process.env.TELEGRAM_BOT_TOKEN) return { ok: false, erro: "Configure o token do bot do Telegram primeiro." };
+  if (!tokenDigitado && !process.env.TELEGRAM_BOT_TOKEN) return { ok: false, erro: "Configure o token do bot do Telegram primeiro." };
 
   const resultado = await enviarTelegram(
     chatId,
     "✅ <b>Vital.IA — Alertas</b>\nNotificações configuradas! Você vai receber novas oportunidades de licitação por aqui. 🚀",
-    botToken,
+    tokenDigitado,
   );
   if (!resultado.ok) return { ok: false, erro: resultado.erro ?? "Não foi possível enviar. Verifique o token do bot e se você já iniciou conversa com ele." };
   return { ok: true };
@@ -128,7 +141,19 @@ export async function salvarChatTelegram(chatId: string, botToken?: string) {
   const { error } = await supabase
     .from("notificacoes_config")
     .upsert(valores, { onConflict: "user_id" });
+  if (error?.code === "PGRST204" && error.message.includes("telegram_bot_token")) {
+    const { error: chatError } = await supabase
+      .from("notificacoes_config")
+      .upsert({ user_id: user.id, telegram_chat_id: valor, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (chatError) return { ok: false, erro: chatError.message };
+    revalidatePath("/vital-norte/alertas");
+    return {
+      ok: true,
+      tokenSalvo: false,
+      aviso: "Chat id salvo. O token será usado para teste agora, mas só ficará salvo depois que a migration do banco for aplicada.",
+    };
+  }
   if (error) return { ok: false, erro: error.message };
   revalidatePath("/vital-norte/alertas");
-  return { ok: true };
+  return { ok: true, tokenSalvo: true };
 }
