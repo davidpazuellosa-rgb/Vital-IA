@@ -197,7 +197,7 @@ export function EmailConfig({
     const t = toast.loading("Enviando e-mail de teste…");
     startTeste(async () => {
       try {
-        const resultado = await enviarTesteEmailAlertas(apiKey);
+        const resultado = await enviarTesteEmailAlertas(apiKey, destino, remetente);
         if (resultado.ok) {
           toast.success("Teste enviado", { id: t, description: "Confira a caixa de entrada." });
         } else {
@@ -209,7 +209,7 @@ export function EmailConfig({
     });
   }
 
-  const testeBloqueado = !destinoSalvo || destino !== destinoSalvo || (!apiKeySalva && !apiKey.trim());
+  const testeBloqueado = !destino.trim() || (!apiKeySalva && !apiKey.trim());
 
   return (
     <div className="flex flex-col gap-4">
@@ -268,13 +268,13 @@ export function EmailConfig({
           variant="outline"
           onClick={testar}
           disabled={testando || testeBloqueado}
-          title={testeBloqueado ? "Salve ou informe destino, remetente e API key primeiro" : "Enviar e-mail de teste"}
+          title={testeBloqueado ? "Informe destino e API key primeiro" : "Enviar e-mail de teste"}
         >
           {testando ? <Loader2 className="animate-spin" /> : <Mail />} Enviar teste
         </Button>
       </div>
       {testeBloqueado && (
-        <p className="text-xs text-muted-foreground">Salve ou informe destino, remetente e API key para liberar o teste.</p>
+        <p className="text-xs text-muted-foreground">Informe destino e API key para liberar o teste.</p>
       )}
     </div>
   );

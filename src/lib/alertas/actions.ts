@@ -208,7 +208,7 @@ export async function salvarChatTelegram(chatId: string, botToken?: string) {
   return { ok: true, tokenSalvo: true };
 }
 
-export async function enviarTesteEmailAlertas(apiKey?: string) {
+export async function enviarTesteEmailAlertas(apiKey?: string, emailDestino?: string, emailRemetente?: string) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -229,8 +229,8 @@ export async function enviarTesteEmailAlertas(apiKey?: string) {
     return { ok: false, erro: error.message };
   }
 
-  const destino = String(data?.email_destino ?? "").trim();
-  const remetente = String(data?.email_remetente ?? remetentePadraoEmail()).trim();
+  const destino = normalizarEmails(emailDestino?.trim() || String(data?.email_destino ?? ""));
+  const remetente = String(emailRemetente?.trim() || data?.email_remetente || remetentePadraoEmail()).trim();
   const chave = apiKey?.trim() || String(data?.email_api_key ?? "").trim();
 
   const erroEmails = validarListaEmails(destino);
