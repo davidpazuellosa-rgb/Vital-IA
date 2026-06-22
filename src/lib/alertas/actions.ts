@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { carregarEmailConfigStorage, salvarEmailConfigStorage } from "@/lib/notificacoes/email-config";
 import { enviarEmail } from "@/lib/notificacoes/email";
 import { enviarTelegram } from "@/lib/notificacoes/telegram";
@@ -280,11 +281,12 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
   };
   if (chave) valores.email_api_key = chave;
 
-  const { error } = await supabase.from("notificacoes_config").upsert(valores, { onConflict: "user_id" });
+  const persistencia = createServiceClient();
+  const { error } = await persistencia.from("notificacoes_config").upsert(valores, { onConflict: "user_id" });
 
   if (erroPersistenciaEmail(error)) {
     const atual = await carregarEmailConfigStorage(supabase, user.id);
-    const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
+    const salvoStorage = await salvarEmailConfigStorage(persistencia, user.id, {
       email_destino: destino,
       email_remetente: remetente,
       email_api_key: chave || String(atual.email_api_key ?? ""),
@@ -326,7 +328,8 @@ export async function salvarEmailsCadastrados(emailDestino: string) {
     return { ok: false, erro: configError.message };
   }
 
-  const { error } = await supabase.from("notificacoes_config").upsert(
+  const persistencia = createServiceClient();
+  const { error } = await persistencia.from("notificacoes_config").upsert(
     {
       user_id: user.id,
       email_destino: destino,
@@ -338,7 +341,7 @@ export async function salvarEmailsCadastrados(emailDestino: string) {
   );
 
   if (erroPersistenciaEmail(error)) {
-    const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
+    const salvoStorage = await salvarEmailConfigStorage(persistencia, user.id, {
       email_destino: destino,
       email_remetente: remetente,
       email_api_key: apiKey,
