@@ -30,7 +30,9 @@ export default async function AlertasPage() {
   }
   const alertas = (data ?? []) as Alerta[];
   const chatId = (config?.telegram_chat_id as string) ?? "";
-  const botTokenConfigurado = Boolean((config?.telegram_bot_token as string)?.trim());
+ const botTokenConfigurado = Boolean(
+   (config?.telegram_bot_token as string)?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim(),
+ );
 
   return (
     <div className="flex flex-col gap-5">

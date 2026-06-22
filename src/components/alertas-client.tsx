@@ -32,7 +32,7 @@ export function CanaisNotificacao({
                   <Send className="size-5" />
                 </div>
                 <Badge variant={chatId && botTokenConfigurado ? "secondary" : "outline"}>
-                  {chatId && botTokenConfigurado ? "Configurado" : "Pendente"}
+                  {chatId && botTokenConfigurado ? "Ativo" : "Pendente"}
                 </Badge>
               </div>
               <div>
