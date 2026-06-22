@@ -8,10 +8,19 @@ import type { Alerta } from "@/lib/alertas/actions";
 
 export default async function AlertasPage() {
   const supabase = await createClient();
-  const [{ data }, { data: config }] = await Promise.all([
-    supabase.from("alertas").select("*").order("created_at", { ascending: false }),
-    supabase.from("notificacoes_config").select("telegram_chat_id, telegram_bot_token").maybeSingle(),
-  ]);
+  const { data } = await supabase.from("alertas").select("*").order("created_at", { ascending: false });
+  let { data: config, error: configError }: {
+    data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
+    error: { code?: string; message: string } | null;
+  } = await supabase
+    .from("notificacoes_config")
+    .select("telegram_chat_id, telegram_bot_token")
+    .maybeSingle();
+  if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+    const fallback = await supabase.from("notificacoes_config").select("telegram_chat_id").maybeSingle();
+    config = fallback.data;
+    configError = fallback.error;
+  }
   const alertas = (data ?? []) as Alerta[];
   const chatId = (config?.telegram_chat_id as string) ?? "";
   const botTokenConfigurado = Boolean((config?.telegram_bot_token as string)?.trim());

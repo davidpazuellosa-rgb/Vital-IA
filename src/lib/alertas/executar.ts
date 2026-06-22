@@ -76,11 +76,24 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     );
 
     // Chat do usuário
-    const { data: config } = await supabase
+    let { data: config, error: configError }: {
+      data: { telegram_chat_id?: string | null; telegram_bot_token?: string | null } | null;
+      error: { code?: string; message: string } | null;
+    } = await supabase
       .from("notificacoes_config")
       .select("telegram_chat_id, telegram_bot_token")
       .eq("user_id", a.user_id)
       .maybeSingle();
+    if (configError?.code === "PGRST204" && configError.message.includes("telegram_bot_token")) {
+      const fallback = await supabase
+        .from("notificacoes_config")
+        .select("telegram_chat_id")
+        .eq("user_id", a.user_id)
+        .maybeSingle();
+      config = fallback.data;
+      configError = fallback.error;
+    }
+    if (configError) continue;
     const chatId = config?.telegram_chat_id;
     const botToken = config?.telegram_bot_token;
     if (!chatId) continue;
