@@ -165,7 +165,7 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     }
 
     const emailDestino = config?.email_destino?.trim();
-    const emailRemetente = config?.email_remetente?.trim() || process.env.EMAIL_FROM?.trim();
+    const emailRemetente = config?.email_remetente?.trim() || process.env.EMAIL_FROM?.trim() || "Vital Norte <vitalnorteco@gmail.com>";
     const emailApiKey = config?.email_api_key?.trim() || process.env.RESEND_API_KEY?.trim();
     if (emailDestino && emailRemetente && emailApiKey) {
       const resultadoEmail = await enviarEmail({

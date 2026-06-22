@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
-import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao, EmailsCadastrados } from "@/components/alertas-client";
+import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
 import type { Alerta } from "@/lib/alertas/actions";
 
 function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
@@ -65,7 +65,7 @@ export default async function AlertasPage() {
     (config?.telegram_bot_token as string)?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim(),
   );
   const emailDestino = (config?.email_destino as string) ?? "";
-  const emailRemetente = (config?.email_remetente as string) ?? process.env.EMAIL_FROM ?? "";
+  const emailRemetente = (config?.email_remetente as string) ?? process.env.EMAIL_FROM ?? "Vital Norte <vitalnorteco@gmail.com>";
   const emailApiConfigurada = Boolean((config?.email_api_key as string)?.trim() || process.env.RESEND_API_KEY?.trim());
 
   return (
@@ -155,20 +155,7 @@ export default async function AlertasPage() {
         />
       </section>
 
-      <section className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">E-mails cadastrados</h2>
-          <p className="text-sm text-muted-foreground">
-            Endereços que receberão os alertas automáticos de novas licitações.
-          </p>
-        </div>
 
-        <EmailsCadastrados
-          emailDestino={emailDestino}
-          emailRemetente={emailRemetente}
-          emailApiConfigurada={emailApiConfigurada}
-        />
-      </section>
     </div>
   );
 }

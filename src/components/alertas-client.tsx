@@ -164,13 +164,12 @@ export function EmailConfig({
 }) {
   const [destino, setDestino] = useState(emailDestino);
   const [destinoSalvo, setDestinoSalvo] = useState(emailDestino);
-  const [remetente, setRemetente] = useState(emailRemetente);
-  const [remetenteSalvo, setRemetenteSalvo] = useState(emailRemetente);
+  const remetente = emailRemetente || "Vital Norte <vitalnorteco@gmail.com>";
   const [apiKey, setApiKey] = useState("");
   const [apiKeySalva, setApiKeySalva] = useState(emailApiConfigurada);
   const [pendente, startTransition] = useTransition();
   const [testando, startTeste] = useTransition();
-  const mudou = destino !== destinoSalvo || remetente !== remetenteSalvo || Boolean(apiKey.trim());
+  const mudou = destino !== destinoSalvo || Boolean(apiKey.trim());
 
   function salvar() {
     const t = toast.loading("Salvando e-mail…");
@@ -180,8 +179,6 @@ export function EmailConfig({
         if (resultado.ok) {
           setDestino(destino.trim());
           setDestinoSalvo(destino.trim());
-          setRemetente(remetente.trim());
-          setRemetenteSalvo(remetente.trim());
           if (apiKey.trim()) {
             setApiKey("");
             setApiKeySalva(true);
@@ -212,7 +209,7 @@ export function EmailConfig({
     });
   }
 
-  const testeBloqueado = !destinoSalvo || !remetenteSalvo || destino !== destinoSalvo || remetente !== remetenteSalvo || (!apiKeySalva && !apiKey.trim());
+  const testeBloqueado = !destinoSalvo || destino !== destinoSalvo || (!apiKeySalva && !apiKey.trim());
 
   return (
     <div className="flex flex-col gap-4">
@@ -229,15 +226,25 @@ export function EmailConfig({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="email_remetente">Remetente</Label>
-          <Input
-            id="email_remetente"
-            value={remetente}
-            onChange={(e) => setRemetente(e.target.value)}
-            placeholder="Vital.IA <alertas@seudominio.com>"
-            autoComplete="off"
-          />
+          <Label>Remetente</Label>
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+            {remetente}
+          </div>
         </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">Destinatários cadastrados</p>
+        {separarEmails(destino).length ? (
+          <div className="flex flex-wrap gap-2">
+            {separarEmails(destino).map((email) => (
+              <Badge key={email} variant="secondary" className="font-normal">
+                {email}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nenhum destinatário cadastrado ainda.</p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email_api_key">API key do Resend</Label>
@@ -251,8 +258,7 @@ export function EmailConfig({
         />
       </div>
       <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-        Para enviar e-mail, o remetente precisa estar liberado/verificado no Resend. Se preferir, também dá para usar
-        RESEND_API_KEY e EMAIL_FROM nas variáveis do Vercel.
+        O remetente será o Vital Norte. Os destinatários serão os e-mails cadastrados acima.
       </p>
       <div className="flex flex-wrap gap-2">
         <Button onClick={salvar} disabled={pendente || !mudou}>

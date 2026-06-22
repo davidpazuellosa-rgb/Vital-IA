@@ -48,6 +48,14 @@ function erroColunasEmail(error: { code?: string; message: string } | null): boo
   );
 }
 
+function erroPersistenciaEmail(error: { code?: string; message: string } | null): boolean {
+  return Boolean(erroColunasEmail(error) || error?.message.includes("row-level security"));
+}
+
+function remetentePadraoEmail(): string {
+  return process.env.EMAIL_FROM?.trim() || "Vital Norte <vitalnorteco@gmail.com>";
+}
+
 function emailValido(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -221,7 +229,7 @@ export async function enviarTesteEmailAlertas(apiKey?: string) {
   }
 
   const destino = String(data?.email_destino ?? "").trim();
-  const remetente = String(data?.email_remetente ?? process.env.EMAIL_FROM ?? "").trim();
+  const remetente = String(data?.email_remetente ?? remetentePadraoEmail()).trim();
   const chave = apiKey?.trim() || String(data?.email_api_key ?? "").trim();
 
   const erroEmails = validarListaEmails(destino);
@@ -251,7 +259,7 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
   if (!user) throw new Error("Não autenticado");
 
   const destino = normalizarEmails(emailDestino);
-  const remetente = emailRemetente.trim();
+  const remetente = emailRemetente.trim() || remetentePadraoEmail();
   const chave = apiKey?.trim() ?? "";
 
   const erroEmails = validarListaEmails(destino);
@@ -274,7 +282,7 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
 
   const { error } = await supabase.from("notificacoes_config").upsert(valores, { onConflict: "user_id" });
 
-  if (erroColunasEmail(error)) {
+  if (erroPersistenciaEmail(error)) {
     const atual = await carregarEmailConfigStorage(supabase, user.id);
     const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
       email_destino: destino,
@@ -310,7 +318,7 @@ export async function salvarEmailsCadastrados(emailDestino: string) {
 
   let remetente = String(configAtual?.email_remetente ?? "").trim();
   let apiKey = String(configAtual?.email_api_key ?? "").trim();
-  if (erroColunasEmail(configError)) {
+  if (erroPersistenciaEmail(configError)) {
     const storage = await carregarEmailConfigStorage(supabase, user.id);
     remetente = String(storage.email_remetente ?? "").trim();
     apiKey = String(storage.email_api_key ?? "").trim();
@@ -329,7 +337,7 @@ export async function salvarEmailsCadastrados(emailDestino: string) {
     { onConflict: "user_id" },
   );
 
-  if (erroColunasEmail(error)) {
+  if (erroPersistenciaEmail(error)) {
     const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
       email_destino: destino,
       email_remetente: remetente,
