@@ -52,6 +52,25 @@ function emailValido(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function parseEmails(valor: string): string[] {
+  return valor
+    .split(/[,\n;]/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function normalizarEmails(valor: string): string {
+  return Array.from(new Set(parseEmails(valor))).join(", ");
+}
+
+function validarListaEmails(valor: string): string | null {
+  const emails = parseEmails(valor);
+  if (emails.length === 0) return "Cadastre pelo menos um e-mail.";
+  const invalido = emails.find((email) => !emailValido(email));
+  if (invalido) return `E-mail inválido: ${invalido}`;
+  return null;
+}
+
 export async function salvarAlerta(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -205,7 +224,8 @@ export async function enviarTesteEmailAlertas(apiKey?: string) {
   const remetente = String(data?.email_remetente ?? process.env.EMAIL_FROM ?? "").trim();
   const chave = apiKey?.trim() || String(data?.email_api_key ?? "").trim();
 
-  if (!destino || !emailValido(destino)) return { ok: false, erro: "Configure um e-mail de destino válido primeiro." };
+  const erroEmails = validarListaEmails(destino);
+  if (erroEmails) return { ok: false, erro: erroEmails };
   if (!remetente) return { ok: false, erro: "Configure o remetente primeiro. Ex.: Vital.IA <alertas@seudominio.com>" };
   if (!chave && !process.env.RESEND_API_KEY) return { ok: false, erro: "Configure a API key do Resend primeiro." };
 
@@ -230,11 +250,12 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const destino = emailDestino.trim();
+  const destino = normalizarEmails(emailDestino);
   const remetente = emailRemetente.trim();
   const chave = apiKey?.trim() ?? "";
 
-  if (!emailValido(destino)) return { ok: false, erro: "Informe um e-mail de destino válido." };
+  const erroEmails = validarListaEmails(destino);
+  if (erroEmails) return { ok: false, erro: erroEmails };
   if (!remetente) return { ok: false, erro: "Informe o remetente. Ex.: Vital.IA <alertas@seudominio.com>" };
 
   const valores: {
@@ -268,4 +289,58 @@ export async function salvarEmailAlertas(emailDestino: string, emailRemetente: s
 
   revalidatePath("/vital-norte/alertas");
   return { ok: true, apiKeySalva: true };
+}
+
+export async function salvarEmailsCadastrados(emailDestino: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const destino = normalizarEmails(emailDestino);
+  const erroEmails = validarListaEmails(destino);
+  if (erroEmails) return { ok: false, erro: erroEmails };
+
+  const { data: configAtual, error: configError } = await supabase
+    .from("notificacoes_config")
+    .select("email_remetente, email_api_key")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let remetente = String(configAtual?.email_remetente ?? "").trim();
+  let apiKey = String(configAtual?.email_api_key ?? "").trim();
+  if (erroColunasEmail(configError)) {
+    const storage = await carregarEmailConfigStorage(supabase, user.id);
+    remetente = String(storage.email_remetente ?? "").trim();
+    apiKey = String(storage.email_api_key ?? "").trim();
+  } else if (configError) {
+    return { ok: false, erro: configError.message };
+  }
+
+  const { error } = await supabase.from("notificacoes_config").upsert(
+    {
+      user_id: user.id,
+      email_destino: destino,
+      email_remetente: remetente,
+      ...(apiKey ? { email_api_key: apiKey } : {}),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (erroColunasEmail(error)) {
+    const salvoStorage = await salvarEmailConfigStorage(supabase, user.id, {
+      email_destino: destino,
+      email_remetente: remetente,
+      email_api_key: apiKey,
+    });
+    if (!salvoStorage.ok) return { ok: false, erro: salvoStorage.erro };
+    revalidatePath("/vital-norte/alertas");
+    return { ok: true };
+  }
+  if (error) return { ok: false, erro: error.message };
+
+  revalidatePath("/vital-norte/alertas");
+  return { ok: true };
 }

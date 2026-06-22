@@ -16,10 +16,14 @@ export type EmailPayload = {
 export async function enviarEmail(payload: EmailPayload): Promise<ResultadoEmail> {
   const apiKey = process.env.RESEND_API_KEY?.trim() || payload.apiKey?.trim();
   const remetente = payload.remetente?.trim() || process.env.EMAIL_FROM?.trim();
+  const destinatarios = payload.para
+    .split(/[,\n;]/)
+    .map((email) => email.trim())
+    .filter(Boolean);
 
   if (!apiKey) return { ok: false, erro: "RESEND_API_KEY não configurada." };
   if (!remetente) return { ok: false, erro: "Remetente de e-mail não configurado." };
-  if (!payload.para?.trim()) return { ok: false, erro: "E-mail de destino não configurado." };
+  if (destinatarios.length === 0) return { ok: false, erro: "E-mail de destino não configurado." };
 
   try {
     const resposta = await fetch("https://api.resend.com/emails", {
@@ -30,7 +34,7 @@ export async function enviarEmail(payload: EmailPayload): Promise<ResultadoEmail
       },
       body: JSON.stringify({
         from: remetente,
-        to: [payload.para.trim()],
+        to: destinatarios,
         subject: payload.assunto,
         html: payload.html,
         text: payload.texto,

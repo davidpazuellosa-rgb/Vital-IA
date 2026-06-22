@@ -1,10 +1,10 @@
-import { Bell, Search, MapPin, Wallet, Clock, Mail } from "lucide-react";
+import { Bell, Search, MapPin, Wallet, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
-import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao } from "@/components/alertas-client";
+import { AlertaDialog, AlertaToggle, AlertaRemover, CanaisNotificacao, EmailsCadastrados } from "@/components/alertas-client";
 import type { Alerta } from "@/lib/alertas/actions";
 
 function erroColunaTelegramToken(error: { code?: string; message: string } | null): boolean {
@@ -163,35 +163,11 @@ export default async function AlertasPage() {
           </p>
         </div>
 
-        {emailDestino ? (
-          <Card className="shadow-sm">
-            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Mail className="size-5" />
-                </div>
-                <div>
-                  <p className="font-semibold">{emailDestino}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Remetente: {emailRemetente || "não configurado"}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={emailRemetente && emailApiConfigurada ? "secondary" : "outline"}>
-                {emailRemetente && emailApiConfigurada ? "Ativo" : "Pendente"}
-              </Badge>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Mail className="size-5" />
-              </div>
-              Nenhum e-mail cadastrado ainda. Abra o card de E-mail acima para adicionar um destinatário.
-            </CardContent>
-          </Card>
-        )}
+        <EmailsCadastrados
+          emailDestino={emailDestino}
+          emailRemetente={emailRemetente}
+          emailApiConfigurada={emailApiConfigurada}
+        />
       </section>
     </div>
   );

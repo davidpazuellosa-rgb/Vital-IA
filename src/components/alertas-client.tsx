@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, salvarEmailAlertas, enviarTesteEmailAlertas, type Alerta } from "@/lib/alertas/actions";
+import { salvarAlerta, alternarAlerta, removerAlerta, salvarChatTelegram, enviarTesteTelegram, salvarEmailAlertas, enviarTesteEmailAlertas, salvarEmailsCadastrados, type Alerta } from "@/lib/alertas/actions";
 
 export function CanaisNotificacao({
   chatId,
@@ -218,13 +218,13 @@ export function EmailConfig({
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="email_destino">E-mail de destino</Label>
+          <Label htmlFor="email_destino">E-mails de destino</Label>
           <Input
             id="email_destino"
-            type="email"
+            type="text"
             value={destino}
             onChange={(e) => setDestino(e.target.value)}
-            placeholder="seuemail@dominio.com"
+            placeholder="email1@dominio.com, email2@dominio.com"
             autoComplete="email"
           />
         </div>
@@ -271,6 +271,124 @@ export function EmailConfig({
         <p className="text-xs text-muted-foreground">Salve ou informe destino, remetente e API key para liberar o teste.</p>
       )}
     </div>
+  );
+}
+
+function separarEmails(valor: string): string[] {
+  return valor
+    .split(/[,\n;]/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function EmailsCadastrados({
+  emailDestino,
+  emailRemetente,
+  emailApiConfigurada,
+}: {
+  emailDestino: string;
+  emailRemetente: string;
+  emailApiConfigurada: boolean;
+}) {
+  const [emails, setEmails] = useState(() => Array.from(new Set(separarEmails(emailDestino))));
+  const [novoEmail, setNovoEmail] = useState("");
+  const [pendente, startTransition] = useTransition();
+
+  function salvar(lista: string[]) {
+    const t = toast.loading("Salvando e-mails…");
+    startTransition(async () => {
+      try {
+        const resultado = await salvarEmailsCadastrados(lista.join(", "));
+        if (resultado.ok) {
+          setEmails(lista);
+          setNovoEmail("");
+          toast.success("E-mails salvos", { id: t });
+        } else {
+          toast.error("Não foi possível salvar", { id: t, description: resultado.erro });
+        }
+      } catch (e) {
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
+  function adicionar() {
+    const novos = separarEmails(novoEmail);
+    const lista = Array.from(new Set([...emails, ...novos]));
+    salvar(lista);
+  }
+
+  function remover(email: string) {
+    const lista = emails.filter((item) => item !== email);
+    if (lista.length === 0) {
+      toast.error("Mantenha pelo menos um e-mail cadastrado.");
+      return;
+    }
+    salvar(lista);
+  }
+
+  return (
+    <Card className={emails.length ? "shadow-sm" : "border-dashed"}>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="email"
+            value={novoEmail}
+            onChange={(e) => setNovoEmail(e.target.value)}
+            placeholder="Adicionar e-mail de destino"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                adicionar();
+              }
+            }}
+          />
+          <Button onClick={adicionar} disabled={pendente || !novoEmail.trim()} className="shrink-0">
+            {pendente && <Loader2 className="animate-spin" />} Salvar e-mail
+          </Button>
+        </div>
+
+        {emails.length ? (
+          <div className="flex flex-col gap-2">
+            {emails.map((email) => (
+              <div key={email} className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Mail className="size-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{email}</p>
+                    <p className="text-sm text-muted-foreground">Remetente: {emailRemetente || "não configurado"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={emailRemetente && emailApiConfigurada ? "secondary" : "outline"}>
+                    {emailRemetente && emailApiConfigurada ? "Ativo" : "Pendente"}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-destructive"
+                    onClick={() => remover(email)}
+                    disabled={pendente}
+                    title="Remover e-mail"
+                  >
+                    {pendente ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 py-2 text-sm text-muted-foreground">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+              <Mail className="size-5" />
+            </div>
+            Nenhum e-mail cadastrado ainda. Digite um e-mail acima e clique em salvar.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
