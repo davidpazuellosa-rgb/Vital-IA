@@ -126,6 +126,8 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
       config = fallback.data;
       configError = fallback.error;
     }
+    const emailStorage = await carregarEmailConfigStorage(supabase, a.user_id);
+    config = { ...config, ...emailStorage };
     if (configError) {
       console.error("[Alertas] Falha ao carregar configuração notificação", {
         alertaId: a.id,

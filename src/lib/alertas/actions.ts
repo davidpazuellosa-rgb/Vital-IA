@@ -228,6 +228,8 @@ export async function enviarTesteEmailAlertas(apiKey?: string, emailDestino?: st
   } else if (error) {
     return { ok: false, erro: error.message };
   }
+  const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+  data = { ...data, ...emailStorage };
 
   const destino = normalizarEmails(emailDestino?.trim() || String(data?.email_destino ?? ""));
   const remetente = String(emailRemetente?.trim() || data?.email_remetente || remetentePadraoEmail()).trim();

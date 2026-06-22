@@ -59,6 +59,10 @@ export default async function AlertasPage() {
     config = fallback.data;
     configError = fallback.error;
   }
+  if (user) {
+    const emailStorage = await carregarEmailConfigStorage(supabase, user.id);
+    config = { ...config, ...emailStorage };
+  }
   const alertas = (data ?? []) as Alerta[];
   const chatId = (config?.telegram_chat_id as string) ?? "";
   const botTokenConfigurado = Boolean(
