@@ -35,6 +35,14 @@ const VITAL_NORTE_ITEMS = [
   { href: "/vital-norte/alertas", label: "Alertas", icon: Bell },
 ];
 
+function limparEstadoBusca() {
+  try {
+    sessionStorage.removeItem("vitalia:busca:estado");
+  } catch {
+    // sessionStorage pode estar indisponível em navegação privada/restrita.
+  }
+}
+
 export function AppSidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname();
   const iniciais = (userEmail.slice(0, 2) || "U").toUpperCase();
@@ -60,7 +68,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
               {NAV_ITEMS.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                    <Link href={item.href}>
+                    <Link href={item.href} onClick={limparEstadoBusca}>
                       <item.icon />
                       <span>{item.label}</span>
                     </Link>
@@ -83,7 +91,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
                       {VITAL_NORTE_ITEMS.map((item) => (
                         <SidebarMenuSubItem key={item.href}>
                           <SidebarMenuSubButton asChild isActive={pathname === item.href}>
-                            <Link href={item.href}>
+                            <Link href={item.href} onClick={limparEstadoBusca}>
                               <item.icon />
                               <span>{item.label}</span>
                             </Link>
@@ -102,7 +110,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === "/configuracoes"} tooltip="Configurações">
-              <Link href="/configuracoes">
+              <Link href="/configuracoes" onClick={limparEstadoBusca}>
                 <Settings />
                 <span>Configurações</span>
               </Link>
