@@ -81,7 +81,6 @@ export async function salvarLicitacao(licitacao: UnifiedLicitacao) {
 
   const { error } = await supabase.from("saved_licitacoes").insert({
     user_id: user.id,
-    salvo_por_alerta: false,
     numero_controle_pncp: licitacao.numeroControlePNCP,
     plataforma: licitacao.plataforma,
     titulo: licitacao.titulo,
