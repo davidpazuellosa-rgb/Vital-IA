@@ -28,6 +28,7 @@ type SavedLicitacao = {
   data_abertura_proposta: string | null;
   data_encerramento_proposta: string | null;
   link_origem: string | null;
+  salvo_por_alerta: boolean;
   etapa: string | null;
 };
 
@@ -116,6 +117,7 @@ export default async function MinhasLicitacoesPage() {
                       dataEncerramento={item.data_encerramento_proposta}
                       linkOrigem={item.link_origem}
                       numeroControlePNCP={item.numero_controle_pncp}
+                    salvoPorAlerta={item.salvo_por_alerta}
                       action={
                         <div className="flex items-center gap-1.5">
                           <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />

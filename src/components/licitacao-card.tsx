@@ -30,6 +30,7 @@ interface LicitacaoCardProps {
   numeroControlePNCP?: string | null;
   /** Quando informado, o card inteiro vira um link para esta rota. */
   href?: string;
+  salvoPorAlerta?: boolean;
   action?: React.ReactNode;
 }
 
@@ -47,6 +48,7 @@ export function LicitacaoCard({
   linkOrigem,
   numeroControlePNCP,
   href,
+  salvoPorAlerta,
   action,
 }: LicitacaoCardProps) {
   const linkPortalPncp = linkPncp(numeroControlePNCP);
@@ -67,6 +69,11 @@ export function LicitacaoCard({
             <Badge variant="secondary" className="font-normal">{plataformaNome}</Badge>
             {situacao && (
               <Badge variant="outline" className="font-normal">{situacao}</Badge>
+            )}
+            {salvoPorAlerta && (
+              <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                Salvo alerta
+              </Badge>
             )}
           </div>
           {action && <div className="relative z-10 shrink-0">{action}</div>}

@@ -1,7 +1,7 @@
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
-import type { UniversalFilter } from "@/lib/licitacoes/types";
+import type { UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
 import { carregarEmailConfigStorage } from "@/lib/notificacoes/email-config";
 import { enviarEmail } from "@/lib/notificacoes/email";
 import { enviarTelegram } from "@/lib/notificacoes/telegram";
@@ -58,6 +58,41 @@ export type ResumoExecucao = {
 };
 
 /** Executa todos os alertas ativos: busca, deduplica e notifica nos canais configurados. */
+async function salvarOportunidadesDoAlerta(
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  alertaId: string,
+  licitacoes: UnifiedLicitacao[],
+) {
+  if (licitacoes.length === 0) return;
+
+  const agora = new Date().toISOString();
+  const { error } = await supabase.from("saved_licitacoes").upsert(
+    licitacoes.map((licitacao) => ({
+      user_id: userId,
+      numero_controle_pncp: licitacao.numeroControlePNCP,
+      plataforma: licitacao.plataforma,
+      titulo: licitacao.titulo,
+      descricao: licitacao.descricao,
+      orgao: licitacao.orgao,
+      uf: licitacao.uf,
+      municipio: licitacao.municipio,
+      modalidade: licitacao.modalidade,
+      situacao: licitacao.situacao,
+      valor_estimado: licitacao.valorEstimado,
+      data_publicacao: licitacao.dataPublicacao,
+      data_abertura_proposta: licitacao.dataAberturaProposta,
+      data_encerramento_proposta: licitacao.dataEncerramentoProposta,
+      link_origem: licitacao.linkOrigem,
+      salvo_por_alerta: true,
+      alerta_id: alertaId,
+      salvo_alerta_em: agora,
+    })),
+    { onConflict: "user_id,numero_controle_pncp,plataforma" },
+  );
+
+  if (error) throw error;
+}
 export async function executarAlertas(): Promise<ResumoExecucao> {
   const supabase = createServiceClient();
   const { data: alertasData } = await supabase.from("alertas").select("*").eq("ativo", true);
@@ -94,6 +129,7 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     const novas = itens.filter((i) => !vistos.has(i.numeroControlePNCP));
 
     await supabase.from("alertas").update({ ultima_execucao: new Date().toISOString() }).eq("id", a.id);
+    await salvarOportunidadesDoAlerta(supabase, a.user_id, a.id, itens);
     if (novas.length === 0) continue;
     totalNovas += novas.length;
 
