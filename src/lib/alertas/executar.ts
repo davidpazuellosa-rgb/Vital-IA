@@ -61,13 +61,12 @@ export type ResumoExecucao = {
 async function salvarOportunidadesDoAlerta(
   supabase: ReturnType<typeof createServiceClient>,
   userId: string,
-  alertaId: string,
+  _alertaId: string,
   licitacoes: UnifiedLicitacao[],
 ) {
   if (licitacoes.length === 0) return;
 
-  const agora = new Date().toISOString();
-  const registrosBase = licitacoes.map((licitacao) => ({
+  const registros = licitacoes.map((licitacao) => ({
       user_id: userId,
       numero_controle_pncp: licitacao.numeroControlePNCP,
       plataforma: licitacao.plataforma,
@@ -85,24 +84,9 @@ async function salvarOportunidadesDoAlerta(
       link_origem: licitacao.linkOrigem,
   }));
 
-  const { error } = await supabase.from("saved_licitacoes").upsert(
-    registrosBase.map((registro) => ({
-      ...registro,
-      salvo_por_alerta: true,
-      alerta_id: alertaId,
-      salvo_alerta_em: agora,
-    })),
-    { onConflict: "user_id,numero_controle_pncp,plataforma" },
-  );
-
-  if (error && error.message.includes("salvo_por_alerta")) {
-    const { error: fallbackError } = await supabase
-      .from("saved_licitacoes")
-      .upsert(registrosBase, { onConflict: "user_id,numero_controle_pncp,plataforma" });
-
-    if (fallbackError) throw fallbackError;
-    return;
-  }
+  const { error } = await supabase
+    .from("saved_licitacoes")
+    .upsert(registros, { onConflict: "user_id,numero_controle_pncp,plataforma" });
 
   if (error) throw error;
 }

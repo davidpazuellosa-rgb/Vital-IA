@@ -47,9 +47,6 @@ create table if not exists public.saved_licitacoes (
   link_origem text,
   observacoes text not null default '',
   etapa text not null default 'oportunidade',
-  salvo_por_alerta boolean not null default false,
-  alerta_id uuid,
-  salvo_alerta_em timestamptz,
   created_at timestamptz not null default now(),
   unique (user_id, numero_controle_pncp, plataforma)
 );
