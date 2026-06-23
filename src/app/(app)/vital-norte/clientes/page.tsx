@@ -3,7 +3,7 @@ import { Users, Building2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
-import { AdicionarCliente } from "@/components/clientes-client";
+import { AdicionarCliente, RemoverClienteButton } from "@/components/clientes-client";
 import type { Cliente } from "@/lib/clientes/types";
 
 export default async function ClientesPage() {
@@ -44,21 +44,23 @@ export default async function ClientesPage() {
           {clientes.map((c) => {
             const total = c.cliente_documentos?.[0]?.count ?? 0;
             return (
-              <Link key={c.id} href={`/vital-norte/clientes/${c.id}`}>
-                <Card className="h-full shadow-sm transition-colors hover:border-primary/50">
+              <Card key={c.id} className="h-full shadow-sm transition-colors hover:border-primary/50">
                   <CardContent className="flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground">
-                        {c.nome.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold leading-tight">{c.nome}</p>
-                        {c.orgao && (
-                          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                            <Building2 className="size-3 shrink-0" /> {c.orgao}
-                          </p>
-                        )}
-                      </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <Link href={`/vital-norte/clientes/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground">
+                          {c.nome.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold leading-tight">{c.nome}</p>
+                          {c.orgao && (
+                            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                              <Building2 className="size-3 shrink-0" /> {c.orgao}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                      <RemoverClienteButton id={c.id} compacto />
                     </div>
                     {c.status && (
                       <Badge variant="secondary" className="w-fit font-normal">{c.status}</Badge>
@@ -69,7 +71,6 @@ export default async function ClientesPage() {
                     </p>
                   </CardContent>
                 </Card>
-              </Link>
             );
           })}
         </div>

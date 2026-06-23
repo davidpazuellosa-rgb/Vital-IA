@@ -372,7 +372,7 @@ export function ClienteStatus({
 }
 
 /* ---------- Remover cliente ---------- */
-export function RemoverClienteButton({ id }: { id: string }) {
+export function RemoverClienteButton({ id, compacto = false }: { id: string; compacto?: boolean }) {
   const [pendente, startTransition] = useTransition();
   const router = useRouter();
   function remover() {
@@ -388,6 +388,22 @@ export function RemoverClienteButton({ id }: { id: string }) {
       }
     });
   }
+  if (compacto) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={remover}
+        disabled={pendente}
+        className="size-8 text-destructive hover:text-destructive"
+        title="Remover cliente"
+        aria-label="Remover cliente"
+      >
+        {pendente ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+      </Button>
+    );
+  }
+
   return (
     <Button variant="outline" size="sm" onClick={remover} disabled={pendente} className="text-destructive">
       {pendente ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />} Remover cliente
