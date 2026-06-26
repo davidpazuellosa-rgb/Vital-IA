@@ -453,12 +453,26 @@ export function NotaFiscalAcoes({
     });
   }
 
+  function emitir() {
+    const t = toast.loading("Enviando à SEFAZ…");
+    startTransition(async () => {
+      try {
+        const res = await emitirNotaFiscal(id);
+        if (res.ok) toast.success("Nota enviada", { id: t });
+        else toast.error("Não foi possível emitir", { id: t, description: res.mensagem });
+        router.refresh();
+      } catch (e) {
+        toast.error("Falha ao emitir", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-t pt-3">
       {status === "rascunho" && (
         <Button
           size="sm"
-          onClick={() => executar(() => emitirNotaFiscal(id), "Enviando à SEFAZ…", "Nota enviada")}
+          onClick={emitir}
           disabled={pendente}
         >
           {pendente ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Emitir

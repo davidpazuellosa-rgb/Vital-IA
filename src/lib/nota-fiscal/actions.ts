@@ -238,12 +238,22 @@ function montarPayloadFocus(
   };
 }
 
-export async function emitirNotaFiscal(id: string) {
+export type ResultadoEmissao = { ok: boolean; mensagem?: string };
+
+export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
+
+  // Integração fiscal precisa estar configurada (conta Focus + certificado A1).
+  if (!process.env.FOCUS_NFE_TOKEN) {
+    return {
+      ok: false,
+      mensagem: "Integração fiscal não configurada. Defina FOCUS_NFE_TOKEN (conta Focus + certificado A1) para emitir.",
+    };
+  }
 
   const { data: nota } = await supabase
     .from("notas_fiscais")
@@ -251,8 +261,8 @@ export async function emitirNotaFiscal(id: string) {
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
-  if (!nota) throw new Error("Nota não encontrada.");
-  if (nota.status !== "rascunho") throw new Error("Esta nota já foi enviada.");
+  if (!nota) return { ok: false, mensagem: "Nota não encontrada." };
+  if (nota.status !== "rascunho") return { ok: false, mensagem: "Esta nota já foi enviada." };
 
   // Emitente vem de public.empresa (acervo compartilhado da empresa).
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
@@ -262,7 +272,7 @@ export async function emitirNotaFiscal(id: string) {
     .eq("user_id", empresaUserId)
     .maybeSingle();
   if (!empresa?.cnpj) {
-    throw new Error("Cadastre o CNPJ em Dados da Empresa antes de emitir.");
+    return { ok: false, mensagem: "Cadastre o CNPJ em Dados da Empresa antes de emitir." };
   }
 
   // Referência da contratação vinculada (PROAD/empenho) para infAdic.
@@ -288,7 +298,7 @@ export async function emitirNotaFiscal(id: string) {
     .eq("status", "rascunho")
     .select("id");
   if (!marcada || marcada.length === 0) {
-    throw new Error("Esta nota já está sendo processada.");
+    return { ok: false, mensagem: "Esta nota já está sendo processada." };
   }
 
   let resultado;
@@ -304,7 +314,7 @@ export async function emitirNotaFiscal(id: string) {
       .eq("user_id", user.id)
       .eq("status", "processando");
     revalidatePath(PATH);
-    throw new Error(e instanceof Error ? e.message : "Falha ao enviar a nota.");
+    return { ok: false, mensagem: e instanceof Error ? e.message : "Falha ao enviar a nota." };
   }
 
   const { error } = await supabase
@@ -320,8 +330,11 @@ export async function emitirNotaFiscal(id: string) {
     })
     .eq("id", id)
     .eq("user_id", user.id);
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, mensagem: error.message };
   revalidatePath(PATH);
+  return resultado.status === "rejeitada"
+    ? { ok: false, mensagem: resultado.motivo || "Nota rejeitada pela SEFAZ." }
+    : { ok: true };
 }
 
 export async function consultarStatusNotaFiscal(id: string) {
