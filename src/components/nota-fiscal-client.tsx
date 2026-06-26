@@ -83,7 +83,16 @@ export function NovaNotaFiscal({
   const [contratacaoId, setContratacaoId] = useState("");
   const [destinatarioNome, setDestinatarioNome] = useState("");
   const [nomeAuto, setNomeAuto] = useState("");
+  const [tipoOperacao, setTipoOperacao] = useState<"interna" | "interestadual">("interna");
   const [itens, setItens] = useState<ItemEditor[]>([novoItem()]);
+
+  // CFOP: 5xxx = dentro do estado (AM); 6xxx = interestadual. Troca só o 1º dígito,
+  // preservando o resto do CFOP escolhido em cada item.
+  function aplicarTipoOperacao(tipo: "interna" | "interestadual") {
+    setTipoOperacao(tipo);
+    const prefixo = tipo === "interestadual" ? "6" : "5";
+    setItens((atual) => atual.map((it) => (it.cfop ? { ...it, cfop: prefixo + it.cfop.slice(1) } : it)));
+  }
 
   const contratacoesDoCliente = clienteId ? (contratacoesPorCliente[clienteId] ?? []) : [];
 
@@ -110,7 +119,9 @@ export function NovaNotaFiscal({
     setItens((atual) => atual.map((it, i) => (i === indice ? { ...it, ...patch } : it)));
   }
   function adicionarItem() {
-    setItens((atual) => [...atual, novoItem()]);
+    const prefixo = tipoOperacao === "interestadual" ? "6" : "5";
+    const item = novoItem();
+    setItens((atual) => [...atual, { ...item, cfop: prefixo + item.cfop.slice(1) }]);
   }
   function removerItem(indice: number) {
     setItens((atual) => (atual.length === 1 ? atual : atual.filter((_, i) => i !== indice)));
@@ -199,6 +210,19 @@ export function NovaNotaFiscal({
                 name="naturezaOperacao"
                 defaultValue="Venda de mercadoria"
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Tipo de operação</Label>
+              <Select value={tipoOperacao} onValueChange={(v) => aplicarTipoOperacao(v as "interna" | "interestadual")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="interna">Interna (dentro do AM)</SelectItem>
+                  <SelectItem value="interestadual">Interestadual (outro estado)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Ajusta o CFOP (5xxx interna / 6xxx interestadual).</p>
             </div>
           </div>
 
