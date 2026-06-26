@@ -22,7 +22,10 @@ export default async function NotaFiscalPage() {
         .from("notas_fiscais")
         .select("*, clientes(nome, orgao)")
         .order("created_at", { ascending: false }),
-      supabase.from("clientes").select("id, nome, orgao").order("nome", { ascending: true }),
+      supabase
+        .from("clientes")
+        .select("id, nome, orgao, cnpj, inscricao_estadual, cep, logradouro, numero, bairro, municipio, uf")
+        .order("nome", { ascending: true }),
       supabase
         .from("contratacoes")
         .select("id, cliente_id, titulo, identificador")
@@ -30,7 +33,10 @@ export default async function NotaFiscalPage() {
     ]);
 
   const notas = (notasData ?? []) as NotaComCliente[];
-  const clientes = (clientesData ?? []) as { id: string; nome: string; orgao: string }[];
+  const clientes = (clientesData ?? []) as {
+    id: string; nome: string; orgao: string; cnpj: string; inscricao_estadual: string;
+    cep: string; logradouro: string; numero: string; bairro: string; municipio: string; uf: string;
+  }[];
   const contratacoes = (contratacoesData ?? []) as {
     id: string;
     cliente_id: string;

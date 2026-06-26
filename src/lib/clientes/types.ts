@@ -6,6 +6,14 @@ export type Cliente = {
   observacoes: string;
   status: string;
   proximo_passo: string;
+  cnpj: string;
+  inscricao_estadual: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  municipio: string;
+  uf: string;
   created_at: string;
 };
 

@@ -3,6 +3,32 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIA_AVULSO } from "./types";
+import { buscarDadosCnpj } from "@/lib/nota-fiscal/actions";
+
+/** Busca os dados do órgão pelo CNPJ (BrasilAPI) e salva no cliente (para reuso na NF-e). */
+export async function preencherDadosOrgaoCliente(clienteId: string, cnpj: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const dados = await buscarDadosCnpj(cnpj);
+  const { error } = await supabase
+    .from("clientes")
+    .update({
+      cnpj: cnpj.replace(/\D/g, ""),
+      cep: dados.cep,
+      logradouro: dados.logradouro,
+      numero: dados.numero,
+      bairro: dados.bairro,
+      municipio: dados.municipio,
+      uf: dados.uf,
+    })
+    .eq("id", clienteId)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/vital-norte/clientes/${clienteId}`);
+  return dados.nome;
+}
 
 const BUCKET = "documentos";
 

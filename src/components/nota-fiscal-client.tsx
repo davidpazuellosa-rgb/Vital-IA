@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip, Ban, PencilLine, Search } from "lucide-react";
+import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip, Ban, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,12 +31,14 @@ import {
   anexarNotaNaContratacao,
   cancelarNotaFiscal,
   cartaCorrecaoNotaFiscal,
-  buscarDadosCnpj,
 } from "@/lib/nota-fiscal/actions";
 import { formatarMoeda } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
 
-type ClienteOpcao = { id: string; nome: string; orgao: string };
+type ClienteOpcao = {
+  id: string; nome: string; orgao: string; cnpj: string; inscricao_estadual: string;
+  cep: string; logradouro: string; numero: string; bairro: string; municipio: string; uf: string;
+};
 type ContratacaoOpcao = { id: string; titulo: string; identificador: string };
 
 type ItemEditor = {
@@ -86,36 +88,9 @@ export function NovaNotaFiscal({
   const [nomeAuto, setNomeAuto] = useState("");
   const [tipoOperacao, setTipoOperacao] = useState<"interna" | "interestadual">("interna");
   const [dest, setDest] = useState({ documento: "", ie: "", cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "" });
-  const [buscandoCnpj, startBuscaCnpj] = useTransition();
   const [itens, setItens] = useState<ItemEditor[]>([novoItem()]);
 
   const setDestCampo = (k: keyof typeof dest, v: string) => setDest((d) => ({ ...d, [k]: v }));
-
-  function buscarCnpj() {
-    const t = toast.loading("Buscando dados do CNPJ…");
-    startBuscaCnpj(async () => {
-      try {
-        const d = await buscarDadosCnpj(dest.documento);
-        setDest((cur) => ({
-          ...cur,
-          cep: d.cep || cur.cep,
-          logradouro: d.logradouro || cur.logradouro,
-          numero: d.numero || cur.numero,
-          bairro: d.bairro || cur.bairro,
-          municipio: d.municipio || cur.municipio,
-          uf: d.uf || cur.uf,
-        }));
-        if (d.nome) {
-          setDestinatarioNome(d.nome);
-          setNomeAuto(d.nome);
-        }
-        if (d.uf) aplicarTipoOperacao(d.uf === "AM" ? "interna" : "interestadual");
-        toast.success("Dados preenchidos", { id: t, description: d.nome });
-      } catch (e) {
-        toast.error("Não foi possível buscar", { id: t, description: e instanceof Error ? e.message : undefined });
-      }
-    });
-  }
 
   // CFOP: 5xxx = dentro do estado (AM); 6xxx = interestadual. Troca só o 1º dígito,
   // preservando o resto do CFOP escolhido em cada item.
@@ -144,6 +119,18 @@ export function NovaNotaFiscal({
     // Sobrescreve o nome se estiver vazio ou ainda for o auto-preenchido (não editado à mão).
     setDestinatarioNome((atual) => (!atual.trim() || atual === nomeAuto ? cliente.nome : atual));
     setNomeAuto(cliente.nome);
+    // Preenche o destinatário com os dados do órgão guardados no cliente.
+    setDest((cur) => ({
+      documento: cliente.cnpj || cur.documento,
+      ie: cliente.inscricao_estadual || cur.ie,
+      cep: cliente.cep || cur.cep,
+      logradouro: cliente.logradouro || cur.logradouro,
+      numero: cliente.numero || cur.numero,
+      bairro: cliente.bairro || cur.bairro,
+      municipio: cliente.municipio || cur.municipio,
+      uf: cliente.uf || cur.uf,
+    }));
+    if (cliente.uf) aplicarTipoOperacao(cliente.uf === "AM" ? "interna" : "interestadual");
   }
 
   function atualizarItem(indice: number, patch: Partial<ItemEditor>) {
@@ -163,6 +150,7 @@ export function NovaNotaFiscal({
     setContratacaoId("");
     setDestinatarioNome("");
     setNomeAuto("");
+    setDest({ documento: "", ie: "", cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "" });
     setItens([novoItem()]);
     setErro(null);
   }
@@ -294,27 +282,14 @@ export function NovaNotaFiscal({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioDocumento">CNPJ / CPF</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="destinatarioDocumento"
-                    name="destinatarioDocumento"
-                    value={dest.documento}
-                    onChange={(e) => setDestCampo("documento", e.target.value)}
-                    placeholder="Só números"
-                    required
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={buscarCnpj}
-                    disabled={buscandoCnpj || dest.documento.replace(/\D/g, "").length !== 14}
-                    title="Buscar dados do CNPJ na Receita"
-                  >
-                    {buscandoCnpj ? <Loader2 className="animate-spin" /> : <Search />}
-                    <span className="hidden sm:inline">Buscar</span>
-                  </Button>
-                </div>
+                <Input
+                  id="destinatarioDocumento"
+                  name="destinatarioDocumento"
+                  value={dest.documento}
+                  onChange={(e) => setDestCampo("documento", e.target.value)}
+                  placeholder="Preenchido pelo cliente"
+                  required
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioIe">Inscrição estadual (opcional)</Label>

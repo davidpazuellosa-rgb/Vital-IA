@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import type { Cliente, Contratacao } from "@/lib/clientes/types";
-import { RemoverClienteButton, ClienteStatus, AdicionarContratacao } from "@/components/clientes-client";
+import { RemoverClienteButton, ClienteStatus, AdicionarContratacao, DadosOrgaoCliente } from "@/components/clientes-client";
 
 export default async function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -49,6 +49,18 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
       <Card className="shadow-sm">
         <CardContent>
           <ClienteStatus id={c.id} status={c.status ?? ""} proximoPasso={c.proximo_passo ?? ""} />
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardContent className="flex flex-col gap-3">
+          <div>
+            <h2 className="font-semibold">Dados do órgão (para nota fiscal)</h2>
+            <p className="text-xs text-muted-foreground">
+              Informe o CNPJ do órgão e clique em Buscar — o endereço é preenchido e reutilizado ao emitir a nota.
+            </p>
+          </div>
+          <DadosOrgaoCliente clienteId={c.id} cnpj={c.cnpj ?? ""} municipio={c.municipio ?? ""} uf={c.uf ?? ""} />
         </CardContent>
       </Card>
 

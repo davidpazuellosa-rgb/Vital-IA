@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight } from "lucide-react";
+import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,46 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente, atualizarClienteStatus,
-  criarContratacao, removerContratacao, atualizarContratacaoStatus,
+  criarContratacao, removerContratacao, atualizarContratacaoStatus, preencherDadosOrgaoCliente,
 } from "@/lib/clientes/actions";
+
+export function DadosOrgaoCliente({
+  clienteId, cnpj, municipio, uf,
+}: {
+  clienteId: string; cnpj: string; municipio: string; uf: string;
+}) {
+  const [doc, setDoc] = useState(cnpj);
+  const [pendente, startTransition] = useTransition();
+
+  function buscar() {
+    const t = toast.loading("Buscando dados do órgão…");
+    startTransition(async () => {
+      try {
+        const nome = await preencherDadosOrgaoCliente(clienteId, doc);
+        toast.success("Dados do órgão salvos", { id: t, description: nome });
+      } catch (e) {
+        toast.error("Não foi possível buscar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="orgao-cnpj">CNPJ do órgão</Label>
+          <Input id="orgao-cnpj" value={doc} onChange={(e) => setDoc(e.target.value)} placeholder="Só números" />
+        </div>
+        <Button onClick={buscar} disabled={pendente || doc.replace(/\D/g, "").length !== 14} className="shrink-0">
+          {pendente ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />} Buscar e salvar
+        </Button>
+      </div>
+      {(municipio || uf) && (
+        <p className="text-xs text-muted-foreground">Endereço salvo: {municipio}{uf ? `/${uf}` : ""}. Reutilizado ao emitir nota fiscal.</p>
+      )}
+    </div>
+  );
+}
 
 const BUCKET = "documentos";
 const sanitizar = (n: string) =>
