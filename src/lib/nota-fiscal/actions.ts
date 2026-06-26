@@ -60,6 +60,34 @@ type EmpresaEmitente = {
   inscricao_estadual: string;
 };
 
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Guarda um arquivo da NF-e (engine SEFAZ, que devolve base64) no Storage e
+ * devolve uma URL assinada de longa duração. O fluxo de anexar reaproveita essa
+ * URL via baixarArquivo, igual ao caminho Focus.
+ */
+async function guardarArquivoSefaz(
+  supabase: ServerClient,
+  empresaUserId: string,
+  nome: string,
+  ext: "xml" | "pdf",
+  base64: string,
+  contentType: string,
+): Promise<string> {
+  const bytes = Buffer.from(base64, "base64");
+  const path = `${empresaUserId}/nfe/${nome}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, bytes, { contentType, upsert: true });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24 * 3650); // ~10 anos (guarda fiscal de 5)
+  if (error || !data) throw new Error(error?.message ?? "Falha ao gerar URL do arquivo.");
+  return data.signedUrl;
+}
+
 function parseItens(raw: string): NotaFiscalItem[] {
   let lista: unknown;
   try {
@@ -361,6 +389,24 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     return { ok: false, mensagem: e instanceof Error ? e.message : "Falha ao enviar a nota." };
   }
 
+  // Engine SEFAZ: guarda o XML autorizado e a DANFE (vêm em base64) no Storage e
+  // usa as URLs assinadas. Falha aqui NÃO reprova a nota (já autorizada na SEFAZ).
+  let danfeUrl = resultado.danfeUrl;
+  let xmlUrl = resultado.xmlUrl;
+  if (motorAtivo === "sefaz" && resultado.status === "autorizada") {
+    const nomeArq = resultado.chave || nota.ref;
+    try {
+      if (resultado.xmlBase64) {
+        xmlUrl = await guardarArquivoSefaz(supabase, empresaUserId, nomeArq, "xml", resultado.xmlBase64, "application/xml");
+      }
+      if (resultado.danfeBase64) {
+        danfeUrl = await guardarArquivoSefaz(supabase, empresaUserId, nomeArq, "pdf", resultado.danfeBase64, "application/pdf");
+      }
+    } catch {
+      /* guarda falhou — nota segue autorizada; URLs ficam vazias (recuperável depois) */
+    }
+  }
+
   const { error } = await supabase
     .from("notas_fiscais")
     .update({
@@ -368,12 +414,10 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
       numero: resultado.numero,
       serie: resultado.serie,
       motivo_rejeicao: resultado.motivo,
-      danfe_url: resultado.danfeUrl,
-      xml_url: resultado.xmlUrl,
+      danfe_url: danfeUrl,
+      xml_url: xmlUrl,
       chave: resultado.chave ?? "",
       protocolo: resultado.protocolo ?? "",
-      // TODO Fase 4 (engine SEFAZ): guardar resultado.xmlBase64 (XML autorizado) no
-      // Storage e gerar a DANFE; o fluxo de anexar precisa de ajuste p/ engine stateless.
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

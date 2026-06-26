@@ -21,6 +21,7 @@ export type ResultadoEmissao = {
   chave?: string;
   protocolo?: string;
   xmlBase64?: string; // XML autorizado (nfeProc) para o app guardar (5 anos)
+  danfeBase64?: string; // DANFE (PDF) gerado pelo serviço
 };
 
 export type NotaFiscalItem = {

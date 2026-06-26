@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vitalia\NfeService;
 
+use NFePHP\DA\NFe\Danfe;
 use NFePHP\NFe\Complements;
 use NFePHP\NFe\Tools;
 
@@ -55,9 +56,16 @@ final class Transmissor
         $status = self::statusAutorizacao($cStat);
 
         $xmlAutorizado = '';
+        $danfeBase64 = '';
         if ($status === 'autorizada' && $protocolo !== '') {
             // Anexa o protocolo ao XML → nfeProc (documento fiscal definitivo p/ guarda).
             $xmlAutorizado = Complements::toAuthorize($assinado, $resp);
+            // DANFE (PDF). É só a representação — não falha a emissão se der erro aqui.
+            try {
+                $danfeBase64 = base64_encode((new Danfe($xmlAutorizado))->render());
+            } catch (\Throwable $e) {
+                $danfeBase64 = '';
+            }
         }
 
         return [
@@ -69,6 +77,7 @@ final class Transmissor
             'chave' => $chave,
             'protocolo' => $protocolo,
             'xmlBase64' => base64_encode($xmlAutorizado !== '' ? $xmlAutorizado : $assinado),
+            'danfeBase64' => $danfeBase64,
         ];
     }
 

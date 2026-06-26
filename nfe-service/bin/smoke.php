@@ -133,5 +133,18 @@ if (!$dom->schemaValidate($xsd)) {
     falhar("XSD reprovou:\n  - " . implode("\n  - ", $msgs));
 }
 
+// ── 7. DANFE (Fase 4) — renderiza o PDF a partir do XML ──
+echo "→ Gerando DANFE (PDF) com sped-da...\n";
+try {
+    $pdf = (new \NFePHP\DA\NFe\Danfe($xmlAssinado))->render();
+    if (str_starts_with($pdf, '%PDF')) {
+        echo "  DANFE OK — " . strlen($pdf) . " bytes (PDF).\n";
+    } else {
+        echo "  ⚠️ saída não começa com %PDF.\n";
+    }
+} catch (\Throwable $e) {
+    echo "  ⚠️ DANFE não renderizou a partir do XML só assinado (em produção usa-se o nfeProc): " . $e->getMessage() . "\n";
+}
+
 echo "\n✅ SMOKE OK — NF-e montada, assinada e válida contra o XSD 4.00.\n";
 echo "   (XML não enviado à SEFAZ; certificado de teste, sem valor fiscal.)\n";
