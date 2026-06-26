@@ -43,7 +43,7 @@ curl -H "Authorization: Bearer SEU_TOKEN" localhost:8080/status-servico
 ## Ponte no app — IMPLEMENTADA nesta sessão (gated em `NFE_ENGINE=sefaz`, `tsc`+lint OK)
 Apliquei minhas recomendações das 3 lacunas (tudo isolado: o caminho Focus, default, não mudou). **Aplicar a migration `supabase/migrations/20260626140000_notas_fiscais_sefaz_direto.sql`** no Supabase.
 1. ✅ **Numeração `nNF`** — tabela `nfe_numeracao` + função `proximo_numero_nfe(serie)` (atômica). `emitirNotaFiscal` aloca o número **após** o compare-and-swap (não gera buraco em clique duplo), só quando engine=sefaz.
-2. ⚠️ **IBGE `cMun`** — a busca por CNPJ (`buscarDadosCnpj`) já captura `codigo_municipio_ibge`; o payload já envia `codigo_municipio_destinatario`; coluna criada. **FALTA o último elo:** hoje o destinatário vem do **cliente selecionado** (commit 4ed9cd4), e a tabela `clientes` não guarda o IBGE. → próximo passo: adicionar `codigo_municipio` em `clientes` (preencher no cadastro, que já faz lookup BrasilAPI) e levar até a nota. Enquanto isso, `emitirNotaFiscal` **bloqueia com mensagem clara** se o IBGE faltar.
+2. ✅ **IBGE `cMun`** — resolvido **na emissão**: `emitirNotaFiscal` (engine SEFAZ) usa o código salvo ou busca pelo **CNPJ do destinatário na BrasilAPI** (`codigo_municipio_ibge`), antes do compare-and-swap. Self-contained, funciona p/ clientes já cadastrados, sem mexer no módulo `clientes`. Bloqueia com mensagem clara só se não conseguir resolver (ex.: destinatário CPF sem município).
 3. ✅ **Chave/protocolo** — colunas em `notas_fiscais`; `emitir()` devolve e o app grava. (Guarda do XML autorizado no Storage + DANFE = Fase 4, ainda pendente — o fluxo de anexar precisa de ajuste p/ engine stateless.)
 
 ## Pendências de implementação (depois das decisões acima)

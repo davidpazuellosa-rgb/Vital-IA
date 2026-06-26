@@ -269,12 +269,25 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
   if (!nota) return { ok: false, mensagem: "Nota não encontrada." };
   if (nota.status !== "rascunho") return { ok: false, mensagem: "Esta nota já foi enviada." };
 
-  // Engine SEFAZ exige o código IBGE do município (cMun) — vem da busca por CNPJ.
-  if (motorAtivo === "sefaz" && !nota.destinatario_codigo_municipio) {
-    return {
-      ok: false,
-      mensagem: "Falta o código IBGE do município do destinatário. Use a busca por CNPJ para preenchê-lo antes de emitir.",
-    };
+  // Engine SEFAZ exige o código IBGE do município (cMun). Resolve aqui (antes do
+  // compare-and-swap, p/ não consumir número se falhar): usa o que estiver salvo
+  // ou busca pelo CNPJ do destinatário na BrasilAPI.
+  let codigoMunicipioDest = nota.destinatario_codigo_municipio || "";
+  if (motorAtivo === "sefaz" && !codigoMunicipioDest) {
+    const docDest = apenasDigitos(nota.destinatario_documento);
+    if (docDest.length === 14) {
+      try {
+        codigoMunicipioDest = (await buscarDadosCnpj(docDest)).codigoMunicipio;
+      } catch {
+        /* trata como não resolvido abaixo */
+      }
+    }
+    if (!codigoMunicipioDest) {
+      return {
+        ok: false,
+        mensagem: "Não foi possível obter o código IBGE do município do destinatário (necessário para a SEFAZ). Verifique o CNPJ/endereço.",
+      };
+    }
   }
 
   // Emitente vem de public.empresa (acervo compartilhado da empresa).
@@ -329,6 +342,7 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     }
     payload.numero = String(nAloc);
     payload.serie = "1";
+    payload.codigo_municipio_destinatario = codigoMunicipioDest;
   }
 
   let resultado;
