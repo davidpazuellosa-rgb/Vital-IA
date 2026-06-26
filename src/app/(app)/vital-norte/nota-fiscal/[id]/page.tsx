@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { ArrowLeft, Building2, FileDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   type NotaFiscal,
   type NotaFiscalItem,
 } from "@/lib/nota-fiscal/types";
-import { NotaFiscalAcoes } from "@/components/nota-fiscal-client";
+import { NotaFiscalAcoes, NotaFiscalAcoesAvancadas } from "@/components/nota-fiscal-client";
 
 type NotaDetalhe = NotaFiscal & {
   clientes: { nome: string; orgao: string } | null;
@@ -83,8 +83,46 @@ export default async function NotaFiscalDetalhePage({
             contratacaoId={nota.contratacao_id}
             jaAnexada={Boolean(nota.anexada_em)}
           />
+          <NotaFiscalAcoesAvancadas id={nota.id} status={nota.status} />
         </CardContent>
       </Card>
+
+      {nota.status === "cancelada" && nota.cancelamento_justificativa && (
+        <Card className="shadow-sm">
+          <CardContent className="text-sm">
+            <h2 className="font-semibold">Cancelamento</h2>
+            <p className="mt-1 text-muted-foreground">{nota.cancelamento_justificativa}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {nota.cartas_correcao.length > 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-col gap-3 text-sm">
+            <h2 className="font-semibold">Cartas de correção</h2>
+            {nota.cartas_correcao.map((cc, i) => (
+              <div
+                key={i}
+                className="flex items-start justify-between gap-2 border-t pt-2 first:border-t-0 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">
+                    CC-e {i + 1} · {formatarData(cc.em)}
+                  </p>
+                  <p className="text-muted-foreground">{cc.correcao}</p>
+                </div>
+                {cc.cce_url && (
+                  <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <a href={cc.cce_url} target="_blank" rel="noreferrer">
+                      <FileDown className="size-4" /> PDF
+                    </a>
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card className="shadow-sm">

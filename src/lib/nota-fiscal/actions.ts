@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
-import { baixarArquivo, consultarNFe, emitirNFe } from "./focus";
+import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe } from "./focus";
 import { calcularTotalItens, valorLinha, type NotaFiscal, type NotaFiscalItem } from "./types";
 
 const PATH = "/vital-norte/nota-fiscal";
@@ -376,6 +376,82 @@ export async function anexarNotaNaContratacao(id: string) {
   }
 
   revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${nota.contratacao_id}`);
+  revalidatePath(PATH);
+}
+
+export async function cancelarNotaFiscal(id: string, justificativa: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const just = (justificativa ?? "").trim();
+  if (just.length < 15) throw new Error("A justificativa deve ter ao menos 15 caracteres.");
+  if (just.length > 255) throw new Error("A justificativa deve ter no máximo 255 caracteres.");
+
+  const { data: nota } = await supabase
+    .from("notas_fiscais")
+    .select("ref, status")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!nota) throw new Error("Nota não encontrada.");
+  if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser canceladas.");
+
+  // "cancelada" se confirmado na hora; "processando" se assíncrono (reconcilia via consulta/webhook).
+  const novoStatus = await cancelarNFe(nota.ref, just);
+
+  const { error } = await supabase
+    .from("notas_fiscais")
+    .update({
+      status: novoStatus,
+      cancelamento_justificativa: just,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("status", "autorizada");
+  if (error) throw new Error(error.message);
+  revalidatePath(PATH);
+}
+
+export async function cartaCorrecaoNotaFiscal(id: string, correcao: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const txt = (correcao ?? "").trim();
+  if (txt.length < 15) throw new Error("A correção deve ter ao menos 15 caracteres.");
+  if (txt.length > 1000) throw new Error("A correção deve ter no máximo 1000 caracteres.");
+
+  const { data: nota } = await supabase
+    .from("notas_fiscais")
+    .select("ref, status, cartas_correcao")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!nota) throw new Error("Nota não encontrada.");
+  if (nota.status !== "autorizada") {
+    throw new Error("Apenas notas autorizadas aceitam carta de correção.");
+  }
+
+  const { ccePdfUrl } = await cartaCorrecaoNFe(nota.ref, txt);
+
+  // Acumula o histórico de CC-e (a SEFAZ mantém todas as correções sequenciais).
+  const historico = Array.isArray(nota.cartas_correcao) ? nota.cartas_correcao : [];
+  const atualizado = [...historico, { correcao: txt, cce_url: ccePdfUrl, em: new Date().toISOString() }];
+
+  // A CC-e não altera o status da nota (permanece autorizada).
+  const { error } = await supabase
+    .from("notas_fiscais")
+    .update({ cartas_correcao: atualizado, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("status", "autorizada");
+  if (error) throw new Error(error.message);
   revalidatePath(PATH);
 }
 

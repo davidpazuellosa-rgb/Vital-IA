@@ -5,6 +5,11 @@ import type { NotaFiscalStatus } from "./types";
 // Em produção:                FOCUS_NFE_BASE_URL=https://api.focusnfe.com.br
 const BASE_URL = process.env.FOCUS_NFE_BASE_URL ?? "https://homologacao.focusnfe.com.br";
 
+/** true quando aponta para o ambiente de homologação (notas sem valor fiscal). */
+export function ehHomologacao(): boolean {
+  return !BASE_URL.includes("api.focusnfe.com.br");
+}
+
 export type FocusResultado = {
   status: NotaFiscalStatus;
   numero: string;
@@ -21,6 +26,8 @@ type FocusResposta = {
   mensagem_sefaz?: string;
   caminho_danfe?: string;
   caminho_xml_nota_fiscal?: string;
+  caminho_pdf_carta_correcao?: string;
+  caminho_xml_cancelamento?: string;
   mensagem?: string;
   erros?: { mensagem?: string }[];
 };
@@ -135,4 +142,49 @@ export async function baixarArquivo(
     conteudo: await resp.arrayBuffer(),
     contentType: resp.headers.get("content-type") ?? "application/octet-stream",
   };
+}
+
+/**
+ * Cancela uma NF-e autorizada. Retorna o status resultante:
+ * - "cancelada" quando a SEFAZ confirma na hora;
+ * - "processando" quando o cancelamento é assíncrono (reconciliar via consulta/webhook).
+ * Lança em caso de rejeição/erro (a nota deve permanecer autorizada).
+ */
+export async function cancelarNFe(
+  ref: string,
+  justificativa: string,
+): Promise<NotaFiscalStatus> {
+  const resp = await fetch(`${BASE_URL}/v2/nfe/${encodeURIComponent(ref)}`, {
+    method: "DELETE",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ justificativa }),
+    cache: "no-store",
+  });
+  const dados = (await resp.json().catch(() => ({}))) as FocusResposta;
+  if (!resp.ok || (dados.erros?.length ?? 0) > 0) {
+    throw new Error(motivoDe(dados) || `Falha ao cancelar a nota (HTTP ${resp.status}).`);
+  }
+  const status = String(dados.status ?? "");
+  if (status === "cancelado") return "cancelada";
+  if (status === "" || status === "processando_cancelamento") return "processando";
+  // erro_cancelamento / cancelamento_rejeitado / outros → mantém a nota autorizada.
+  throw new Error(motivoDe(dados) || "Cancelamento não confirmado pela SEFAZ.");
+}
+
+/** Registra uma carta de correção (CC-e). Retorna o link do PDF da CC-e. */
+export async function cartaCorrecaoNFe(
+  ref: string,
+  correcao: string,
+): Promise<{ ccePdfUrl: string }> {
+  const resp = await fetch(`${BASE_URL}/v2/nfe/${encodeURIComponent(ref)}/carta_correcao`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ correcao }),
+    cache: "no-store",
+  });
+  const dados = (await resp.json().catch(() => ({}))) as FocusResposta;
+  if (!resp.ok) {
+    throw new Error(motivoDe(dados) || `Falha na carta de correção (HTTP ${resp.status}).`);
+  }
+  return { ccePdfUrl: urlAbsoluta(dados.caminho_pdf_carta_correcao) };
 }

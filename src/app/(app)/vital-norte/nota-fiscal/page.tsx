@@ -3,6 +3,7 @@ import { Receipt, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
+import { ehHomologacao } from "@/lib/nota-fiscal/focus";
 import { formatarMoeda } from "@/lib/format";
 import {
   NOTA_FISCAL_STATUS_LABEL,
@@ -50,6 +51,12 @@ export default async function NotaFiscalPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {ehHomologacao() && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Ambiente de homologação — as notas emitidas aqui não têm valor fiscal.
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Nota Fiscal</h1>

@@ -40,7 +40,15 @@ export type NotaFiscal = {
   danfe_url: string;
   xml_url: string;
   anexada_em: string | null;
+  cancelamento_justificativa: string;
+  cartas_correcao: CartaCorrecao[];
   created_at: string;
+};
+
+export type CartaCorrecao = {
+  correcao: string;
+  cce_url: string;
+  em: string;
 };
 
 export const NOTA_FISCAL_STATUS_LABEL: Record<NotaFiscalStatus, string> = {

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip } from "lucide-react";
+import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip, Ban, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,8 @@ import {
   consultarStatusNotaFiscal,
   removerNotaFiscal,
   anexarNotaNaContratacao,
+  cancelarNotaFiscal,
+  cartaCorrecaoNotaFiscal,
 } from "@/lib/nota-fiscal/actions";
 import { formatarMoeda } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
@@ -479,5 +481,165 @@ export function NotaFiscalAcoes({
         </Button>
       )}
     </div>
+  );
+}
+
+/* ---------- Ações avançadas (página de detalhe) ---------- */
+const TEXTAREA_CLASS =
+  "flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+
+export function NotaFiscalAcoesAvancadas({
+  id,
+  status,
+}: {
+  id: string;
+  status: NotaFiscalStatus;
+}) {
+  if (status !== "autorizada") return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+      <CartaCorrecaoDialog id={id} />
+      <CancelarNotaDialog id={id} />
+    </div>
+  );
+}
+
+function CartaCorrecaoDialog({ id }: { id: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, startTransition] = useTransition();
+  const router = useRouter();
+
+  function fechar(v: boolean) {
+    setAberto(v);
+    if (!v) {
+      setTexto("");
+      setErro(null);
+    }
+  }
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro(null);
+    startTransition(async () => {
+      try {
+        await cartaCorrecaoNotaFiscal(id, texto);
+        fechar(false);
+        toast.success("Carta de correção registrada");
+        router.refresh();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao registrar a correção.";
+        setErro(msg);
+        toast.error("Falha na carta de correção", { description: msg });
+      }
+    });
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={fechar}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <PencilLine className="size-4" /> Carta de correção
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Carta de correção (CC-e)</DialogTitle>
+          <DialogDescription>
+            Corrige erros que não alteram valores, impostos nem as partes da nota. Mínimo de 15 caracteres.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <textarea
+            className={TEXTAREA_CLASS}
+            rows={4}
+            maxLength={1000}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Descreva a correção…"
+          />
+          <p className="text-xs text-muted-foreground">
+            {texto.trim().length} caracteres (mín. 15, máx. 1000)
+          </p>
+          {erro && <p className="text-sm text-destructive">{erro}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={pendente || texto.trim().length < 15}>
+              {pendente && <Loader2 className="animate-spin" />} Registrar correção
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CancelarNotaDialog({ id }: { id: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, startTransition] = useTransition();
+  const router = useRouter();
+
+  function fechar(v: boolean) {
+    setAberto(v);
+    if (!v) {
+      setTexto("");
+      setErro(null);
+    }
+  }
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro(null);
+    startTransition(async () => {
+      try {
+        await cancelarNotaFiscal(id, texto);
+        fechar(false);
+        toast.success("Nota cancelada");
+        router.refresh();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao cancelar a nota.";
+        setErro(msg);
+        toast.error("Falha ao cancelar", { description: msg });
+      }
+    });
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={fechar}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="destructive">
+          <Ban className="size-4" /> Cancelar nota
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cancelar NF-e</DialogTitle>
+          <DialogDescription>
+            O cancelamento é definitivo e enviado à SEFAZ. Informe a justificativa (mínimo de 15 caracteres).
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <textarea
+            className={TEXTAREA_CLASS}
+            rows={3}
+            maxLength={255}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Ex.: Erro na descrição do produto acordado com o órgão."
+          />
+          <p className="text-xs text-muted-foreground">
+            {texto.trim().length} caracteres (mín. 15, máx. 255)
+          </p>
+          {erro && <p className="text-sm text-destructive">{erro}</p>}
+          <DialogFooter>
+            <Button type="submit" variant="destructive" disabled={pendente || texto.trim().length < 15}>
+              {pendente && <Loader2 className="animate-spin" />} Confirmar cancelamento
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

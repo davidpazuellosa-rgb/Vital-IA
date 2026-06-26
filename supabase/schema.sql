@@ -400,6 +400,8 @@ create table if not exists public.notas_fiscais (
   xml_url text not null default '',
   payload jsonb,
   anexada_em timestamptz,
+  cancelamento_justificativa text not null default '',
+  cartas_correcao jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, ref)
