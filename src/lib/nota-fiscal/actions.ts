@@ -10,6 +10,49 @@ const PATH = "/vital-norte/nota-fiscal";
 const BUCKET = "documentos";
 const apenasDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
 
+export type DadosCnpj = {
+  nome: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  municipio: string;
+  uf: string;
+};
+
+/** Busca razão social e endereço de um CNPJ na BrasilAPI (dados públicos da Receita). */
+export async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpj> {
+  const doc = apenasDigitos(cnpj);
+  if (doc.length !== 14) throw new Error("Informe um CNPJ com 14 dígitos.");
+
+  let dados: Record<string, unknown>;
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${doc}`, {
+      cache: "no-store",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; VitalIA/1.0)", Accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.status === 404) throw new Error("CNPJ não encontrado na base da Receita.");
+    if (!r.ok) throw new Error(`Falha na consulta (HTTP ${r.status}).`);
+    dados = await r.json();
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("CNPJ")) throw e;
+    throw new Error("Não foi possível consultar o CNPJ agora. Tente novamente.");
+  }
+
+  const txt = (v: unknown) => (typeof v === "string" ? v.trim() : v != null ? String(v) : "");
+  const logradouro = [txt(dados.descricao_tipo_logradouro), txt(dados.logradouro)].filter(Boolean).join(" ").trim();
+  return {
+    nome: txt(dados.razao_social),
+    cep: apenasDigitos(txt(dados.cep)),
+    logradouro,
+    numero: txt(dados.numero),
+    bairro: txt(dados.bairro),
+    municipio: txt(dados.municipio),
+    uf: txt(dados.uf).toUpperCase().slice(0, 2),
+  };
+}
+
 type EmpresaEmitente = {
   cnpj: string;
   inscricao_estadual: string;

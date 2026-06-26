@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip, Ban, PencilLine } from "lucide-react";
+import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip, Ban, PencilLine, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ import {
   anexarNotaNaContratacao,
   cancelarNotaFiscal,
   cartaCorrecaoNotaFiscal,
+  buscarDadosCnpj,
 } from "@/lib/nota-fiscal/actions";
 import { formatarMoeda } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
@@ -84,7 +85,37 @@ export function NovaNotaFiscal({
   const [destinatarioNome, setDestinatarioNome] = useState("");
   const [nomeAuto, setNomeAuto] = useState("");
   const [tipoOperacao, setTipoOperacao] = useState<"interna" | "interestadual">("interna");
+  const [dest, setDest] = useState({ documento: "", ie: "", cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "" });
+  const [buscandoCnpj, startBuscaCnpj] = useTransition();
   const [itens, setItens] = useState<ItemEditor[]>([novoItem()]);
+
+  const setDestCampo = (k: keyof typeof dest, v: string) => setDest((d) => ({ ...d, [k]: v }));
+
+  function buscarCnpj() {
+    const t = toast.loading("Buscando dados do CNPJ…");
+    startBuscaCnpj(async () => {
+      try {
+        const d = await buscarDadosCnpj(dest.documento);
+        setDest((cur) => ({
+          ...cur,
+          cep: d.cep || cur.cep,
+          logradouro: d.logradouro || cur.logradouro,
+          numero: d.numero || cur.numero,
+          bairro: d.bairro || cur.bairro,
+          municipio: d.municipio || cur.municipio,
+          uf: d.uf || cur.uf,
+        }));
+        if (d.nome) {
+          setDestinatarioNome(d.nome);
+          setNomeAuto(d.nome);
+        }
+        if (d.uf) aplicarTipoOperacao(d.uf === "AM" ? "interna" : "interestadual");
+        toast.success("Dados preenchidos", { id: t, description: d.nome });
+      } catch (e) {
+        toast.error("Não foi possível buscar", { id: t, description: e instanceof Error ? e.message : undefined });
+      }
+    });
+  }
 
   // CFOP: 5xxx = dentro do estado (AM); 6xxx = interestadual. Troca só o 1º dígito,
   // preservando o resto do CFOP escolhido em cada item.
@@ -263,35 +294,55 @@ export function NovaNotaFiscal({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioDocumento">CNPJ / CPF</Label>
-                <Input id="destinatarioDocumento" name="destinatarioDocumento" placeholder="Só números" required />
+                <div className="flex gap-2">
+                  <Input
+                    id="destinatarioDocumento"
+                    name="destinatarioDocumento"
+                    value={dest.documento}
+                    onChange={(e) => setDestCampo("documento", e.target.value)}
+                    placeholder="Só números"
+                    required
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={buscarCnpj}
+                    disabled={buscandoCnpj || dest.documento.replace(/\D/g, "").length !== 14}
+                    title="Buscar dados do CNPJ na Receita"
+                  >
+                    {buscandoCnpj ? <Loader2 className="animate-spin" /> : <Search />}
+                    <span className="hidden sm:inline">Buscar</span>
+                  </Button>
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioIe">Inscrição estadual (opcional)</Label>
-                <Input id="destinatarioIe" name="destinatarioIe" placeholder="Deixe vazio se isento" />
+                <Input id="destinatarioIe" name="destinatarioIe" value={dest.ie} onChange={(e) => setDestCampo("ie", e.target.value)} placeholder="Deixe vazio se isento" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioCep">CEP</Label>
-                <Input id="destinatarioCep" name="destinatarioCep" placeholder="Só números" />
+                <Input id="destinatarioCep" name="destinatarioCep" value={dest.cep} onChange={(e) => setDestCampo("cep", e.target.value)} placeholder="Só números" />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="destinatarioLogradouro">Logradouro</Label>
-                <Input id="destinatarioLogradouro" name="destinatarioLogradouro" />
+                <Input id="destinatarioLogradouro" name="destinatarioLogradouro" value={dest.logradouro} onChange={(e) => setDestCampo("logradouro", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioNumero">Número</Label>
-                <Input id="destinatarioNumero" name="destinatarioNumero" />
+                <Input id="destinatarioNumero" name="destinatarioNumero" value={dest.numero} onChange={(e) => setDestCampo("numero", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioBairro">Bairro</Label>
-                <Input id="destinatarioBairro" name="destinatarioBairro" />
+                <Input id="destinatarioBairro" name="destinatarioBairro" value={dest.bairro} onChange={(e) => setDestCampo("bairro", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioMunicipio">Município</Label>
-                <Input id="destinatarioMunicipio" name="destinatarioMunicipio" />
+                <Input id="destinatarioMunicipio" name="destinatarioMunicipio" value={dest.municipio} onChange={(e) => setDestCampo("municipio", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioUf">UF</Label>
-                <Input id="destinatarioUf" name="destinatarioUf" maxLength={2} placeholder="Ex.: AM" />
+                <Input id="destinatarioUf" name="destinatarioUf" value={dest.uf} onChange={(e) => setDestCampo("uf", e.target.value.toUpperCase())} maxLength={2} placeholder="Ex.: AM" />
               </div>
             </div>
           </fieldset>
