@@ -212,6 +212,14 @@ final class Emissor
             $make->taginfAdic($inf);
         }
 
+        // ── responsável técnico (obrigatório no layout 4.00) ──
+        $rt = new \stdClass();
+        $rt->CNPJ = $emit['CNPJ'];
+        $rt->xContato = mb_substr($emit['xNome'] ?: 'Responsavel Tecnico', 0, 60);
+        $rt->email = $emit['email'] ?: 'contato@example.com';
+        $rt->fone = $emit['fone'] ?: '0000000000';
+        $make->taginfRespTec($rt);
+
         $xml = $make->montaNFe();
         if ($xml === '' || count($make->getErrors()) > 0) {
             throw new \RuntimeException('Erro ao montar a NF-e: ' . implode(' | ', $make->getErrors()));

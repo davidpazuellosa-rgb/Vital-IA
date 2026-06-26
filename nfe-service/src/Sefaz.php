@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Vitalia\NfeService;
 
 use NFePHP\Common\Certificate;
-use NFePHP\Common\Standardize;
+use NFePHP\NFe\Common\Standardize;
 use NFePHP\NFe\Tools;
 
 /**
@@ -102,6 +102,7 @@ final class Sefaz
             'UF' => self::env('NFE_UF', 'AM'),
             'CEP' => preg_replace('/\D/', '', self::env('NFE_EMIT_CEP')),
             'fone' => preg_replace('/\D/', '', self::env('NFE_EMIT_FONE')),
+            'email' => self::env('NFE_EMIT_EMAIL'),
         ];
     }
 }
