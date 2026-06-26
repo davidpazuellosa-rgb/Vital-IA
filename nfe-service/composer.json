@@ -1,0 +1,16 @@
+{
+  "name": "vitalia/nfe-service",
+  "description": "Microserviço de emissão NF-e direta com a SEFAZ-AM usando sped-nfe. Consumido pelo Vital.IA via API REST privada.",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "nfephp-org/sped-nfe": "^5.0"
+  },
+  "autoload": {
+    "psr-4": { "Vitalia\\NfeService\\": "src/" }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

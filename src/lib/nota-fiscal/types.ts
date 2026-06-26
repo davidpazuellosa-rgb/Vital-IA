@@ -5,6 +5,20 @@ export type NotaFiscalStatus =
   | "rejeitada"
   | "cancelada";
 
+/**
+ * Resultado de emissão/consulta, neutro de provedor. Tanto a engine Focus
+ * (`focus.ts`) quanto a engine direta SEFAZ (`sefaz.ts`) retornam esta forma,
+ * para que o app não dependa de qual motor está ativo (ver `engine.ts`).
+ */
+export type ResultadoEmissao = {
+  status: NotaFiscalStatus;
+  numero: string;
+  serie: string;
+  motivo: string;
+  danfeUrl: string;
+  xmlUrl: string;
+};
+
 export type NotaFiscalItem = {
   descricao: string;
   ncm: string; // código NCM (8 dígitos)

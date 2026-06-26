@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
-import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe } from "./focus";
+import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe } from "./engine";
 import { calcularTotalItens, valorLinha, type NotaFiscal, type NotaFiscalItem } from "./types";
 
 const PATH = "/vital-norte/nota-fiscal";

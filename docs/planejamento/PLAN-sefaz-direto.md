@@ -37,7 +37,13 @@ O módulo do Vital.IA hoje conversa com a emissão por uma interface limpa em [`
 - O microserviço expõe uma **API REST privada** (mesma forma do Focus). O Next.js chama **servidor-a-servidor**. O certificado A1 fica **só** nesse serviço.
 - **Não** é WebView/iframe — é API. A emissão continua programática (roteamento, registro, anexo automáticos).
 
-> Alternativa (TypeScript puro, stack única): viável tecnicamente (`xml-crypto` para assinatura, TLS mútuo nativo no Node), mas as bibliotecas TS de NF-e são bem menos maduras que a `sped-nfe`, e você reconstrói à mão as partes de maior risco (assinatura exata, DANFE, eventos, manutenção das NTs). **Mais risco e mais tempo.** Recomendo PHP/sped-nfe; manter como alternativa só se a operação de um runtime PHP for inaceitável. Decidir na Fase 0.
+> Alternativa (TypeScript puro, stack única): viável tecnicamente (`xml-crypto` para assinatura, TLS mútuo nativo no Node), mas as bibliotecas TS de NF-e são bem menos maduras que a `sped-nfe`, e você reconstrói à mão as partes de maior risco (assinatura exata, DANFE, eventos, manutenção das NTs). **Mais risco e mais tempo.** Recomendo PHP/sped-nfe; manter como alternativa só se a operação de um runtime PHP for inaceitável.
+
+**Decisão de runtime (confirmada jun/2026):** PHP/`sped-nfe`. Como o app faz deploy na **Vercel (serverless, sem servidor PHP persistente)** e nem PHP nem Docker estão na máquina de dev, o serviço:
+- vive em [`nfe-service/`](../../nfe-service/) **no mesmo repositório** (monorepo, sem segundo repo);
+- roda em **Docker** (o container traz PHP + extensões — nada instalado localmente);
+- faz **deploy num host gerenciado** fora da Vercel (sugerido: **Railway**, ~US$5/mês);
+- guarda o certificado A1 como **secret só nesse host**.
 
 ---
 
@@ -51,9 +57,9 @@ O módulo do Vital.IA hoje conversa com a emissão por uma interface limpa em [`
 - [ ] Definir onde o microserviço roda (mesmo servidor do app, container separado) e como o Next.js o alcança em rede privada.
 
 ### Fase 1 — Microserviço base + handshake com a SEFAZ
-- Esqueleto do microserviço (PHP/sped-nfe) com config do certificado A1 e do CNPJ emitente.
-- **TLS mútuo**: carregar o A1 no handshake HTTPS com a SEFAZ-AM.
-- Implementar o **"status do serviço"** (consulta de disponibilidade da SEFAZ — o "hello world" da integração): se isso responde, o certificado, a rede e as URLs estão certos.
+- ✅ **Costura no app (verificada, `tsc` limpo):** `engine.ts` seleciona o motor por `NFE_ENGINE` (`focus`|`sefaz`); `sefaz.ts` é o cliente HTTP do microserviço com o mesmo contrato do `focus.ts`; `actions.ts`/webhook/página importam de `engine`. Default segue `focus` — comportamento inalterado.
+- ✅ **Esqueleto do microserviço:** `nfe-service/` com `composer.json` (sped-nfe), `Dockerfile`, roteador com auth Bearer, `GET /health` e `GET /status-servico` (handshake), `Sefaz.php` (config + certificado por env).
+- ⏳ **Pendente (depende da Fase 0 — você):** instalar Docker; fornecer A1 (`.pfx`) + senha; CNPJ credenciado na SEFAZ-AM. Só então dá para **rodar e validar** o `/status-servico` (esperado `cStat 107`). O código PHP foi escrito sem PHP/Docker local — **ainda não validado em execução**.
 - Apontar tudo para **homologação** primeiro.
 
 ### Fase 2 — Montar e assinar a NF-e (modelo 55, layout 4.00)
