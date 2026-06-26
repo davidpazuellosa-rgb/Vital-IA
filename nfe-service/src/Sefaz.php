@@ -65,7 +65,7 @@ final class Sefaz
 
         $certificado = Certificate::readPfx($pfx, $senha);
         $tools = new Tools($config, $certificado);
-        $tools->model('55'); // NF-e de mercadoria
+        $tools->model(55); // NF-e de mercadoria
         return $tools;
     }
 

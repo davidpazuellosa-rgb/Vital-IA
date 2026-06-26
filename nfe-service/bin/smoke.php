@@ -12,7 +12,6 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use NFePHP\Common\Certificate;
-use NFePHP\Common\Validator;
 use NFePHP\NFe\Tools;
 use Vitalia\NfeService\Emissor;
 
@@ -111,22 +110,27 @@ try {
         'versao' => '4.00',
     ], JSON_THROW_ON_ERROR);
     $tools = new Tools($config, Certificate::readPfx($pfx, '1234'));
-    $tools->model('55');
+    $tools->model(55);
     $xmlAssinado = $tools->signNFe($xml);
 } catch (\Throwable $e) {
     falhar('signNFe() lançou: ' . $e->getMessage());
 }
 
 // ── 6. Validar contra o XSD 4.00 ──
+// Usa schemaValidate com o CAMINHO do XSD (não o conteúdo), para que o
+// <xs:include schemaLocation="leiauteNFe_v4.00.xsd"> resolva relativo à pasta.
 echo "→ Validando contra o XSD oficial (PL_009_V4)...\n";
 $xsd = glob(__DIR__ . '/../vendor/nfephp-org/sped-nfe/schemes/PL_009_V4/nfe_v4.00.xsd')[0] ?? '';
 if ($xsd === '') {
     falhar('XSD nfe_v4.00.xsd não encontrado no vendor da sped-nfe.');
 }
-try {
-    Validator::isValid($xmlAssinado, file_get_contents($xsd));
-} catch (\Throwable $e) {
-    falhar("XSD reprovou:\n" . $e->getMessage());
+$dom = new \DOMDocument();
+$dom->loadXML($xmlAssinado);
+libxml_use_internal_errors(true);
+if (!$dom->schemaValidate($xsd)) {
+    $msgs = array_map(fn($e) => trim($e->message), libxml_get_errors());
+    libxml_clear_errors();
+    falhar("XSD reprovou:\n  - " . implode("\n  - ", $msgs));
 }
 
 echo "\n✅ SMOKE OK — NF-e montada, assinada e válida contra o XSD 4.00.\n";

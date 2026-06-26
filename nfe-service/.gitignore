@@ -1,0 +1,11 @@
+# dependências do Composer (reinstaladas no build via composer.lock)
+/vendor/
+
+# ambiente e certificados — nunca versionar
+.env
+.env.local
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key

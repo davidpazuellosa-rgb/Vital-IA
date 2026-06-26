@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vitalia\NfeService;
 
+use NFePHP\NFe\Complements;
 use NFePHP\NFe\Tools;
 
 /**
@@ -43,7 +44,7 @@ final class Transmissor
         $chave = Emissor::chaveDe($assinado);
 
         // indSinc=1 → resposta síncrona com o protocolo embutido.
-        $resp = $tools->sefazEnviaLote([$assinado], (int) (date('YmdHis')), 1);
+        $resp = $tools->sefazEnviaLote([$assinado], date('YmdHis'), 1);
         $std = Sefaz::padronizar($resp);
 
         // Em lote síncrono o protNFe vem em protNFe; o cStat relevante é o do protocolo.
@@ -56,7 +57,7 @@ final class Transmissor
         $xmlAutorizado = '';
         if ($status === 'autorizada' && $protocolo !== '') {
             // Anexa o protocolo ao XML → nfeProc (documento fiscal definitivo p/ guarda).
-            $xmlAutorizado = $tools->addProtocol($assinado, $resp);
+            $xmlAutorizado = Complements::toAuthorize($assinado, $resp);
         }
 
         return [

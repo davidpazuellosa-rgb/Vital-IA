@@ -212,10 +212,11 @@ final class Emissor
             $make->taginfAdic($inf);
         }
 
-        if (!$make->monta()) {
+        $xml = $make->montaNFe();
+        if ($xml === '' || count($make->getErrors()) > 0) {
             throw new \RuntimeException('Erro ao montar a NF-e: ' . implode(' | ', $make->getErrors()));
         }
-        return $make->getXML();
+        return $xml;
     }
 
     /** Assina o XML com o certificado A1 (XMLDSig). */
