@@ -3,7 +3,9 @@
 Estado atual e o **mínimo** que falta. Plano-mãe: [`docs/planejamento/PLAN-sefaz-direto.md`](../docs/planejamento/PLAN-sefaz-direto.md).
 
 ## TL;DR
-Praticamente tudo está feito e validado offline. **Só faltam 3 ações suas** (no fim). O Docker **não sobe nesta máquina** (bug de VM) — contornado com PHP nativo; o Docker fica só para o deploy no Railway (builda na nuvem).
+🎉 **Emissão AUTORIZADA na SEFAZ-AM (homologação): cStat 100.** A integração direta funciona **de ponta a ponta** com o certificado real — montar, assinar, transmitir, protocolo, XML autorizado e DANFE (PDF). Nota teste: chave `13260649594277000189550010009496921091317196`, protocolo `113260013349615`.
+
+Falta só: **aplicar a migration no Supabase**, **emitir uma vez pela tela do app** (não só pelo script), e o **deploy no Railway** (produção). O Docker não sobe nesta máquina (usei PHP nativo); o Docker fica só pro Railway.
 
 ## ✅ Feito e VALIDADO (rodou de verdade, com PHP nativo)
 1. **Costura no app** (`engine.ts`/`sefaz.ts`) — `NFE_ENGINE` alterna Focus⇄SEFAZ. Default Focus intacto. tsc+lint OK.
@@ -17,28 +19,24 @@ Praticamente tudo está feito e validado offline. **Só faltam 3 ações suas** 
 - **`nfe-service/.env` preenchido** com seus dados reais (CNPJ, IE, endereço puxados do Supabase; certificado embutido em base64; token gerado). **Só falta `NFE_CERT_PASSWORD`.**
 - **`bin/status.php`** — checa a SEFAZ-AM com um comando.
 
-## ⚠️ NÃO validado (depende do seu certificado)
-Transmitir de fato (emitir/consultar/cancelar/CC-e). O código está escrito e os métodos batem com a API real da `sped-nfe` v5.2.6 — só um envio em homologação confirma.
+## ✅ VALIDADO com a SEFAZ real (homologação)
+- **Handshake** — `bin/status.php` → cStat 107 (serviço em operação).
+- **Emissão** — `bin/emitir-teste.php` → **cStat 100 (autorizada)**, protocolo recebido, XML autorizado (nfeProc) + DANFE (PDF 15 KB) gerados. Transmissão inteira provada.
 
 ---
 
-## O que falta — SÓ 3 coisas suas
+## O que falta
 
-### 1. Senha do certificado → ver o handshake (2 min)
-Abra `nfe-service/.env`, preencha `NFE_CERT_PASSWORD=` com a senha do seu `.pfx`, e rode:
-```bash
-cd ~/Desktop/Projetos/Vital.IA/nfe-service && ~/bin/php bin/status.php
-```
-**✅ Esperado:** `cStat: 107 — ... em Operação ✅ handshake OK`.
-> Ou: me passe a senha aqui no chat que eu preencho e rodo pra você.
-
-### 2. Aplicar a migration no Supabase (1 min)
+### 1. Aplicar a migration no Supabase (1 min) — você
 Painel do Supabase → **SQL Editor** → cole o conteúdo de
 `supabase/migrations/20260626140000_notas_fiscais_sefaz_direto.sql` e rode.
-(Não consigo fazer isso por aqui — DDL precisa de acesso de admin ao banco que não tenho.)
+(Não consigo por aqui — DDL precisa de acesso de admin ao banco que não tenho.)
 
-### 3. (Depois que 1 e 2 passarem) Emitir 1 nota teste em homologação
-Me chama: a gente liga `NFE_ENGINE=sefaz` no `.env.local`, emite uma nota de teste (sem valor fiscal) e confere `cStat 100` (autorizada) + DANFE/XML guardados.
+### 2. Emitir uma vez pela TELA do app — comigo
+O CLI já provou a SEFAZ. Falta exercitar o fluxo dentro do Vital.IA: ligar `NFE_ENGINE=sefaz` (+ `NFE_SERVICE_URL`/`NFE_SERVICE_TOKEN`) no `.env.local`, subir o serviço local e emitir uma nota pela interface. Me chama que a gente faz.
+
+### 3. Produção (Fase 7) — você + eu
+Deploy do `nfe-service` no **Railway** (Dockerfile, ~US$5/mês, sua conta); apontar a Vercel; trocar p/ `NFE_AMBIENTE=producao` e `NFE_SEFAZ_AMBIENTE=producao`. Falta também contingência SVC-RS (Fase 6).
 
 ---
 

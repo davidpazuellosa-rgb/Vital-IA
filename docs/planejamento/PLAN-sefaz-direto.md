@@ -1,6 +1,8 @@
 # Plano — Integração NF-e direta com a SEFAZ (independência total, sem intermediário)
 
-Documento de planejamento. **Nada aqui foi executado ainda.** Escopo: NF-e de **mercadoria (modelo 55)**, emitente **Simples Nacional** em Manaus/AM. Objetivo: emitir NF-e **sem provedor pago** (Focus/PlugNotas) e **sem site grátis de terceiros** — falando direto com os web services da SEFAZ-AM. Único custo recorrente: o **certificado A1** (já temos).
+Escopo: NF-e de **mercadoria (modelo 55)**, emitente **Simples Nacional** em Manaus/AM. Objetivo: emitir NF-e **sem provedor pago** (Focus/PlugNotas) e **sem site grátis de terceiros** — falando direto com os web services da SEFAZ-AM. Único custo recorrente: o **certificado A1** (já temos).
+
+> 🎉 **VALIDADO em homologação (cStat 100, autorizada) com o certificado real.** Fases 1–4 (handshake, montar, assinar, transmitir, protocolo, DANFE) funcionam de ponta a ponta. Falta: aplicar a migration, exercitar pela tela do app, e o deploy em produção (Fase 7). Status detalhado em `nfe-service/MORNING-HANDOFF.md`.
 
 > ⚠️ Trade-off assumido conscientemente: independência total custa **alto esforço de construção + manutenção eterna** (Notas Técnicas, contingência, guarda de XML). Este plano é para quem aceita esse custo em troca de zero dependência externa.
 
