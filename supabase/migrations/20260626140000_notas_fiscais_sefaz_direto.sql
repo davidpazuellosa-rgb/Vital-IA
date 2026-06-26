@@ -14,6 +14,11 @@ create table if not exists public.nfe_numeracao (
   atualizado_em timestamptz not null default now()
 );
 
+-- RLS habilitado SEM políticas: nenhum cliente (anon/authenticated) acessa a
+-- tabela diretamente. Só a função proximo_numero_nfe() a toca, e ela é
+-- SECURITY DEFINER (passa por cima do RLS). É o comportamento desejado.
+alter table public.nfe_numeracao enable row level security;
+
 -- Aloca e devolve o próximo nNF de forma atômica (evita corrida/duplicidade).
 -- SECURITY DEFINER: a numeração é da empresa, não por usuário.
 create or replace function public.proximo_numero_nfe(p_serie integer)
