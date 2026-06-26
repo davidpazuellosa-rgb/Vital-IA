@@ -23,21 +23,12 @@ Hoje o payload fixa CSOSN 102 / PIS-COFINS 07. Precisa variar por operação:
 | Operação | CFOP típico | CSOSN | Pontos críticos |
 |---|---|---|---|
 | Interna AM | 5101/5102 | 102 (500 se ST) | base atual cobre |
-| Interestadual | 6101/6102 | 102 | DIFAL a consumidor final não-contribuinte; regra própria do Simples (confirmar) |
-| ZFM/SUFRAMA | 6109/6110 | 103/300 | ICMS desonerado + campos SUFRAMA (§5) |
-| Órgão público | 5101/6101 | 102 | `indIEDest=9`, `xPed`/`infAdic` com PROAD/NE |
+| Interestadual | 6101/6102 | 102 | **DIFAL: emitente Simples NÃO recolhe** (ADI 5469/STF, cláusula 9ª Conv. 93/2015 suspensa) — sem campos de DIFAL no payload. ✅ implementado |
+| ~~ZFM/SUFRAMA~~ | — | — | **Sem incentivo no momento** — não aplicar; nenhum campo SUFRAMA/desoneração enviado. |
+| Órgão público | 5101/6101 | 102 | `indIEDest=9` (já coberto quando sem IE); referência PROAD/empenho em `infAdic`. ✅ implementado |
 
-## 5. ZFM/SUFRAMA — maior fonte de rejeição
-Campos ausentes hoje que precisam entrar:
-- `vICMSDeson` (valor do ICMS desonerado) + `motDesICMS=7` (SUFRAMA).
-- Inscrição SUFRAMA do destinatário + indicador de operação ZFM.
-- Abatimento do ICMS no valor (desconto ZFM); PIS/COFINS frequentemente alíquota zero (CST 06).
-
-🔴 **Pendência que muda o tratamento fiscal**: a Vital Norte está em Manaus. CFOP 6109/6110 é para mercadoria **entrando** na ZFM vinda de **outro estado**; venda interna em Manaus normalmente **não** usa esse benefício. Confirmar com a contabilidade se "com incentivo ZFM" é:
-- (a) saída para áreas de livre comércio / Amazônia Ocidental, ou
-- (b) incentivo industrial local (PPB).
-
-O tratamento difere em cada caso.
+## 5. ZFM/SUFRAMA — **fora de escopo por ora**
+✅ **Decisão (jun/2026): a Vital Norte NÃO tem incentivo ZFM no momento.** Portanto não se aplica desoneração de ICMS nem campos SUFRAMA, e não se usa CFOP 6109/6110. Nenhum campo de ZFM é enviado no payload. Reabrir esta seção só se a empresa passar a ter habilitação SUFRAMA/incentivo — aí confirmar com a contabilidade se é (a) ALC/Amazônia Ocidental ou (b) incentivo industrial local (PPB), pois o tratamento difere.
 
 ## 6. Checklist anti-rejeição (cStat comuns)
 - [ ] NCM válido com 8 dígitos; CEST quando houver ST.

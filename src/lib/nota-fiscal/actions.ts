@@ -114,16 +114,40 @@ export async function criarNotaFiscal(formData: FormData) {
   return data.id as string;
 }
 
+const UF_EMITENTE = "AM"; // Vital Norte — Manaus/AM
+
 function montarPayloadFocus(
   nota: NotaFiscal,
   empresa: EmpresaEmitente,
   itens: NotaFiscalItem[],
+  referenciaContratacao = "",
 ): Record<string, unknown> {
   const doc = apenasDigitos(nota.destinatario_documento);
   const documentoDestinatario =
     doc.length === 14 ? { cnpj_destinatario: doc } : { cpf_destinatario: doc };
   // Contribuinte de ICMS quando há inscrição estadual; órgão público costuma ser isento.
   const contribuinte = Boolean(nota.destinatario_ie?.trim());
+  // Operação interestadual quando a UF do destinatário difere da do emitente (AM).
+  const ufDest = (nota.destinatario_uf || "").toUpperCase();
+  const interestadual = Boolean(ufDest) && ufDest !== UF_EMITENTE;
+
+  // Informações adicionais: observações + referência da contratação (PROAD/empenho),
+  // útil para notas a órgão público.
+  const informacoesAdicionais = [
+    nota.observacoes?.trim(),
+    referenciaContratacao ? `Ref.: ${referenciaContratacao}` : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  // ─── Tratamento fiscal (Simples Nacional, Manaus/AM) ───
+  // DIFAL interestadual: o emitente é Simples Nacional. Pela suspensão da cláusula nona
+  // do Convênio ICMS 93/2015 (ADI 5469/STF), o contribuinte do Simples NÃO recolhe o
+  // DIFAL (partilha) na venda interestadual a consumidor final não contribuinte. Por isso
+  // NÃO populamos os campos de DIFAL (icms_valor_*_uf_*) mesmo quando `interestadual`.
+  // ZFM/SUFRAMA: sem incentivo no momento — nenhum campo de desoneração/SUFRAMA é enviado.
+  // Confirmar qualquer mudança de regime/benefício com a contabilidade.
+  void interestadual;
 
   return {
     natureza_operacao: nota.natureza_operacao,
@@ -132,6 +156,7 @@ function montarPayloadFocus(
     finalidade_emissao: 1, // NF-e normal
     consumidor_final: contribuinte ? 0 : 1,
     presenca_comprador: 9, // operação não presencial / outros
+    ...(informacoesAdicionais ? { informacoes_adicionais_contribuinte: informacoesAdicionais } : {}),
 
     // Emitente — cadastrado no painel do provedor; aqui só o CNPJ.
     cnpj_emitente: apenasDigitos(empresa.cnpj),
@@ -197,8 +222,19 @@ export async function emitirNotaFiscal(id: string) {
     throw new Error("Cadastre o CNPJ em Dados da Empresa antes de emitir.");
   }
 
+  // Referência da contratação vinculada (PROAD/empenho) para infAdic.
+  let referenciaContratacao = "";
+  if (nota.contratacao_id) {
+    const { data: ct } = await supabase
+      .from("contratacoes")
+      .select("titulo, identificador")
+      .eq("id", nota.contratacao_id)
+      .maybeSingle();
+    if (ct) referenciaContratacao = [ct.identificador, ct.titulo].filter(Boolean).join(" — ");
+  }
+
   const itens = (nota.itens ?? []) as NotaFiscalItem[];
-  const payload = montarPayloadFocus(nota as NotaFiscal, empresa as EmpresaEmitente, itens);
+  const payload = montarPayloadFocus(nota as NotaFiscal, empresa as EmpresaEmitente, itens, referenciaContratacao);
 
   // Compare-and-swap: só sai de "rascunho" uma vez (evita emissão dupla por clique repetido).
   const { data: marcada } = await supabase
