@@ -4,12 +4,13 @@ Microserviço que assina e transmite NF-e (modelo 55) direto para a SEFAZ-AM, se
 
 > Roda **fora da Vercel** (a Vercel é serverless e não hospeda PHP). O certificado A1 fica **só aqui**, como segredo do host.
 
-## Estado atual (Fase 1 do PLAN-sefaz-direto.md)
-- ✅ Esqueleto + roteador + autenticação Bearer.
-- ✅ `GET /status-servico` — handshake com a SEFAZ-AM (prova certificado + rede + URLs).
-- ⏳ Emissão/consulta/cancelamento/CC-e: stub `501` (Fases 2, 3 e 6).
+## Estado atual
+- ✅ Roteador + autenticação Bearer **validados** (`/health`, 401, 404, validações).
+- ✅ **Fase 2 (montar + assinar) validada** — `bin/smoke.php` monta, assina e o XML passa no XSD 4.00.
+- ✅ Emissão/consulta/cancelamento/CC-e implementados (`Transmissor.php`), métodos conferidos contra a `sped-nfe` v5.2.6.
+- ⏳ Falta validar a **transmissão real** à SEFAZ (precisa do certificado A1 + credenciamento) e a **DANFE** (Fase 4).
 
-> ⚠️ **Ainda não validado em execução** — foi escrito sem PHP/Docker na máquina de desenvolvimento. Validar com os passos abaixo assim que o certificado e o credenciamento (Fase 0) estiverem prontos.
+> Validado com **PHP nativo (binário estático)** — o Docker não é necessário para desenvolver (e não sobe nesta máquina). O `Dockerfile` serve para o deploy no Railway. Ver `MORNING-HANDOFF.md`.
 
 ## Endpoints
 | Método | Rota | Função |
@@ -21,21 +22,20 @@ Microserviço que assina e transmite NF-e (modelo 55) direto para a SEFAZ-AM, se
 | DELETE | `/nfe/{ref}` | Cancelar (Fase 6) — `501` por ora |
 | POST | `/nfe/{ref}/carta-correcao` | CC-e (Fase 6) — `501` por ora |
 
-## Pré-requisitos (você fornece — Fase 0)
-1. **Docker** instalado na máquina (o container traz PHP + extensões).
-2. **Certificado A1** (`.pfx`) + senha.
-3. **CNPJ credenciado para NF-e na SEFAZ-AM** + Inscrição Estadual ativa.
-4. Confirmar as **URLs dos web services da SEFAZ-AM** (a `sped-nfe` já as traz; validar a versão).
+## Pré-requisitos
+- Para **desenvolver/validar local**: PHP 8.1+ com extensões dom, openssl, mbstring, soap, gd (um binário estático já resolve — ver `MORNING-HANDOFF.md`).
+- Para **transmitir de verdade**: **Certificado A1** (`.pfx`) + senha, **CNPJ credenciado na SEFAZ-AM** + IE ativa.
 
-## Rodar local (homologação)
+## Rodar local (sem Docker)
 ```bash
-cp .env.example .env            # preencha os valores
-docker build -t nfe-service .
-docker run --rm -p 8080:8080 --env-file .env nfe-service
-# Em outro terminal:
+php composer.phar install          # uma vez (instala sped-nfe)
+php bin/smoke.php                   # valida montar+assinar+XSD (NÃO precisa de certificado)
+# com certificado, para o handshake real:
+cp .env.example .env               # preencha cert (base64), senha, CNPJ, IE, endereço
+php -S 127.0.0.1:8080 public/index.php
 curl localhost:8080/health
 curl -H "Authorization: Bearer SEU_TOKEN" localhost:8080/status-servico
-# Esperado: {"cStat":"107","xMotivo":"...em Operação","operante":true,...}
+# Esperado: {"cStat":"107","operante":true,...}
 ```
 
 ## Deploy (Railway, sugerido)

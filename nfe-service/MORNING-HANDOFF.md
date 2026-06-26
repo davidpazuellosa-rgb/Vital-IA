@@ -1,64 +1,63 @@
 # Handoff — integração direta SEFAZ (sessão noturna)
 
-Resumo do que avancei enquanto você dormia, **o que está validado e o que não está**, e as decisões que preciso de você para seguir. Plano-mãe: [`docs/planejamento/PLAN-sefaz-direto.md`](../docs/planejamento/PLAN-sefaz-direto.md).
+O que avancei enquanto você dormia, **o que está validado** e as decisões que preciso de você. Plano-mãe: [`docs/planejamento/PLAN-sefaz-direto.md`](../docs/planejamento/PLAN-sefaz-direto.md).
 
 ## TL;DR
-- **Costura no app (engine selecionável): pronta e VALIDADA** (`tsc` + lint). O Focus segue funcionando; a engine `sefaz` entra por env.
-- **Microserviço PHP: código das Fases 1–3 e 6 ESCRITO, mas NÃO validado em execução** — o Docker não chegou a subir nesta sessão (ficou preso na tela inicial/Rosetta). Nenhuma linha de PHP rodou ainda.
-- Há **lacunas de integração reais** (numeração, IBGE, persistência de chave) que precisam da sua decisão antes de emitir de verdade.
+- ✅ **A parte mais difícil está VALIDADA**: o microserviço **monta + assina** a NF-e e o XML **passa no XSD oficial 4.00**. Roteador + autenticação também validados. Tudo rodando de verdade.
+- ⚠️ **O Docker NÃO sobe nesta máquina** (a VM Linux dele não inicializa — bug de ambiente, não do nosso código). **Contornei usando um PHP nativo (binário estático)** — não precisamos de Docker para desenvolver. O `Dockerfile` fica só para o deploy no Railway (que builda na nuvem dele, sem depender da sua máquina).
+- ⏳ Falta o que depende do **seu certificado real** (transmitir à SEFAZ) e de **3 decisões de arquitetura** (numeração, IBGE, persistência) — listadas no fim.
 
-## O que está VALIDADO ✅
-- `src/lib/nota-fiscal/engine.ts` seleciona `focus`|`sefaz` por `NFE_ENGINE`; `sefaz.ts` é o cliente HTTP; app importa de `engine`. Compila e passa lint. Default `focus` → comportamento atual intacto.
+## O que está VALIDADO ✅ (rodou de verdade)
+1. **Costura no app** (`engine.ts`/`sefaz.ts`): `tsc` + lint limpos. Default `focus` intacto.
+2. **Fase 2 — montar + assinar** (`bin/smoke.php`): monta uma NF-e de exemplo, assina (cert autoassinado) e **valida contra o XSD 4.00** → `✅ SMOKE OK`. Gera chave de 44 díg. correta (cUF 13 = AM).
+3. **Fase 1/3 — roteador + auth** (`public/index.php`): `/health`→200, sem token→401, sem cert→500 com mensagem clara, rota inválida→404, `POST /nfe` sem número→400. Tudo conforme esperado.
+4. **Nomes de método da `sped-nfe` v5.2.6** conferidos contra a API real (a v5.2.6 mudou bastante: `montaNFe()`, `model(int)`, `Complements::toAuthorize`, traits no lugar dos `tag*`). Já corrigidos.
 
-## O que NÃO está validado ⚠️ (escrito sem poder rodar PHP)
-- `nfe-service/` inteiro: `montar()` (XML 4.00), `assinar()`, `emitir()` (lote síncrono), `consultar()`, `cancelar()`, `cartaCorrecao()`, roteador.
-- Os nomes de métodos da `sped-nfe` (v5) foram escritos de memória — o **smoke test** abaixo é quem confirma. Espere ajustar 1–2 nomes/campos na primeira execução.
+## O que NÃO está validado ⚠️ (precisa do certificado real + credenciamento)
+- **Transmissão de fato à SEFAZ-AM**: `/status-servico`, emitir, consultar, cancelar, CC-e. O código está escrito e os métodos batem com a API, mas só um envio real em homologação confirma. (Sem o cert eu não consigo ir além disso.)
 
-## PRIMEIRO PASSO de manhã: validar o núcleo offline (não precisa de certificado real)
-O smoke test monta uma NF-e de exemplo, assina com um cert autoassinado e valida contra o **XSD oficial 4.00** — sem SEFAZ, sem seu certificado.
-
+## Como rodar local — SEM Docker (foi assim que validei)
+O Docker não é necessário. Usei um **PHP estático** (autocontido, sem instalar nada no sistema):
 ```bash
-cd nfe-service
-docker build -t nfe-service .          # 1ª vez baixa PHP+extensões (alguns min)
-docker run --rm nfe-service php bin/smoke.php
-# Esperado no fim: "✅ SMOKE OK — NF-e montada, assinada e válida contra o XSD 4.00."
+# 1) baixar PHP estático (arm64) — fica numa pasta qualquer
+curl -fsSL https://dl.static-php.dev/static-php-cli/common/php-8.3.31-cli-macos-aarch64.tar.gz | tar xz
+chmod +x php
+# 2) Composer + dependências (uma vez)
+curl -fsSL https://getcomposer.org/composer-stable.phar -o composer.phar
+cd nfe-service && ../php ../composer.phar install
+# 3) smoke test (valida montar+assinar+XSD, NÃO precisa de certificado)
+../php bin/smoke.php          # espera: ✅ SMOKE OK
 ```
-Se acusar erro de método/campo, me chame — corrijo o `Emissor.php` contra a mensagem do XSD. **Esse é o teste que tira o risco da parte mais difícil (XML + assinatura).**
+> Alternativa permanente (recomendada quando puder, no SEU terminal, pede senha 1×):
+> instalar Homebrew e `brew install php composer` — aí é só `php bin/smoke.php`.
 
-## DEPOIS: handshake real com a SEFAZ-AM (precisa do seu certificado)
+## Handshake real com a SEFAZ-AM (precisa do seu certificado A1)
 ```bash
-cp .env.example .env     # preencha: cert A1 (base64), senha, CNPJ, IE, endereço do emitente
-docker run --rm -p 8080:8080 --env-file .env nfe-service
-curl localhost:8080/health
+cp .env.example .env     # preencha: cert (base64), senha, CNPJ, IE, endereço do emitente
+base64 -i seu-cert.pfx | tr -d '\n'     # gera o valor de NFE_CERT_PFX_BASE64
+../php -S 127.0.0.1:8080 public/index.php   # ou docker/Railway em produção
 curl -H "Authorization: Bearer SEU_TOKEN" localhost:8080/status-servico
-# Esperado: {"cStat":"107","operante":true,...}  → handshake fechado (Fase 1 validada de verdade)
+# Esperado: {"cStat":"107","operante":true} → handshake fechado (Fase 1 validada de verdade)
 ```
-Gerar o base64 do certificado: `base64 -i seu-cert.pfx | tr -d '\n'`
 
-## Lacunas de integração — PRECISO DA SUA DECISÃO 🔑
-O Focus resolvia isso por baixo; na integração direta vira nosso. Minhas recomendações:
+## Decisões que PRECISO de você 🔑 (não decidi sozinho — afetam o schema do app)
+1. **Numeração `nNF`/`série`** — sequencial sem buracos é responsabilidade do emitente.
+   → **Recomendo:** contador no Supabase por série; o app aloca no emitir e envia `numero`+`serie`.
+2. **IBGE do município do destinatário (`cMun`)** — a NF-e exige o código, o payload só tem o nome.
+   → **Recomendo:** resolver via **BrasilAPI** (vocês já usam pra CNPJ) e enviar `codigo_municipio_destinatario`.
+3. **Persistência de chave/protocolo** — consultar/cancelar/CC-e operam por chave (e protocolo no cancelamento).
+   → **Recomendo:** colunas `chave`/`protocolo` em `notas_fiscais`; `emitir()` já devolve ambas + o XML autorizado p/ guarda (5 anos via Supabase Storage, fluxo que já existe).
 
-1. **Numeração da nota (`nNF`/`série`)** — a NF-e exige numeração sequencial **sem buracos** por série. O serviço é stateless; quem deve alocar é o app.
-   → **Recomendo:** tabela/contador no Supabase (`sequencia_nfe` por série), o app aloca no emitir e envia `numero`+`serie` no payload. Buraco/erro de transmissão → `inutilização` (Fase 6).
-
-2. **Código IBGE do município do destinatário (`cMun`, 7 díg.)** — a NF-e exige o código, não o nome. Hoje o payload só tem o nome.
-   → **Recomendo:** resolver no app via **BrasilAPI** (vocês já usam pra CNPJ) ou tabela IBGE, e enviar `codigo_municipio_destinatario`. (Manaus = 1302603.)
-
-3. **Persistência de chave/protocolo** — `consultar`/`cancelar`/`cartaCorrecao` operam por **chave** (e protocolo no cancelamento), não por `ref`.
-   → **Recomendo:** colunas `chave` e `protocolo` em `notas_fiscais`; `emitir()` já devolve ambas + o XML autorizado (base64) pro app guardar (guarda fiscal de 5 anos via Supabase Storage, fluxo que já existe). Aí ajusto `sefaz.ts` pra usar a chave guardada.
-
-4. **Endereço/IE do emitente** — não vêm no payload; pus como **env do serviço** (`NFE_EMIT_*`). Só preencher o `.env`.
-
-5. **DANFE (PDF)** — Fase 4, ainda não gerada. A `sped-nfe` gera (`Danfe`); implemento depois do núcleo validar.
-
-6. **Contingência SVC-RS / sync vs async** — emiti em **lote síncrono** (`indSinc=1`); confirmar que a SEFAZ-AM aceita bem. Contingência (Fase 6) ainda não feita.
-
-## Commits desta sessão (branch `feat/nota-fiscal`, sem push)
-- `76efe67` — Fase 1: costura de engine + esqueleto do serviço.
-- + commit desta noite — Fases 2/3/6 (montar/assinar/transmitir/eventos) + smoke test. **Não validado em execução.**
+## Pendências de implementação (depois das decisões acima)
+- Ponte no app: enriquecer o payload (itens 1–3) e ajustar `sefaz.ts` p/ operar por chave.
+- **DANFE (PDF)** — Fase 4 (pacote `sped-da`); precisa de um XML autorizado p/ testar.
+- **Contingência SVC-RS** — Fase 6.
+- **Deploy no Railway** — Fase 7 (usa o `Dockerfile`; a nuvem do Railway builda sem depender da sua máquina).
 
 ## Sugestão de ordem ao acordar
-1. Rodar o **smoke** (valida o núcleo, não precisa de cert). Corrigir o que o XSD apontar.
-2. Preencher `.env` e rodar **`/status-servico`** em homologação (valida o handshake real).
-3. Decidir comigo as **lacunas 1–3** (numeração, IBGE, chave/protocolo) → eu implemento a ponte no app + emito uma nota de teste em homologação.
-4. DANFE (Fase 4) + contingência (Fase 6) + deploy no Railway (Fase 7).
+1. Rodar o **smoke** (confirma o núcleo; não precisa de cert).
+2. Preencher `.env` com o cert real e rodar **`/status-servico`** (espera `cStat 107`).
+3. Decidir comigo as **3 lacunas** → eu faço a ponte no app e emitimos uma nota de teste em homologação.
+
+## Commits desta sessão (branch `feat/nota-fiscal`, sem push)
+- `d130b54` plano · `76efe67` Fase 1 (costura+esqueleto) · `55af307` Fases 2/3/6 (código) · `2a75223` **Fase 2 validada (XSD)**.

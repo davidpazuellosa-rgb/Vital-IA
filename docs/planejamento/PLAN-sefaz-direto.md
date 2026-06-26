@@ -41,9 +41,10 @@ O módulo do Vital.IA hoje conversa com a emissão por uma interface limpa em [`
 
 **Decisão de runtime (confirmada jun/2026):** PHP/`sped-nfe`. Como o app faz deploy na **Vercel (serverless, sem servidor PHP persistente)** e nem PHP nem Docker estão na máquina de dev, o serviço:
 - vive em [`nfe-service/`](../../nfe-service/) **no mesmo repositório** (monorepo, sem segundo repo);
-- roda em **Docker** (o container traz PHP + extensões — nada instalado localmente);
-- faz **deploy num host gerenciado** fora da Vercel (sugerido: **Railway**, ~US$5/mês);
+- faz **deploy num host gerenciado** fora da Vercel (sugerido: **Railway**, ~US$5/mês) usando o `Dockerfile` (o Railway builda na nuvem dele);
 - guarda o certificado A1 como **secret só nesse host**.
+
+> **Nota de execução (jun/2026):** o Docker **não inicializa nesta máquina** (a VM Linux não sobe — bug de ambiente). Para desenvolver/validar localmente usamos um **PHP nativo (binário estático)**, sem Docker. O `Dockerfile` permanece só para o deploy no Railway. Ver `nfe-service/MORNING-HANDOFF.md`.
 
 ---
 
@@ -62,11 +63,10 @@ O módulo do Vital.IA hoje conversa com a emissão por uma interface limpa em [`
 - ⏳ **Pendente (depende da Fase 0 — você):** instalar Docker; fornecer A1 (`.pfx`) + senha; CNPJ credenciado na SEFAZ-AM. Só então dá para **rodar e validar** o `/status-servico` (esperado `cStat 107`). O código PHP foi escrito sem PHP/Docker local — **ainda não validado em execução**.
 - Apontar tudo para **homologação** primeiro.
 
-### Fase 2 — Montar e assinar a NF-e (modelo 55, layout 4.00)
-- Gerar o XML da NF-e a partir dos dados (reaproveitar a lógica de `montarPayload*` já existente, traduzindo para o leiaute 4.00).
-- **Chave de acesso** (44 dígitos + DV módulo 11).
-- **Assinatura XMLDSig** no `infNFe` (enveloped, C14N, RSA-SHA256) — a sped-nfe faz; validar byte a byte.
-- **Validar contra o XSD 4.00** antes de transmitir (evita rejeição 215/225).
+### Fase 2 — Montar e assinar a NF-e (modelo 55, layout 4.00) — ✅ VALIDADA
+- ✅ `Emissor::montar()` traduz o payload do app (formato Focus) para `sped-nfe` (Make), gera a chave (44 díg., cUF 13=AM) e assina (XMLDSig).
+- ✅ `bin/smoke.php` valida o XML assinado contra o **XSD oficial 4.00** (`schemaValidate`) com um cert autoassinado → passa.
+- ⚠️ Lacunas conhecidas no payload que o app precisa suprir (Fase 3): `numero`/`serie` (nNF) e `codigo_municipio_destinatario` (IBGE). Emitente (endereço/IE/IBGE) vem de env.
 
 ### Fase 3 — Transmitir e tratar o retorno
 - Enviar para **autorização** na SEFAZ-AM e tratar o `cStat`/`xMotivo` de retorno.
