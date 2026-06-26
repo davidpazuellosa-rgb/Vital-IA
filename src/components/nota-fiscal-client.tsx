@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode } from "lucide-react";
+import { Plus, Loader2, Trash2, Send, RefreshCw, FileDown, FileCode, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,13 +28,16 @@ import {
   emitirNotaFiscal,
   consultarStatusNotaFiscal,
   removerNotaFiscal,
+  anexarNotaNaContratacao,
 } from "@/lib/nota-fiscal/actions";
 import { formatarMoeda } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
 
 type ClienteOpcao = { id: string; nome: string; orgao: string };
+type ContratacaoOpcao = { id: string; titulo: string; identificador: string };
 
 type ItemEditor = {
+  id: string;
   descricao: string;
   ncm: string;
   cfop: string;
@@ -43,7 +46,7 @@ type ItemEditor = {
   valor_unitario: string;
 };
 
-const ITEM_VAZIO: ItemEditor = {
+const ITEM_VAZIO: Omit<ItemEditor, "id"> = {
   descricao: "",
   ncm: "",
   cfop: "5101",
@@ -51,6 +54,8 @@ const ITEM_VAZIO: ItemEditor = {
   quantidade: "1",
   valor_unitario: "0",
 };
+
+const novoItem = (): ItemEditor => ({ ...ITEM_VAZIO, id: crypto.randomUUID() });
 
 // Aceita tanto formato pt-BR ("1.000,50") quanto ponto decimal ("1000.50").
 const paraNumero = (v: string) => {
@@ -60,16 +65,25 @@ const paraNumero = (v: string) => {
 };
 
 /* ---------- Nova nota fiscal ---------- */
-export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
+export function NovaNotaFiscal({
+  clientes,
+  contratacoesPorCliente,
+}: {
+  clientes: ClienteOpcao[];
+  contratacoesPorCliente: Record<string, ContratacaoOpcao[]>;
+}) {
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
   const router = useRouter();
 
   const [clienteId, setClienteId] = useState("");
+  const [contratacaoId, setContratacaoId] = useState("");
   const [destinatarioNome, setDestinatarioNome] = useState("");
   const [nomeAuto, setNomeAuto] = useState("");
-  const [itens, setItens] = useState<ItemEditor[]>([{ ...ITEM_VAZIO }]);
+  const [itens, setItens] = useState<ItemEditor[]>([novoItem()]);
+
+  const contratacoesDoCliente = clienteId ? (contratacoesPorCliente[clienteId] ?? []) : [];
 
   const total = useMemo(
     () =>
@@ -82,6 +96,7 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
 
   function escolherCliente(id: string) {
     setClienteId(id);
+    setContratacaoId(""); // contratações dependem do cliente
     const cliente = clientes.find((c) => c.id === id);
     if (!cliente) return;
     // Sobrescreve o nome se estiver vazio ou ainda for o auto-preenchido (não editado à mão).
@@ -93,7 +108,7 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
     setItens((atual) => atual.map((it, i) => (i === indice ? { ...it, ...patch } : it)));
   }
   function adicionarItem() {
-    setItens((atual) => [...atual, { ...ITEM_VAZIO }]);
+    setItens((atual) => [...atual, novoItem()]);
   }
   function removerItem(indice: number) {
     setItens((atual) => (atual.length === 1 ? atual : atual.filter((_, i) => i !== indice)));
@@ -101,9 +116,10 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
 
   function resetar() {
     setClienteId("");
+    setContratacaoId("");
     setDestinatarioNome("");
     setNomeAuto("");
-    setItens([{ ...ITEM_VAZIO }]);
+    setItens([novoItem()]);
     setErro(null);
   }
 
@@ -112,6 +128,7 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
     setErro(null);
     const fd = new FormData(e.currentTarget);
     fd.set("clienteId", clienteId);
+    fd.set("contratacaoId", contratacaoId);
     fd.set(
       "itens",
       JSON.stringify(
@@ -183,6 +200,25 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
             </div>
           </div>
 
+          {contratacoesDoCliente.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <Label>Contratação (opcional)</Label>
+              <Select value={contratacaoId} onValueChange={setContratacaoId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Vincular a uma contratação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contratacoesDoCliente.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.titulo}
+                      {c.identificador ? ` · ${c.identificador}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Destinatário */}
           <fieldset className="flex flex-col gap-4 rounded-lg border p-4">
             <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -246,7 +282,7 @@ export function NovaNotaFiscal({ clientes }: { clientes: ClienteOpcao[] }) {
             </div>
 
             {itens.map((item, indice) => (
-              <div key={indice} className="flex flex-col gap-3 rounded-lg border p-3">
+              <div key={item.id} className="flex flex-col gap-3 rounded-lg border p-3">
                 <div className="flex items-start gap-2">
                   <div className="flex flex-1 flex-col gap-1.5">
                     <Label className="text-xs">Descrição</Label>
@@ -339,11 +375,15 @@ export function NotaFiscalAcoes({
   status,
   danfeUrl,
   xmlUrl,
+  contratacaoId,
+  jaAnexada,
 }: {
   id: string;
   status: NotaFiscalStatus;
   danfeUrl: string;
   xmlUrl: string;
+  contratacaoId?: string | null;
+  jaAnexada?: boolean;
 }) {
   const [pendente, startTransition] = useTransition();
   const router = useRouter();
@@ -399,6 +439,29 @@ export function NotaFiscalAcoes({
             <FileCode className="size-4" /> XML
           </a>
         </Button>
+      )}
+
+      {status === "autorizada" && contratacaoId && !jaAnexada && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            executar(
+              () => anexarNotaNaContratacao(id),
+              "Anexando à contratação…",
+              "Anexada à contratação",
+            )
+          }
+          disabled={pendente}
+        >
+          {pendente ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />} Anexar à contratação
+        </Button>
+      )}
+
+      {status === "autorizada" && contratacaoId && jaAnexada && (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Paperclip className="size-3.5" /> Anexada à contratação
+        </span>
       )}
 
       {(status === "rascunho" || status === "rejeitada" || status === "cancelada") && (

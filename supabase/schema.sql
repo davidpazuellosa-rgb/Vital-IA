@@ -399,6 +399,7 @@ create table if not exists public.notas_fiscais (
   danfe_url text not null default '',
   xml_url text not null default '',
   payload jsonb,
+  anexada_em timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, ref)

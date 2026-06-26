@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
-import { consultarNFe, emitirNFe } from "./focus";
+import { baixarArquivo, consultarNFe, emitirNFe } from "./focus";
 import { calcularTotalItens, valorLinha, type NotaFiscal, type NotaFiscalItem } from "./types";
 
 const PATH = "/vital-norte/nota-fiscal";
+const BUCKET = "documentos";
 const apenasDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
 
 type EmpresaEmitente = {
@@ -277,6 +278,104 @@ export async function consultarStatusNotaFiscal(id: string) {
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw new Error(error.message);
+  revalidatePath(PATH);
+}
+
+/** Baixa DANFE e XML do provedor e anexa como documentos da contratação vinculada. */
+export async function anexarNotaNaContratacao(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { data: nota } = await supabase
+    .from("notas_fiscais")
+    .select("status, numero, contratacao_id, danfe_url, xml_url")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!nota) throw new Error("Nota não encontrada.");
+  if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser anexadas.");
+  if (!nota.contratacao_id) throw new Error("Vincule a nota a uma contratação primeiro.");
+
+  // cliente_id autoritativo a partir da contratação (não confia no campo da nota).
+  const { data: contratacao } = await supabase
+    .from("contratacoes")
+    .select("id, cliente_id")
+    .eq("id", nota.contratacao_id)
+    .eq("user_id", user.id)
+    .single();
+  if (!contratacao) throw new Error("Contratação não encontrada.");
+  const clienteId = contratacao.cliente_id as string;
+
+  const numero = nota.numero || "sn";
+  const arquivos = [
+    nota.danfe_url ? { url: nota.danfe_url, ext: "pdf", rotulo: "DANFE" } : null,
+    nota.xml_url ? { url: nota.xml_url, ext: "xml", rotulo: "XML" } : null,
+  ].filter((a): a is { url: string; ext: string; rotulo: string } => a !== null);
+  if (arquivos.length === 0) throw new Error("Nota sem DANFE/XML disponível.");
+
+  // Claim idempotente: só a primeira execução prossegue (evita duplicar em clique/retry).
+  const { data: claim } = await supabase
+    .from("notas_fiscais")
+    .update({ anexada_em: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .is("anexada_em", null)
+    .select("id");
+  if (!claim || claim.length === 0) {
+    throw new Error("Esta nota já foi anexada à contratação.");
+  }
+
+  // O prefixo do storage precisa ser o id da empresa (RLS do bucket "documentos").
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  const criados: { path: string; rowId: string }[] = [];
+  try {
+    for (const arq of arquivos) {
+      const { conteudo, contentType } = await baixarArquivo(arq.url);
+      const docId = crypto.randomUUID();
+      const nomeArquivo = `nf-${numero}-${arq.rotulo.toLowerCase()}.${arq.ext}`;
+      const path = `${empresaUserId}/clientes/${clienteId}/${docId}/${nomeArquivo}`;
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, conteudo, { contentType, upsert: false });
+      if (upErr) throw new Error(`Falha no upload do ${arq.rotulo}: ${upErr.message}`);
+
+      const { data: doc, error: insErr } = await supabase
+        .from("cliente_documentos")
+        .insert({
+          cliente_id: clienteId,
+          contratacao_id: nota.contratacao_id,
+          user_id: user.id,
+          tipo: "nota_fiscal",
+          nome: `${arq.rotulo} NF ${numero}`,
+          arquivo_path: path,
+          arquivo_nome: nomeArquivo,
+        })
+        .select("id")
+        .single();
+      if (insErr) {
+        await supabase.storage.from(BUCKET).remove([path]);
+        throw new Error(insErr.message);
+      }
+      criados.push({ path, rowId: doc.id as string });
+    }
+  } catch (e) {
+    // Rollback do parcial e libera o claim para permitir nova tentativa limpa.
+    for (const c of criados) {
+      await supabase.from("cliente_documentos").delete().eq("id", c.rowId).eq("user_id", user.id);
+      await supabase.storage.from(BUCKET).remove([c.path]);
+    }
+    await supabase
+      .from("notas_fiscais")
+      .update({ anexada_em: null })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    throw e instanceof Error ? e : new Error("Falha ao anexar a nota.");
+  }
+
+  revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${nota.contratacao_id}`);
   revalidatePath(PATH);
 }
 

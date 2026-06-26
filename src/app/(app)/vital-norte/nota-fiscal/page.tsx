@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Receipt, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,16 +15,38 @@ type NotaComCliente = NotaFiscal & { clientes: { nome: string; orgao: string } |
 
 export default async function NotaFiscalPage() {
   const supabase = await createClient();
-  const [{ data: notasData }, { data: clientesData }] = await Promise.all([
-    supabase
-      .from("notas_fiscais")
-      .select("*, clientes(nome, orgao)")
-      .order("created_at", { ascending: false }),
-    supabase.from("clientes").select("id, nome, orgao").order("nome", { ascending: true }),
-  ]);
+  const [{ data: notasData }, { data: clientesData }, { data: contratacoesData }] =
+    await Promise.all([
+      supabase
+        .from("notas_fiscais")
+        .select("*, clientes(nome, orgao)")
+        .order("created_at", { ascending: false }),
+      supabase.from("clientes").select("id, nome, orgao").order("nome", { ascending: true }),
+      supabase
+        .from("contratacoes")
+        .select("id, cliente_id, titulo, identificador")
+        .order("created_at", { ascending: false }),
+    ]);
 
   const notas = (notasData ?? []) as NotaComCliente[];
   const clientes = (clientesData ?? []) as { id: string; nome: string; orgao: string }[];
+  const contratacoes = (contratacoesData ?? []) as {
+    id: string;
+    cliente_id: string;
+    titulo: string;
+    identificador: string;
+  }[];
+  const contratacoesPorCliente: Record<
+    string,
+    { id: string; titulo: string; identificador: string }[]
+  > = {};
+  for (const c of contratacoes) {
+    (contratacoesPorCliente[c.cliente_id] ??= []).push({
+      id: c.id,
+      titulo: c.titulo,
+      identificador: c.identificador,
+    });
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -34,7 +57,7 @@ export default async function NotaFiscalPage() {
             Emita NF-e de venda para os órgãos e acompanhe a autorização na SEFAZ.
           </p>
         </div>
-        <NovaNotaFiscal clientes={clientes} />
+        <NovaNotaFiscal clientes={clientes} contratacoesPorCliente={contratacoesPorCliente} />
       </div>
 
       {notas.length === 0 ? (
@@ -57,14 +80,14 @@ export default async function NotaFiscalPage() {
               <Card key={n.id} className="h-full shadow-sm">
                 <CardContent className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <Link href={`/vital-norte/nota-fiscal/${n.id}`} className="min-w-0 hover:underline">
                       <p className="truncate font-semibold leading-tight">{titulo}</p>
                       {n.clientes?.orgao && (
                         <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                           <Building2 className="size-3 shrink-0" /> {n.clientes.orgao}
                         </p>
                       )}
-                    </div>
+                    </Link>
                     <Badge variant={NOTA_FISCAL_STATUS_VARIANT[n.status]} className="shrink-0">
                       {NOTA_FISCAL_STATUS_LABEL[n.status]}
                     </Badge>
@@ -91,6 +114,8 @@ export default async function NotaFiscalPage() {
                     status={n.status}
                     danfeUrl={n.danfe_url}
                     xmlUrl={n.xml_url}
+                    contratacaoId={n.contratacao_id}
+                    jaAnexada={Boolean(n.anexada_em)}
                   />
                 </CardContent>
               </Card>

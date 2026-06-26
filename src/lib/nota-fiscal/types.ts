@@ -39,6 +39,7 @@ export type NotaFiscal = {
   destinatario_uf: string;
   danfe_url: string;
   xml_url: string;
+  anexada_em: string | null;
   created_at: string;
 };
 

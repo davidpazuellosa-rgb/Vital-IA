@@ -122,3 +122,17 @@ export async function consultarNFe(ref: string): Promise<FocusResultado> {
   const dados = (await resp.json().catch(() => ({}))) as FocusResposta;
   return interpretar(dados, resp, "consulta");
 }
+
+/** Baixa um arquivo (DANFE/XML) do provedor, autenticado. */
+export async function baixarArquivo(
+  url: string,
+): Promise<{ conteudo: ArrayBuffer; contentType: string }> {
+  const resp = await fetch(url, { headers: { Authorization: authHeader() }, cache: "no-store" });
+  if (!resp.ok) {
+    throw new Error(`Falha ao baixar arquivo do provedor (HTTP ${resp.status}).`);
+  }
+  return {
+    conteudo: await resp.arrayBuffer(),
+    contentType: resp.headers.get("content-type") ?? "application/octet-stream",
+  };
+}
