@@ -17,6 +17,10 @@ export type ResultadoEmissao = {
   motivo: string;
   danfeUrl: string;
   xmlUrl: string;
+  // Preenchidos só pela engine direta SEFAZ (sefaz.ts); vazios no Focus.
+  chave?: string;
+  protocolo?: string;
+  xmlBase64?: string; // XML autorizado (nfeProc) para o app guardar (5 anos)
 };
 
 export type NotaFiscalItem = {
@@ -50,7 +54,10 @@ export type NotaFiscal = {
   destinatario_numero: string;
   destinatario_bairro: string;
   destinatario_municipio: string;
+  destinatario_codigo_municipio: string; // IBGE 7 díg. (cMun) — usado na engine SEFAZ
   destinatario_uf: string;
+  chave: string; // chave de acesso (44 díg.) — preenchida na engine SEFAZ
+  protocolo: string; // protocolo de autorização — usado p/ cancelar na engine SEFAZ
   danfe_url: string;
   xml_url: string;
   anexada_em: string | null;

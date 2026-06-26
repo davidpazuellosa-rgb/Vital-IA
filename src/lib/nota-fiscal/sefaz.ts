@@ -56,6 +56,9 @@ function comoResultado(dados: RespostaServico): ResultadoEmissao {
     motivo: dados.motivo ?? "",
     danfeUrl: dados.danfeUrl ?? "",
     xmlUrl: dados.xmlUrl ?? "",
+    chave: dados.chave ?? "",
+    protocolo: dados.protocolo ?? "",
+    xmlBase64: dados.xmlBase64 ?? "",
   };
 }
 

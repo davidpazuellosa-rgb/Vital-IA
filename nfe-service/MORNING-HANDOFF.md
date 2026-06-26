@@ -40,13 +40,11 @@ curl -H "Authorization: Bearer SEU_TOKEN" localhost:8080/status-servico
 # Esperado: {"cStat":"107","operante":true} → handshake fechado (Fase 1 validada de verdade)
 ```
 
-## Decisões que PRECISO de você 🔑 (não decidi sozinho — afetam o schema do app)
-1. **Numeração `nNF`/`série`** — sequencial sem buracos é responsabilidade do emitente.
-   → **Recomendo:** contador no Supabase por série; o app aloca no emitir e envia `numero`+`serie`.
-2. **IBGE do município do destinatário (`cMun`)** — a NF-e exige o código, o payload só tem o nome.
-   → **Recomendo:** resolver via **BrasilAPI** (vocês já usam pra CNPJ) e enviar `codigo_municipio_destinatario`.
-3. **Persistência de chave/protocolo** — consultar/cancelar/CC-e operam por chave (e protocolo no cancelamento).
-   → **Recomendo:** colunas `chave`/`protocolo` em `notas_fiscais`; `emitir()` já devolve ambas + o XML autorizado p/ guarda (5 anos via Supabase Storage, fluxo que já existe).
+## Ponte no app — IMPLEMENTADA nesta sessão (gated em `NFE_ENGINE=sefaz`, `tsc`+lint OK)
+Apliquei minhas recomendações das 3 lacunas (tudo isolado: o caminho Focus, default, não mudou). **Aplicar a migration `supabase/migrations/20260626140000_notas_fiscais_sefaz_direto.sql`** no Supabase.
+1. ✅ **Numeração `nNF`** — tabela `nfe_numeracao` + função `proximo_numero_nfe(serie)` (atômica). `emitirNotaFiscal` aloca o número **após** o compare-and-swap (não gera buraco em clique duplo), só quando engine=sefaz.
+2. ⚠️ **IBGE `cMun`** — a busca por CNPJ (`buscarDadosCnpj`) já captura `codigo_municipio_ibge`; o payload já envia `codigo_municipio_destinatario`; coluna criada. **FALTA o último elo:** hoje o destinatário vem do **cliente selecionado** (commit 4ed9cd4), e a tabela `clientes` não guarda o IBGE. → próximo passo: adicionar `codigo_municipio` em `clientes` (preencher no cadastro, que já faz lookup BrasilAPI) e levar até a nota. Enquanto isso, `emitirNotaFiscal` **bloqueia com mensagem clara** se o IBGE faltar.
+3. ✅ **Chave/protocolo** — colunas em `notas_fiscais`; `emitir()` devolve e o app grava. (Guarda do XML autorizado no Storage + DANFE = Fase 4, ainda pendente — o fluxo de anexar precisa de ajuste p/ engine stateless.)
 
 ## Pendências de implementação (depois das decisões acima)
 - Ponte no app: enriquecer o payload (itens 1–3) e ajustar `sefaz.ts` p/ operar por chave.

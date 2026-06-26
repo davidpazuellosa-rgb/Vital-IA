@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
-import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe } from "./engine";
+import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe, motorAtivo } from "./engine";
 import { calcularTotalItens, valorLinha, type NotaFiscal, type NotaFiscalItem } from "./types";
 
 const PATH = "/vital-norte/nota-fiscal";
@@ -17,6 +17,7 @@ export type DadosCnpj = {
   numero: string;
   bairro: string;
   municipio: string;
+  codigoMunicipio: string; // IBGE 7 díg. (cMun) — necessário p/ emissão direta SEFAZ
   uf: string;
 };
 
@@ -49,6 +50,7 @@ export async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpj> {
     numero: txt(dados.numero),
     bairro: txt(dados.bairro),
     municipio: txt(dados.municipio),
+    codigoMunicipio: apenasDigitos(txt(dados.codigo_municipio_ibge)),
     uf: txt(dados.uf).toUpperCase().slice(0, 2),
   };
 }
@@ -146,6 +148,7 @@ export async function criarNotaFiscal(formData: FormData) {
       destinatario_numero: ((formData.get("destinatarioNumero") as string) ?? "").trim(),
       destinatario_bairro: ((formData.get("destinatarioBairro") as string) ?? "").trim(),
       destinatario_municipio: ((formData.get("destinatarioMunicipio") as string) ?? "").trim(),
+      destinatario_codigo_municipio: apenasDigitos(formData.get("destinatarioCodigoMunicipio") as string),
       destinatario_uf: ((formData.get("destinatarioUf") as string) ?? "").trim().toUpperCase().slice(0, 2),
       valor_total: valorTotal,
       itens,
@@ -213,6 +216,7 @@ function montarPayloadFocus(
     numero_destinatario: nota.destinatario_numero,
     bairro_destinatario: nota.destinatario_bairro,
     municipio_destinatario: nota.destinatario_municipio,
+    codigo_municipio_destinatario: nota.destinatario_codigo_municipio, // IBGE (engine SEFAZ)
     uf_destinatario: nota.destinatario_uf,
     cep_destinatario: apenasDigitos(nota.destinatario_cep),
 
@@ -247,8 +251,9 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  // Integração fiscal precisa estar configurada (conta Focus + certificado A1).
-  if (!process.env.FOCUS_NFE_TOKEN) {
+  // Integração fiscal precisa estar configurada. No Focus = token; na engine
+  // direta SEFAZ a validação de config fica no próprio cliente (sefaz.ts).
+  if (motorAtivo === "focus" && !process.env.FOCUS_NFE_TOKEN) {
     return {
       ok: false,
       mensagem: "Integração fiscal não configurada. Defina FOCUS_NFE_TOKEN (conta Focus + certificado A1) para emitir.",
@@ -263,6 +268,14 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     .single();
   if (!nota) return { ok: false, mensagem: "Nota não encontrada." };
   if (nota.status !== "rascunho") return { ok: false, mensagem: "Esta nota já foi enviada." };
+
+  // Engine SEFAZ exige o código IBGE do município (cMun) — vem da busca por CNPJ.
+  if (motorAtivo === "sefaz" && !nota.destinatario_codigo_municipio) {
+    return {
+      ok: false,
+      mensagem: "Falta o código IBGE do município do destinatário. Use a busca por CNPJ para preenchê-lo antes de emitir.",
+    };
+  }
 
   // Emitente vem de public.empresa (acervo compartilhado da empresa).
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
@@ -301,6 +314,23 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     return { ok: false, mensagem: "Esta nota já está sendo processada." };
   }
 
+  // Engine SEFAZ: o app aloca a numeração (nNF) atomicamente — só após o
+  // compare-and-swap, para não consumir número em clique duplicado (evita buracos).
+  if (motorAtivo === "sefaz") {
+    const { data: nAloc, error: nErr } = await supabase.rpc("proximo_numero_nfe", { p_serie: 1 });
+    if (nErr || nAloc == null) {
+      await supabase
+        .from("notas_fiscais")
+        .update({ status: "rascunho", updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .eq("status", "processando");
+      return { ok: false, mensagem: "Falha ao alocar a numeração da nota fiscal." };
+    }
+    payload.numero = String(nAloc);
+    payload.serie = "1";
+  }
+
   let resultado;
   try {
     resultado = await emitirNFe(nota.ref, payload);
@@ -326,6 +356,10 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
       motivo_rejeicao: resultado.motivo,
       danfe_url: resultado.danfeUrl,
       xml_url: resultado.xmlUrl,
+      chave: resultado.chave ?? "",
+      protocolo: resultado.protocolo ?? "",
+      // TODO Fase 4 (engine SEFAZ): guardar resultado.xmlBase64 (XML autorizado) no
+      // Storage e gerar a DANFE; o fluxo de anexar precisa de ajuste p/ engine stateless.
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -365,6 +399,8 @@ export async function consultarStatusNotaFiscal(id: string) {
       motivo_rejeicao: resultado.motivo,
       danfe_url: resultado.danfeUrl,
       xml_url: resultado.xmlUrl,
+      chave: resultado.chave ?? "",
+      protocolo: resultado.protocolo ?? "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
