@@ -8,6 +8,12 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use Vitalia\NfeService\Sefaz;
+use Vitalia\NfeService\Transmissor;
+
+function corpoJson(): array
+{
+    return json_decode((string) file_get_contents('php://input'), true) ?? [];
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -60,9 +66,41 @@ try {
         ]);
     }
 
-    // Fases 2–3 (emitir/consultar), 6 (cancelar/CC-e) — ainda não implementadas.
-    if (preg_match('#^/nfe#', $caminho)) {
-        responder(501, ['erro' => 'Emissão ainda não implementada (Fase 2+ do PLAN-sefaz-direto.md).']);
+    // ── Emitir: POST /nfe (corpo = payload do app + numero/serie) ──
+    // ⚠️ contrato AINDA não validado: o payload precisa incluir `numero` (nNF),
+    // `serie` e `codigo_municipio_destinatario`. Ver MORNING-HANDOFF.md.
+    if ($metodo === 'POST' && $caminho === '/nfe') {
+        $payload = corpoJson();
+        $numero = (int) ($payload['numero'] ?? 0);
+        $serie = (int) ($payload['serie'] ?? 1);
+        if ($numero <= 0) {
+            responder(400, ['erro' => 'Falta "numero" (nNF) no payload — o app aloca a numeração sequencial por série.']);
+        }
+        responder(200, Transmissor::emitir(Sefaz::tools(), $payload, $numero, $serie));
+    }
+
+    // ── Consultar: GET /nfe/{chave44} ──
+    if ($metodo === 'GET' && preg_match('#^/nfe/(\d{44})$#', $caminho, $m)) {
+        responder(200, Transmissor::consultar(Sefaz::tools(), $m[1]));
+    }
+
+    // ── Cancelar: DELETE /nfe/{chave44} (corpo: justificativa, protocolo) ──
+    if ($metodo === 'DELETE' && preg_match('#^/nfe/(\d{44})$#', $caminho, $m)) {
+        $b = corpoJson();
+        $just = trim((string) ($b['justificativa'] ?? ''));
+        $prot = (string) ($b['protocolo'] ?? '');
+        if (mb_strlen($just) < 15 || $prot === '') {
+            responder(400, ['erro' => 'Cancelamento exige justificativa (≥15 caracteres) e protocolo de autorização.']);
+        }
+        responder(200, Transmissor::cancelar(Sefaz::tools(), $m[1], $just, $prot));
+    }
+
+    // ── Carta de correção: POST /nfe/{chave44}/carta-correcao (corpo: correcao, seq?) ──
+    if ($metodo === 'POST' && preg_match('#^/nfe/(\d{44})/carta-correcao$#', $caminho, $m)) {
+        $b = corpoJson();
+        $r = Transmissor::cartaCorrecao(Sefaz::tools(), $m[1], (string) ($b['correcao'] ?? ''), (int) ($b['seq'] ?? 1));
+        // TODO Fase 4: gerar o PDF da CC-e e devolver ccePdfUrl.
+        responder(200, ['ccePdfUrl' => '', 'cStat' => $r['cStat'], 'motivo' => $r['motivo'], 'ok' => $r['ok']]);
     }
 
     responder(404, ['erro' => 'Rota não encontrada.']);

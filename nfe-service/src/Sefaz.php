@@ -74,4 +74,34 @@ final class Sefaz
     {
         return (new Standardize($respostaXml))->toStd();
     }
+
+    /** Código IBGE da UF (cUF). Só AM por ora; estender se atender outras UFs. */
+    public static function cUF(): int
+    {
+        $tabela = ['AM' => 13];
+        $uf = strtoupper(self::env('NFE_UF', 'AM'));
+        return $tabela[$uf] ?? 0;
+    }
+
+    /**
+     * Dados do emitente (Vital Norte) — fixos, vêm do ambiente porque o payload
+     * do app só manda o CNPJ. A NF-e exige endereço completo + IE + município IBGE.
+     */
+    public static function emitente(): array
+    {
+        return [
+            'CNPJ' => self::env('NFE_CNPJ'),
+            'xNome' => self::env('NFE_RAZAO_SOCIAL'),
+            'IE' => self::env('NFE_EMIT_IE'),
+            'CRT' => (int) self::env('NFE_EMIT_CRT', '1'), // 1 = Simples Nacional
+            'xLgr' => self::env('NFE_EMIT_LOGRADOURO'),
+            'nro' => self::env('NFE_EMIT_NUMERO'),
+            'xBairro' => self::env('NFE_EMIT_BAIRRO'),
+            'cMun' => self::env('NFE_EMIT_CMUN'), // IBGE 7 dígitos (Manaus = 1302603)
+            'xMun' => self::env('NFE_EMIT_XMUN', 'Manaus'),
+            'UF' => self::env('NFE_UF', 'AM'),
+            'CEP' => preg_replace('/\D/', '', self::env('NFE_EMIT_CEP')),
+            'fone' => preg_replace('/\D/', '', self::env('NFE_EMIT_FONE')),
+        ];
+    }
 }
