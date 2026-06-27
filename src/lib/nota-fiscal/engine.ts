@@ -34,3 +34,11 @@ export const cancelarNFe = motor.cancelarNFe;
 export const cartaCorrecaoNFe = motor.cartaCorrecaoNFe;
 export const baixarArquivo = motor.baixarArquivo;
 export const ehHomologacao = motor.ehHomologacao;
+
+/**
+ * Ambiente fiscal real para a UI. No motor SEFAZ consulta o microserviço
+ * (fonte única); no Focus usa o sinal síncrono. Sempre devolve um boolean.
+ */
+export async function ambienteEhHomologacao(): Promise<boolean> {
+  return usaSefaz ? sefaz.ambienteEhHomologacao() : focus.ehHomologacao();
+}

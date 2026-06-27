@@ -126,20 +126,31 @@ function parseItens(raw: string): NotaFiscalItem[] {
   return itens;
 }
 
-export async function criarNotaFiscal(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+type CamposNota = {
+  clienteId: string | null;
+  contratacaoId: string | null;
+  naturezaOperacao: string;
+  observacoes: string;
+  destinatarioNome: string;
+  destinatarioDocumento: string;
+  destIe: string;
+  destIndIe: number;
+  destCep: string;
+  destLogradouro: string;
+  destNumero: string;
+  destBairro: string;
+  destMunicipio: string;
+  destCodigoMunicipio: string;
+  destUf: string;
+  itens: NotaFiscalItem[];
+  valorTotal: number;
+};
 
-  const clienteId = ((formData.get("clienteId") as string) ?? "").trim() || null;
-  const contratacaoId = ((formData.get("contratacaoId") as string) ?? "").trim() || null;
-  const naturezaOperacao =
-    ((formData.get("naturezaOperacao") as string) ?? "").trim() || "Venda de mercadoria";
-  const observacoes = ((formData.get("observacoes") as string) ?? "").trim();
+/** Lê e VALIDA os campos da nota a partir do FormData (compartilhado por criar e editar). */
+function lerCamposNota(formData: FormData): CamposNota {
+  const get = (k: string) => ((formData.get(k) as string) ?? "").trim();
 
-  const destinatarioNome = ((formData.get("destinatarioNome") as string) ?? "").trim();
+  const destinatarioNome = get("destinatarioNome");
   const destinatarioDocumento = apenasDigitos(formData.get("destinatarioDocumento") as string);
   if (!destinatarioNome) throw new Error("Informe o nome do destinatário.");
   if (destinatarioDocumento.length !== 14 && destinatarioDocumento.length !== 11) {
@@ -148,11 +159,11 @@ export async function criarNotaFiscal(formData: FormData) {
 
   // Endereço do destinatário é obrigatório na NF-e (evita rejeição na emissão).
   const destCep = apenasDigitos(formData.get("destinatarioCep") as string);
-  const destLogradouro = ((formData.get("destinatarioLogradouro") as string) ?? "").trim();
-  const destNumero = ((formData.get("destinatarioNumero") as string) ?? "").trim();
-  const destBairro = ((formData.get("destinatarioBairro") as string) ?? "").trim();
-  const destMunicipio = ((formData.get("destinatarioMunicipio") as string) ?? "").trim();
-  const destUf = ((formData.get("destinatarioUf") as string) ?? "").trim().toUpperCase().slice(0, 2);
+  const destLogradouro = get("destinatarioLogradouro");
+  const destNumero = get("destinatarioNumero");
+  const destBairro = get("destinatarioBairro");
+  const destMunicipio = get("destinatarioMunicipio");
+  const destUf = get("destinatarioUf").toUpperCase().slice(0, 2);
   if (!destLogradouro || !destNumero || !destBairro || !destMunicipio || destUf.length !== 2) {
     throw new Error(
       "Endereço do destinatário incompleto: logradouro, número, bairro, município e UF são obrigatórios.",
@@ -160,57 +171,140 @@ export async function criarNotaFiscal(formData: FormData) {
   }
   if (destCep.length !== 8) throw new Error("CEP do destinatário inválido (8 dígitos).");
 
-  const itens = parseItens((formData.get("itens") as string) ?? "[]");
-  const valorTotal = calcularTotalItens(itens);
+  const destIe = get("destinatarioIe");
+  // indIEDest: 1 contribuinte, 2 isento, 9 não contribuinte. Sem valor válido, deriva da IE.
+  const rawIndIe = Number(formData.get("destinatarioIndIe"));
+  const destIndIe = [1, 2, 9].includes(rawIndIe) ? rawIndIe : destIe ? 1 : 9;
 
-  // Confere pertencimento do cliente/contratação (a RLS já protege; aqui damos erro amigável).
+  const itens = parseItens((formData.get("itens") as string) ?? "[]");
+
+  return {
+    clienteId: get("clienteId") || null,
+    contratacaoId: get("contratacaoId") || null,
+    naturezaOperacao: get("naturezaOperacao") || "Venda de mercadoria",
+    observacoes: get("observacoes"),
+    destinatarioNome,
+    destinatarioDocumento,
+    destIe,
+    destIndIe,
+    destCep,
+    destLogradouro,
+    destNumero,
+    destBairro,
+    destMunicipio,
+    destCodigoMunicipio: apenasDigitos(formData.get("destinatarioCodigoMunicipio") as string),
+    destUf,
+    itens,
+    valorTotal: calcularTotalItens(itens),
+  };
+}
+
+/** Erro amigável se cliente/contratação não pertencem ao usuário (a RLS já protege). */
+async function conferirPertencimento(
+  supabase: ServerClient,
+  userId: string,
+  clienteId: string | null,
+  contratacaoId: string | null,
+) {
   if (clienteId) {
-    const { data: cli } = await supabase
+    const { data } = await supabase
       .from("clientes")
       .select("id")
       .eq("id", clienteId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
-    if (!cli) throw new Error("Cliente inválido.");
+    if (!data) throw new Error("Cliente inválido.");
   }
   if (contratacaoId) {
-    const { data: ctr } = await supabase
+    const { data } = await supabase
       .from("contratacoes")
       .select("id")
       .eq("id", contratacaoId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
-    if (!ctr) throw new Error("Contratação inválida.");
+    if (!data) throw new Error("Contratação inválida.");
   }
+}
+
+/** Colunas da nota a partir dos campos validados (compartilhado entre insert e update). */
+function colunasNota(c: CamposNota) {
+  return {
+    cliente_id: c.clienteId,
+    contratacao_id: c.contratacaoId,
+    natureza_operacao: c.naturezaOperacao,
+    observacoes: c.observacoes,
+    destinatario_nome: c.destinatarioNome,
+    destinatario_documento: c.destinatarioDocumento,
+    destinatario_ie: c.destIe,
+    destinatario_ind_ie: c.destIndIe,
+    destinatario_cep: c.destCep,
+    destinatario_logradouro: c.destLogradouro,
+    destinatario_numero: c.destNumero,
+    destinatario_bairro: c.destBairro,
+    destinatario_municipio: c.destMunicipio,
+    destinatario_uf: c.destUf,
+    valor_total: c.valorTotal,
+    itens: c.itens,
+  };
+  // destinatario_codigo_municipio (IBGE) é resolvido na EMISSÃO (BrasilAPI), não no form.
+  // Por isso NÃO entra aqui — assim editar um rascunho não o sobrescreve.
+}
+
+export async function criarNotaFiscal(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const c = lerCamposNota(formData);
+  await conferirPertencimento(supabase, user.id, c.clienteId, c.contratacaoId);
 
   const ref = "nf-" + crypto.randomUUID();
   const { data, error } = await supabase
     .from("notas_fiscais")
     .insert({
       user_id: user.id,
-      cliente_id: clienteId,
-      contratacao_id: contratacaoId,
       ref,
-      natureza_operacao: naturezaOperacao,
-      observacoes,
-      destinatario_nome: destinatarioNome,
-      destinatario_documento: destinatarioDocumento,
-      destinatario_ie: ((formData.get("destinatarioIe") as string) ?? "").trim(),
-      destinatario_cep: destCep,
-      destinatario_logradouro: destLogradouro,
-      destinatario_numero: destNumero,
-      destinatario_bairro: destBairro,
-      destinatario_municipio: destMunicipio,
-      destinatario_codigo_municipio: apenasDigitos(formData.get("destinatarioCodigoMunicipio") as string),
-      destinatario_uf: destUf,
-      valor_total: valorTotal,
-      itens,
+      destinatario_codigo_municipio: c.destCodigoMunicipio,
+      ...colunasNota(c),
     })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
   revalidatePath(PATH);
   return data.id as string;
+}
+
+/** Atualiza um rascunho (só enquanto status = 'rascunho'). Revalida os mesmos campos. */
+export async function atualizarNotaFiscalRascunho(id: string, formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const c = lerCamposNota(formData);
+
+  const { data: nota } = await supabase
+    .from("notas_fiscais")
+    .select("status")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!nota) throw new Error("Nota não encontrada.");
+  if (nota.status !== "rascunho") throw new Error("Apenas rascunhos podem ser editados.");
+
+  await conferirPertencimento(supabase, user.id, c.clienteId, c.contratacaoId);
+
+  const { error } = await supabase
+    .from("notas_fiscais")
+    .update({ ...colunasNota(c), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("status", "rascunho");
+  if (error) throw new Error(error.message);
+  revalidatePath(PATH);
 }
 
 const UF_EMITENTE = "AM"; // Vital Norte — Manaus/AM
@@ -224,8 +318,9 @@ function montarPayloadFocus(
   const doc = apenasDigitos(nota.destinatario_documento);
   const documentoDestinatario =
     doc.length === 14 ? { cnpj_destinatario: doc } : { cpf_destinatario: doc };
-  // Contribuinte de ICMS quando há inscrição estadual; órgão público costuma ser isento.
-  const contribuinte = Boolean(nota.destinatario_ie?.trim());
+  // indIEDest: 1 contribuinte, 2 isento, 9 não contribuinte. Deriva da IE se nulo (compat).
+  const indIe = nota.destinatario_ind_ie ?? (nota.destinatario_ie?.trim() ? 1 : 9);
+  const contribuinte = indIe === 1;
   // Operação interestadual quando a UF do destinatário difere da do emitente (AM).
   const ufDest = (nota.destinatario_uf || "").toUpperCase();
   const interestadual = Boolean(ufDest) && ufDest !== UF_EMITENTE;
@@ -263,7 +358,7 @@ function montarPayloadFocus(
     // Destinatário: indicador de IE alinhado ao consumidor_final acima.
     nome_destinatario: nota.destinatario_nome,
     ...documentoDestinatario,
-    indicador_inscricao_estadual_destinatario: contribuinte ? 1 : 9,
+    indicador_inscricao_estadual_destinatario: indIe,
     inscricao_estadual_destinatario: contribuinte ? nota.destinatario_ie : undefined,
     logradouro_destinatario: nota.destinatario_logradouro,
     numero_destinatario: nota.destinatario_numero,

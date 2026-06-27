@@ -396,6 +396,7 @@ create table if not exists public.notas_fiscais (
   destinatario_bairro text not null default '',
   destinatario_municipio text not null default '',
   destinatario_uf text not null default '',
+  destinatario_ind_ie integer,
   danfe_url text not null default '',
   xml_url text not null default '',
   payload jsonb,

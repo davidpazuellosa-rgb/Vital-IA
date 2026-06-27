@@ -23,6 +23,27 @@ export function ehHomologacao(): boolean {
   return (process.env.NFE_SEFAZ_AMBIENTE ?? "homologacao").toLowerCase() !== "producao";
 }
 
+/**
+ * Ambiente REAL consultado no próprio microserviço (`/health` expõe o ambiente
+ * fiscal). Fonte única da verdade — evita divergir da env do app. Cai no env se
+ * o serviço não responder.
+ */
+export async function ambienteEhHomologacao(): Promise<boolean> {
+  const base = BASE_URL.replace(/\/$/, "");
+  if (base) {
+    try {
+      const r = await fetch(`${base}/health`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        const j = (await r.json()) as { ambiente?: string };
+        if (j.ambiente) return j.ambiente !== "producao";
+      }
+    } catch {
+      /* indisponível — usa o fallback por env abaixo */
+    }
+  }
+  return ehHomologacao();
+}
+
 function exigirConfig(): { base: string; token: string } {
   const token = process.env.NFE_SERVICE_TOKEN;
   if (!BASE_URL || !token) {

@@ -3,7 +3,7 @@ import { Receipt, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
-import { ehHomologacao } from "@/lib/nota-fiscal/engine";
+import { ambienteEhHomologacao } from "@/lib/nota-fiscal/engine";
 import { formatarMoeda } from "@/lib/format";
 import {
   NOTA_FISCAL_STATUS_LABEL,
@@ -55,9 +55,11 @@ export default async function NotaFiscalPage() {
     });
   }
 
+  const homologacao = await ambienteEhHomologacao();
+
   return (
     <div className="flex flex-col gap-5">
-      {ehHomologacao() && (
+      {homologacao && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
           Ambiente de homologação — as notas emitidas aqui não têm valor fiscal.
         </div>
@@ -120,6 +122,32 @@ export default async function NotaFiscalPage() {
                     <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
                       {n.motivo_rejeicao}
                     </p>
+                  )}
+
+                  {n.status === "rascunho" && (
+                    <NovaNotaFiscal
+                      key={n.updated_at}
+                      clientes={clientes}
+                      contratacoesPorCliente={contratacoesPorCliente}
+                      inicial={{
+                        id: n.id,
+                        cliente_id: n.cliente_id,
+                        contratacao_id: n.contratacao_id,
+                        natureza_operacao: n.natureza_operacao,
+                        observacoes: n.observacoes,
+                        destinatario_nome: n.destinatario_nome,
+                        destinatario_documento: n.destinatario_documento,
+                        destinatario_ie: n.destinatario_ie,
+                        destinatario_ind_ie: n.destinatario_ind_ie,
+                        destinatario_cep: n.destinatario_cep,
+                        destinatario_logradouro: n.destinatario_logradouro,
+                        destinatario_numero: n.destinatario_numero,
+                        destinatario_bairro: n.destinatario_bairro,
+                        destinatario_municipio: n.destinatario_municipio,
+                        destinatario_uf: n.destinatario_uf,
+                        itens: n.itens,
+                      }}
+                    />
                   )}
 
                   <NotaFiscalAcoes

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import {
   criarNotaFiscal,
+  atualizarNotaFiscalRascunho,
   emitirNotaFiscal,
   consultarStatusNotaFiscal,
   removerNotaFiscal,
@@ -69,26 +70,76 @@ const paraNumero = (v: string) => {
   return Number(norm) || 0;
 };
 
-/* ---------- Nova nota fiscal ---------- */
+type NotaInicial = {
+  id: string;
+  cliente_id: string | null;
+  contratacao_id: string | null;
+  natureza_operacao: string;
+  observacoes: string;
+  destinatario_nome: string;
+  destinatario_documento: string;
+  destinatario_ie: string;
+  destinatario_ind_ie: number | null;
+  destinatario_cep: string;
+  destinatario_logradouro: string;
+  destinatario_numero: string;
+  destinatario_bairro: string;
+  destinatario_municipio: string;
+  destinatario_uf: string;
+  itens: {
+    descricao: string; ncm: string; cfop: string; unidade: string; quantidade: number; valor_unitario: number;
+  }[];
+};
+
+/* ---------- Nova nota fiscal (edita rascunho quando recebe `inicial`) ---------- */
 export function NovaNotaFiscal({
   clientes,
   contratacoesPorCliente,
+  inicial,
 }: {
   clientes: ClienteOpcao[];
   contratacoesPorCliente: Record<string, ContratacaoOpcao[]>;
+  inicial?: NotaInicial;
 }) {
+  const destInicial = () => ({
+    documento: inicial?.destinatario_documento ?? "",
+    ie: inicial?.destinatario_ie ?? "",
+    cep: inicial?.destinatario_cep ?? "",
+    logradouro: inicial?.destinatario_logradouro ?? "",
+    numero: inicial?.destinatario_numero ?? "",
+    bairro: inicial?.destinatario_bairro ?? "",
+    municipio: inicial?.destinatario_municipio ?? "",
+    uf: inicial?.destinatario_uf ?? "",
+  });
+  const indIeInicial = () => String(inicial?.destinatario_ind_ie ?? (inicial?.destinatario_ie ? 1 : 9));
+  const tipoInicial = (): "interna" | "interestadual" =>
+    inicial?.destinatario_uf && inicial.destinatario_uf.toUpperCase() !== "AM" ? "interestadual" : "interna";
+  const itensIniciais = (): ItemEditor[] =>
+    inicial?.itens?.length
+      ? inicial.itens.map((i) => ({
+          id: crypto.randomUUID(),
+          descricao: i.descricao,
+          ncm: i.ncm,
+          cfop: i.cfop,
+          unidade: i.unidade,
+          quantidade: String(i.quantidade),
+          valor_unitario: String(i.valor_unitario),
+        }))
+      : [novoItem()];
+
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
   const router = useRouter();
 
-  const [clienteId, setClienteId] = useState("");
-  const [contratacaoId, setContratacaoId] = useState("");
-  const [destinatarioNome, setDestinatarioNome] = useState("");
+  const [clienteId, setClienteId] = useState(inicial?.cliente_id ?? "");
+  const [contratacaoId, setContratacaoId] = useState(inicial?.contratacao_id ?? "");
+  const [destinatarioNome, setDestinatarioNome] = useState(inicial?.destinatario_nome ?? "");
   const [nomeAuto, setNomeAuto] = useState("");
-  const [tipoOperacao, setTipoOperacao] = useState<"interna" | "interestadual">("interna");
-  const [dest, setDest] = useState({ documento: "", ie: "", cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "" });
-  const [itens, setItens] = useState<ItemEditor[]>([novoItem()]);
+  const [tipoOperacao, setTipoOperacao] = useState<"interna" | "interestadual">(tipoInicial());
+  const [dest, setDest] = useState(destInicial());
+  const [indIe, setIndIe] = useState(indIeInicial());
+  const [itens, setItens] = useState<ItemEditor[]>(itensIniciais());
 
   const setDestCampo = (k: keyof typeof dest, v: string) => setDest((d) => ({ ...d, [k]: v }));
 
@@ -130,6 +181,7 @@ export function NovaNotaFiscal({
       municipio: cliente.municipio || cur.municipio,
       uf: cliente.uf || cur.uf,
     }));
+    setIndIe(cliente.inscricao_estadual ? "1" : "9");
     if (cliente.uf) aplicarTipoOperacao(cliente.uf === "AM" ? "interna" : "interestadual");
   }
 
@@ -146,12 +198,14 @@ export function NovaNotaFiscal({
   }
 
   function resetar() {
-    setClienteId("");
-    setContratacaoId("");
-    setDestinatarioNome("");
+    setClienteId(inicial?.cliente_id ?? "");
+    setContratacaoId(inicial?.contratacao_id ?? "");
+    setDestinatarioNome(inicial?.destinatario_nome ?? "");
     setNomeAuto("");
-    setDest({ documento: "", ie: "", cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "" });
-    setItens([novoItem()]);
+    setTipoOperacao(tipoInicial());
+    setDest(destInicial());
+    setIndIe(indIeInicial());
+    setItens(itensIniciais());
     setErro(null);
   }
 
@@ -175,6 +229,7 @@ export function NovaNotaFiscal({
     const fd = new FormData(e.currentTarget);
     fd.set("clienteId", clienteId);
     fd.set("contratacaoId", contratacaoId);
+    fd.set("destinatarioIndIe", indIe);
     fd.set(
       "itens",
       JSON.stringify(
@@ -190,15 +245,18 @@ export function NovaNotaFiscal({
     );
     startTransition(async () => {
       try {
-        await criarNotaFiscal(fd);
+        if (inicial) await atualizarNotaFiscalRascunho(inicial.id, fd);
+        else await criarNotaFiscal(fd);
         setAberto(false);
-        resetar();
-        toast.success("Rascunho criado", { description: "Revise e clique em Emitir para enviar à SEFAZ." });
+        if (!inicial) resetar();
+        toast.success(inicial ? "Rascunho atualizado" : "Rascunho criado", {
+          description: inicial ? undefined : "Revise e clique em Emitir para enviar à SEFAZ.",
+        });
         router.refresh();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Erro ao criar a nota.";
+        const msg = err instanceof Error ? err.message : "Erro ao salvar a nota.";
         setErro(msg);
-        toast.error("Não foi possível criar a nota", { description: msg });
+        toast.error(inicial ? "Não foi possível salvar" : "Não foi possível criar a nota", { description: msg });
       }
     });
   }
@@ -206,15 +264,23 @@ export function NovaNotaFiscal({
   return (
     <Dialog open={aberto} onOpenChange={(v) => { setAberto(v); if (!v) resetar(); }}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus /> Nova nota
-        </Button>
+        {inicial ? (
+          <Button variant="outline" size="sm">
+            <PencilLine className="size-4" /> Editar
+          </Button>
+        ) : (
+          <Button>
+            <Plus /> Nova nota
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Nova nota fiscal</DialogTitle>
+          <DialogTitle>{inicial ? "Editar rascunho" : "Nova nota fiscal"}</DialogTitle>
           <DialogDescription>
-            Cria um rascunho. A emissão para a SEFAZ é feita depois, no botão Emitir.
+            {inicial
+              ? "Altere os dados do rascunho. A emissão à SEFAZ continua no botão Emitir."
+              : "Cria um rascunho. A emissão para a SEFAZ é feita depois, no botão Emitir."}
           </DialogDescription>
         </DialogHeader>
 
@@ -241,7 +307,7 @@ export function NovaNotaFiscal({
               <Input
                 id="naturezaOperacao"
                 name="naturezaOperacao"
-                defaultValue="Venda de mercadoria"
+                defaultValue={inicial?.natureza_operacao ?? "Venda de mercadoria"}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -306,8 +372,21 @@ export function NovaNotaFiscal({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="destinatarioIe">Inscrição estadual (opcional)</Label>
-                <Input id="destinatarioIe" name="destinatarioIe" value={dest.ie} onChange={(e) => setDestCampo("ie", e.target.value)} placeholder="Deixe vazio se isento" />
+                <Label>Indicação de IE (ICMS)</Label>
+                <Select value={indIe} onValueChange={setIndIe}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="9">Não contribuinte (órgão público comum)</SelectItem>
+                    <SelectItem value="1">Contribuinte (com IE)</SelectItem>
+                    <SelectItem value="2">Contribuinte isento de IE</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="destinatarioIe">Inscrição estadual {indIe === "1" ? "" : "(opcional)"}</Label>
+                <Input id="destinatarioIe" name="destinatarioIe" value={dest.ie} onChange={(e) => setDestCampo("ie", e.target.value)} placeholder="Deixe vazio se isento/não contribuinte" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioCep">CEP</Label>
@@ -411,6 +490,7 @@ export function NovaNotaFiscal({
               id="observacoes"
               name="observacoes"
               rows={2}
+              defaultValue={inicial?.observacoes ?? ""}
               className="flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
               placeholder="Ex.: PROAD 19056.2026 — NE 2026NE000567"
             />
@@ -426,7 +506,8 @@ export function NovaNotaFiscal({
 
           <DialogFooter>
             <Button type="submit" disabled={pendente}>
-              {pendente && <Loader2 className="animate-spin" />} Salvar rascunho
+              {pendente && <Loader2 className="animate-spin" />}{" "}
+              {inicial ? "Salvar alterações" : "Salvar rascunho"}
             </Button>
           </DialogFooter>
         </form>

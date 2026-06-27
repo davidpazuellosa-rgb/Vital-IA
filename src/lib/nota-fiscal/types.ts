@@ -64,6 +64,7 @@ export type NotaFiscal = {
   destinatario_municipio: string;
   destinatario_codigo_municipio: string; // IBGE 7 díg. (cMun) — usado na engine SEFAZ
   destinatario_uf: string;
+  destinatario_ind_ie: number | null; // 1 contribuinte, 2 isento, 9 não contribuinte (nulo = derivar)
   chave: string; // chave de acesso (44 díg.) — preenchida na engine SEFAZ
   protocolo: string; // protocolo de autorização — usado p/ cancelar na engine SEFAZ
   danfe_url: string;
@@ -72,6 +73,7 @@ export type NotaFiscal = {
   cancelamento_justificativa: string;
   cartas_correcao: CartaCorrecao[];
   created_at: string;
+  updated_at: string;
 };
 
 export type CartaCorrecao = {
