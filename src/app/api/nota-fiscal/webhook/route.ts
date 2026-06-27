@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { consultarNFe } from "@/lib/nota-fiscal/focus";
+import { consultarNFe } from "@/lib/nota-fiscal/engine";
 
 /**
  * Webhook do provedor (Focus NFe). Configure a URL no painel do provedor como:

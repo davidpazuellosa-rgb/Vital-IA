@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
-import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe } from "./focus";
+import { baixarArquivo, cancelarNFe, cartaCorrecaoNFe, consultarNFe, emitirNFe, motorAtivo } from "./engine";
 import { calcularTotalItens, valorLinha, type NotaFiscal, type NotaFiscalItem } from "./types";
 
 const PATH = "/vital-norte/nota-fiscal";
@@ -17,6 +17,7 @@ export type DadosCnpj = {
   numero: string;
   bairro: string;
   municipio: string;
+  codigoMunicipio: string; // IBGE 7 díg. (cMun) — necessário p/ emissão direta SEFAZ
   uf: string;
 };
 
@@ -49,6 +50,7 @@ export async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpj> {
     numero: txt(dados.numero),
     bairro: txt(dados.bairro),
     municipio: txt(dados.municipio),
+    codigoMunicipio: apenasDigitos(txt(dados.codigo_municipio_ibge)),
     uf: txt(dados.uf).toUpperCase().slice(0, 2),
   };
 }
@@ -57,6 +59,34 @@ type EmpresaEmitente = {
   cnpj: string;
   inscricao_estadual: string;
 };
+
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Guarda um arquivo da NF-e (engine SEFAZ, que devolve base64) no Storage e
+ * devolve uma URL assinada de longa duração. O fluxo de anexar reaproveita essa
+ * URL via baixarArquivo, igual ao caminho Focus.
+ */
+async function guardarArquivoSefaz(
+  supabase: ServerClient,
+  empresaUserId: string,
+  nome: string,
+  ext: "xml" | "pdf",
+  base64: string,
+  contentType: string,
+): Promise<string> {
+  const bytes = Buffer.from(base64, "base64");
+  const path = `${empresaUserId}/nfe/${nome}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, bytes, { contentType, upsert: true });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24 * 3650); // ~10 anos (guarda fiscal de 5)
+  if (error || !data) throw new Error(error?.message ?? "Falha ao gerar URL do arquivo.");
+  return data.signedUrl;
+}
 
 function parseItens(raw: string): NotaFiscalItem[] {
   let lista: unknown;
@@ -146,6 +176,7 @@ export async function criarNotaFiscal(formData: FormData) {
       destinatario_numero: ((formData.get("destinatarioNumero") as string) ?? "").trim(),
       destinatario_bairro: ((formData.get("destinatarioBairro") as string) ?? "").trim(),
       destinatario_municipio: ((formData.get("destinatarioMunicipio") as string) ?? "").trim(),
+      destinatario_codigo_municipio: apenasDigitos(formData.get("destinatarioCodigoMunicipio") as string),
       destinatario_uf: ((formData.get("destinatarioUf") as string) ?? "").trim().toUpperCase().slice(0, 2),
       valor_total: valorTotal,
       itens,
@@ -213,6 +244,7 @@ function montarPayloadFocus(
     numero_destinatario: nota.destinatario_numero,
     bairro_destinatario: nota.destinatario_bairro,
     municipio_destinatario: nota.destinatario_municipio,
+    codigo_municipio_destinatario: nota.destinatario_codigo_municipio, // IBGE (engine SEFAZ)
     uf_destinatario: nota.destinatario_uf,
     cep_destinatario: apenasDigitos(nota.destinatario_cep),
 
@@ -247,8 +279,9 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  // Integração fiscal precisa estar configurada (conta Focus + certificado A1).
-  if (!process.env.FOCUS_NFE_TOKEN) {
+  // Integração fiscal precisa estar configurada. No Focus = token; na engine
+  // direta SEFAZ a validação de config fica no próprio cliente (sefaz.ts).
+  if (motorAtivo === "focus" && !process.env.FOCUS_NFE_TOKEN) {
     return {
       ok: false,
       mensagem: "Integração fiscal não configurada. Defina FOCUS_NFE_TOKEN (conta Focus + certificado A1) para emitir.",
@@ -263,6 +296,27 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     .single();
   if (!nota) return { ok: false, mensagem: "Nota não encontrada." };
   if (nota.status !== "rascunho") return { ok: false, mensagem: "Esta nota já foi enviada." };
+
+  // Engine SEFAZ exige o código IBGE do município (cMun). Resolve aqui (antes do
+  // compare-and-swap, p/ não consumir número se falhar): usa o que estiver salvo
+  // ou busca pelo CNPJ do destinatário na BrasilAPI.
+  let codigoMunicipioDest = nota.destinatario_codigo_municipio || "";
+  if (motorAtivo === "sefaz" && !codigoMunicipioDest) {
+    const docDest = apenasDigitos(nota.destinatario_documento);
+    if (docDest.length === 14) {
+      try {
+        codigoMunicipioDest = (await buscarDadosCnpj(docDest)).codigoMunicipio;
+      } catch {
+        /* trata como não resolvido abaixo */
+      }
+    }
+    if (!codigoMunicipioDest) {
+      return {
+        ok: false,
+        mensagem: "Não foi possível obter o código IBGE do município do destinatário (necessário para a SEFAZ). Verifique o CNPJ/endereço.",
+      };
+    }
+  }
 
   // Emitente vem de public.empresa (acervo compartilhado da empresa).
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
@@ -301,6 +355,24 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     return { ok: false, mensagem: "Esta nota já está sendo processada." };
   }
 
+  // Engine SEFAZ: o app aloca a numeração (nNF) atomicamente — só após o
+  // compare-and-swap, para não consumir número em clique duplicado (evita buracos).
+  if (motorAtivo === "sefaz") {
+    const { data: nAloc, error: nErr } = await supabase.rpc("proximo_numero_nfe", { p_serie: 1 });
+    if (nErr || nAloc == null) {
+      await supabase
+        .from("notas_fiscais")
+        .update({ status: "rascunho", updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .eq("status", "processando");
+      return { ok: false, mensagem: "Falha ao alocar a numeração da nota fiscal." };
+    }
+    payload.numero = String(nAloc);
+    payload.serie = "1";
+    payload.codigo_municipio_destinatario = codigoMunicipioDest;
+  }
+
   let resultado;
   try {
     resultado = await emitirNFe(nota.ref, payload);
@@ -317,6 +389,24 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     return { ok: false, mensagem: e instanceof Error ? e.message : "Falha ao enviar a nota." };
   }
 
+  // Engine SEFAZ: guarda o XML autorizado e a DANFE (vêm em base64) no Storage e
+  // usa as URLs assinadas. Falha aqui NÃO reprova a nota (já autorizada na SEFAZ).
+  let danfeUrl = resultado.danfeUrl;
+  let xmlUrl = resultado.xmlUrl;
+  if (motorAtivo === "sefaz" && resultado.status === "autorizada") {
+    const nomeArq = resultado.chave || nota.ref;
+    try {
+      if (resultado.xmlBase64) {
+        xmlUrl = await guardarArquivoSefaz(supabase, empresaUserId, nomeArq, "xml", resultado.xmlBase64, "application/xml");
+      }
+      if (resultado.danfeBase64) {
+        danfeUrl = await guardarArquivoSefaz(supabase, empresaUserId, nomeArq, "pdf", resultado.danfeBase64, "application/pdf");
+      }
+    } catch {
+      /* guarda falhou — nota segue autorizada; URLs ficam vazias (recuperável depois) */
+    }
+  }
+
   const { error } = await supabase
     .from("notas_fiscais")
     .update({
@@ -324,8 +414,10 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
       numero: resultado.numero,
       serie: resultado.serie,
       motivo_rejeicao: resultado.motivo,
-      danfe_url: resultado.danfeUrl,
-      xml_url: resultado.xmlUrl,
+      danfe_url: danfeUrl,
+      xml_url: xmlUrl,
+      chave: resultado.chave ?? "",
+      protocolo: resultado.protocolo ?? "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -365,6 +457,8 @@ export async function consultarStatusNotaFiscal(id: string) {
       motivo_rejeicao: resultado.motivo,
       danfe_url: resultado.danfeUrl,
       xml_url: resultado.xmlUrl,
+      chave: resultado.chave ?? "",
+      protocolo: resultado.protocolo ?? "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

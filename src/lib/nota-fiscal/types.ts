@@ -5,6 +5,25 @@ export type NotaFiscalStatus =
   | "rejeitada"
   | "cancelada";
 
+/**
+ * Resultado de emissão/consulta, neutro de provedor. Tanto a engine Focus
+ * (`focus.ts`) quanto a engine direta SEFAZ (`sefaz.ts`) retornam esta forma,
+ * para que o app não dependa de qual motor está ativo (ver `engine.ts`).
+ */
+export type ResultadoEmissao = {
+  status: NotaFiscalStatus;
+  numero: string;
+  serie: string;
+  motivo: string;
+  danfeUrl: string;
+  xmlUrl: string;
+  // Preenchidos só pela engine direta SEFAZ (sefaz.ts); vazios no Focus.
+  chave?: string;
+  protocolo?: string;
+  xmlBase64?: string; // XML autorizado (nfeProc) para o app guardar (5 anos)
+  danfeBase64?: string; // DANFE (PDF) gerado pelo serviço
+};
+
 export type NotaFiscalItem = {
   descricao: string;
   ncm: string; // código NCM (8 dígitos)
@@ -36,7 +55,10 @@ export type NotaFiscal = {
   destinatario_numero: string;
   destinatario_bairro: string;
   destinatario_municipio: string;
+  destinatario_codigo_municipio: string; // IBGE 7 díg. (cMun) — usado na engine SEFAZ
   destinatario_uf: string;
+  chave: string; // chave de acesso (44 díg.) — preenchida na engine SEFAZ
+  protocolo: string; // protocolo de autorização — usado p/ cancelar na engine SEFAZ
   danfe_url: string;
   xml_url: string;
   anexada_em: string | null;

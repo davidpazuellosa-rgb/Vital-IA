@@ -3,7 +3,7 @@ import { Receipt, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
-import { ehHomologacao } from "@/lib/nota-fiscal/focus";
+import { ehHomologacao } from "@/lib/nota-fiscal/engine";
 import { formatarMoeda } from "@/lib/format";
 import {
   NOTA_FISCAL_STATUS_LABEL,

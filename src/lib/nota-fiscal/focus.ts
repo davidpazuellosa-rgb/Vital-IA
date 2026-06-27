@@ -1,4 +1,4 @@
-import type { NotaFiscalStatus } from "./types";
+import type { NotaFiscalStatus, ResultadoEmissao } from "./types";
 
 // Cliente da API REST do Focus NFe (https://focusnfe.com.br).
 // Em homologação use FOCUS_NFE_BASE_URL=https://homologacao.focusnfe.com.br
@@ -10,14 +10,8 @@ export function ehHomologacao(): boolean {
   return !BASE_URL.includes("api.focusnfe.com.br");
 }
 
-export type FocusResultado = {
-  status: NotaFiscalStatus;
-  numero: string;
-  serie: string;
-  motivo: string;
-  danfeUrl: string;
-  xmlUrl: string;
-};
+/** @deprecated Use `ResultadoEmissao` de `./types` — mantido por compatibilidade. */
+export type FocusResultado = ResultadoEmissao;
 
 type FocusResposta = {
   status?: string;
