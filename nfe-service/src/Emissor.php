@@ -27,6 +27,8 @@ final class Emissor
     /** Monta o XML (sem assinar) a partir do payload. Lança em dado faltante. */
     public static function montar(array $p, int $nNF, int $serie): string
     {
+        // Garante dhEmi no fuso de Manaus (UTC-4) independentemente do host.
+        date_default_timezone_set('America/Manaus');
         $make = new Make();
         $emit = Sefaz::emitente();
 

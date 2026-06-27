@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
   const { data: notas, error: selErr } = await supabase
     .from("notas_fiscais")
-    .select("id, status")
+    .select("id, status, ref, chave, protocolo")
     .eq("ref", ref);
   if (selErr) {
     return NextResponse.json({ ok: false, error: selErr.message }, { status: 500 });
@@ -53,10 +53,15 @@ export async function POST(request: NextRequest) {
   if (alvos.length === 0) {
     return NextResponse.json({ ok: true, ignorado: "sem nota em processamento para esta ref" });
   }
+  const alvo = alvos[0];
 
   let resultado;
   try {
-    resultado = await consultarNFe(ref);
+    resultado = await consultarNFe({
+      ref: alvo.ref,
+      chave: alvo.chave ?? "",
+      protocolo: alvo.protocolo ?? "",
+    });
   } catch (e) {
     // Falha transitória ao consultar — 502 sinaliza ao provedor para reenviar depois.
     return NextResponse.json(

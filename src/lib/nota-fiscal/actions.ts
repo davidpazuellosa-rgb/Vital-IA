@@ -107,11 +107,22 @@ function parseItens(raw: string): NotaFiscalItem[] {
         quantidade: Number(i.quantidade) || 0,
         valor_unitario: Number(i.valor_unitario) || 0,
       } satisfies NotaFiscalItem;
-    })
-    .filter((i) => i.descricao && i.quantidade > 0);
+    });
   if (itens.length === 0) {
-    throw new Error("Adicione ao menos um item com descrição e quantidade.");
+    throw new Error("Adicione ao menos um item.");
   }
+  // Validação fiscal (evita rejeição da SEFAZ por campo obrigatório/ inválido).
+  // Valida TODOS os itens — sem descartar nenhum, para não mascarar dados inválidos.
+  itens.forEach((it, idx) => {
+    const n = idx + 1;
+    if (!it.descricao) throw new Error(`Item ${n}: informe a descrição.`);
+    if (it.quantidade <= 0) throw new Error(`Item ${n}: informe a quantidade.`);
+    if (it.valor_unitario <= 0) throw new Error(`Item ${n}: informe o valor unitário.`);
+    if (it.ncm.length !== 8 && it.ncm.length !== 2) {
+      throw new Error(`Item ${n}: NCM deve ter 8 dígitos (ou 2 para gênero).`);
+    }
+    if (it.cfop.length !== 4) throw new Error(`Item ${n}: CFOP deve ter 4 dígitos.`);
+  });
   return itens;
 }
 
@@ -134,6 +145,20 @@ export async function criarNotaFiscal(formData: FormData) {
   if (destinatarioDocumento.length !== 14 && destinatarioDocumento.length !== 11) {
     throw new Error("CNPJ (14 dígitos) ou CPF (11 dígitos) do destinatário inválido.");
   }
+
+  // Endereço do destinatário é obrigatório na NF-e (evita rejeição na emissão).
+  const destCep = apenasDigitos(formData.get("destinatarioCep") as string);
+  const destLogradouro = ((formData.get("destinatarioLogradouro") as string) ?? "").trim();
+  const destNumero = ((formData.get("destinatarioNumero") as string) ?? "").trim();
+  const destBairro = ((formData.get("destinatarioBairro") as string) ?? "").trim();
+  const destMunicipio = ((formData.get("destinatarioMunicipio") as string) ?? "").trim();
+  const destUf = ((formData.get("destinatarioUf") as string) ?? "").trim().toUpperCase().slice(0, 2);
+  if (!destLogradouro || !destNumero || !destBairro || !destMunicipio || destUf.length !== 2) {
+    throw new Error(
+      "Endereço do destinatário incompleto: logradouro, número, bairro, município e UF são obrigatórios.",
+    );
+  }
+  if (destCep.length !== 8) throw new Error("CEP do destinatário inválido (8 dígitos).");
 
   const itens = parseItens((formData.get("itens") as string) ?? "[]");
   const valorTotal = calcularTotalItens(itens);
@@ -171,13 +196,13 @@ export async function criarNotaFiscal(formData: FormData) {
       destinatario_nome: destinatarioNome,
       destinatario_documento: destinatarioDocumento,
       destinatario_ie: ((formData.get("destinatarioIe") as string) ?? "").trim(),
-      destinatario_cep: apenasDigitos(formData.get("destinatarioCep") as string),
-      destinatario_logradouro: ((formData.get("destinatarioLogradouro") as string) ?? "").trim(),
-      destinatario_numero: ((formData.get("destinatarioNumero") as string) ?? "").trim(),
-      destinatario_bairro: ((formData.get("destinatarioBairro") as string) ?? "").trim(),
-      destinatario_municipio: ((formData.get("destinatarioMunicipio") as string) ?? "").trim(),
+      destinatario_cep: destCep,
+      destinatario_logradouro: destLogradouro,
+      destinatario_numero: destNumero,
+      destinatario_bairro: destBairro,
+      destinatario_municipio: destMunicipio,
       destinatario_codigo_municipio: apenasDigitos(formData.get("destinatarioCodigoMunicipio") as string),
-      destinatario_uf: ((formData.get("destinatarioUf") as string) ?? "").trim().toUpperCase().slice(0, 2),
+      destinatario_uf: destUf,
       valor_total: valorTotal,
       itens,
     })
@@ -438,7 +463,7 @@ export async function consultarStatusNotaFiscal(id: string) {
 
   const { data: nota } = await supabase
     .from("notas_fiscais")
-    .select("ref, status")
+    .select("ref, status, chave, protocolo")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -447,7 +472,11 @@ export async function consultarStatusNotaFiscal(id: string) {
     throw new Error("Só é possível atualizar notas em processamento.");
   }
 
-  const resultado = await consultarNFe(nota.ref);
+  const resultado = await consultarNFe({
+    ref: nota.ref,
+    chave: nota.chave ?? "",
+    protocolo: nota.protocolo ?? "",
+  });
   const { error } = await supabase
     .from("notas_fiscais")
     .update({
@@ -578,7 +607,7 @@ export async function cancelarNotaFiscal(id: string, justificativa: string) {
 
   const { data: nota } = await supabase
     .from("notas_fiscais")
-    .select("ref, status")
+    .select("ref, status, chave, protocolo")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -586,7 +615,10 @@ export async function cancelarNotaFiscal(id: string, justificativa: string) {
   if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser canceladas.");
 
   // "cancelada" se confirmado na hora; "processando" se assíncrono (reconcilia via consulta/webhook).
-  const novoStatus = await cancelarNFe(nota.ref, just);
+  const novoStatus = await cancelarNFe(
+    { ref: nota.ref, chave: nota.chave ?? "", protocolo: nota.protocolo ?? "" },
+    just,
+  );
 
   const { error } = await supabase
     .from("notas_fiscais")
@@ -615,7 +647,7 @@ export async function cartaCorrecaoNotaFiscal(id: string, correcao: string) {
 
   const { data: nota } = await supabase
     .from("notas_fiscais")
-    .select("ref, status, cartas_correcao")
+    .select("ref, status, chave, protocolo, cartas_correcao")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -624,7 +656,10 @@ export async function cartaCorrecaoNotaFiscal(id: string, correcao: string) {
     throw new Error("Apenas notas autorizadas aceitam carta de correção.");
   }
 
-  const { ccePdfUrl } = await cartaCorrecaoNFe(nota.ref, txt);
+  const { ccePdfUrl } = await cartaCorrecaoNFe(
+    { ref: nota.ref, chave: nota.chave ?? "", protocolo: nota.protocolo ?? "" },
+    txt,
+  );
 
   // Acumula o histórico de CC-e (a SEFAZ mantém todas as correções sequenciais).
   const historico = Array.isArray(nota.cartas_correcao) ? nota.cartas_correcao : [];

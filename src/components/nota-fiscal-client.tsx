@@ -158,6 +158,20 @@ export function NovaNotaFiscal({
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErro(null);
+
+    // Validação imediata dos itens (o servidor revalida como defesa).
+    for (let k = 0; k < itens.length; k++) {
+      const it = itens[k];
+      const n = k + 1;
+      const ncm = it.ncm.replace(/\D/g, "");
+      const cfop = it.cfop.replace(/\D/g, "");
+      if (!it.descricao.trim()) return setErro(`Item ${n}: informe a descrição.`);
+      if (ncm.length !== 8 && ncm.length !== 2) return setErro(`Item ${n}: NCM deve ter 8 dígitos.`);
+      if (cfop.length !== 4) return setErro(`Item ${n}: CFOP deve ter 4 dígitos.`);
+      if (paraNumero(it.quantidade) <= 0) return setErro(`Item ${n}: informe a quantidade.`);
+      if (paraNumero(it.valor_unitario) <= 0) return setErro(`Item ${n}: informe o valor unitário.`);
+    }
+
     const fd = new FormData(e.currentTarget);
     fd.set("clienteId", clienteId);
     fd.set("contratacaoId", contratacaoId);
@@ -297,27 +311,27 @@ export function NovaNotaFiscal({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioCep">CEP</Label>
-                <Input id="destinatarioCep" name="destinatarioCep" value={dest.cep} onChange={(e) => setDestCampo("cep", e.target.value)} placeholder="Só números" />
+                <Input id="destinatarioCep" name="destinatarioCep" value={dest.cep} onChange={(e) => setDestCampo("cep", e.target.value)} placeholder="Só números" required />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="destinatarioLogradouro">Logradouro</Label>
-                <Input id="destinatarioLogradouro" name="destinatarioLogradouro" value={dest.logradouro} onChange={(e) => setDestCampo("logradouro", e.target.value)} />
+                <Input id="destinatarioLogradouro" name="destinatarioLogradouro" value={dest.logradouro} onChange={(e) => setDestCampo("logradouro", e.target.value)} required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioNumero">Número</Label>
-                <Input id="destinatarioNumero" name="destinatarioNumero" value={dest.numero} onChange={(e) => setDestCampo("numero", e.target.value)} />
+                <Input id="destinatarioNumero" name="destinatarioNumero" value={dest.numero} onChange={(e) => setDestCampo("numero", e.target.value)} required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioBairro">Bairro</Label>
-                <Input id="destinatarioBairro" name="destinatarioBairro" value={dest.bairro} onChange={(e) => setDestCampo("bairro", e.target.value)} />
+                <Input id="destinatarioBairro" name="destinatarioBairro" value={dest.bairro} onChange={(e) => setDestCampo("bairro", e.target.value)} required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioMunicipio">Município</Label>
-                <Input id="destinatarioMunicipio" name="destinatarioMunicipio" value={dest.municipio} onChange={(e) => setDestCampo("municipio", e.target.value)} />
+                <Input id="destinatarioMunicipio" name="destinatarioMunicipio" value={dest.municipio} onChange={(e) => setDestCampo("municipio", e.target.value)} required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioUf">UF</Label>
-                <Input id="destinatarioUf" name="destinatarioUf" value={dest.uf} onChange={(e) => setDestCampo("uf", e.target.value.toUpperCase())} maxLength={2} placeholder="Ex.: AM" />
+                <Input id="destinatarioUf" name="destinatarioUf" value={dest.uf} onChange={(e) => setDestCampo("uf", e.target.value.toUpperCase())} maxLength={2} placeholder="Ex.: AM" required />
               </div>
             </div>
           </fieldset>

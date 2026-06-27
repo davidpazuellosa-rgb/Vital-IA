@@ -1,4 +1,4 @@
-import type { NotaFiscalStatus, ResultadoEmissao } from "./types";
+import type { IdentNFe, NotaFiscalStatus, ResultadoEmissao } from "./types";
 
 // Engine de integração DIRETA com a SEFAZ, sem provedor pago.
 //
@@ -82,18 +82,18 @@ export async function emitirNFe(
   return comoResultado(dados);
 }
 
-/** Consulta o status atual de uma NF-e já enviada (polling). */
-export async function consultarNFe(ref: string): Promise<ResultadoEmissao> {
+/** Consulta o status atual de uma NF-e já enviada. A SEFAZ identifica pela CHAVE (44 díg.). */
+export async function consultarNFe(ident: IdentNFe): Promise<ResultadoEmissao> {
   const { base, token } = exigirConfig();
-  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ref)}`, {
+  if (!ident.chave) {
+    throw new Error("Sem chave de acesso para consultar esta nota no serviço fiscal.");
+  }
+  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ident.chave)}`, {
     method: "GET",
     headers: authHeaders(token),
     cache: "no-store",
   });
   const dados = await ler(resp);
-  if (resp.status === 404) {
-    return comoResultado({ ...dados, status: "rejeitada", motivo: dados.motivo || "Nota não encontrada no serviço fiscal." });
-  }
   if (!resp.ok) {
     throw new Error(dados.erro || `Falha na comunicação com o serviço fiscal (HTTP ${resp.status}).`);
   }
@@ -121,14 +121,17 @@ export async function baixarArquivo(
  * permanecer autorizada).
  */
 export async function cancelarNFe(
-  ref: string,
+  ident: IdentNFe,
   justificativa: string,
 ): Promise<NotaFiscalStatus> {
   const { base, token } = exigirConfig();
-  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ref)}`, {
+  if (!ident.chave || !ident.protocolo) {
+    throw new Error("Sem chave/protocolo de autorização para cancelar esta nota.");
+  }
+  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ident.chave)}`, {
     method: "DELETE",
     headers: authHeaders(token, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ justificativa }),
+    body: JSON.stringify({ justificativa, protocolo: ident.protocolo }),
     cache: "no-store",
   });
   const dados = await ler(resp);
@@ -142,11 +145,14 @@ export async function cancelarNFe(
 
 /** Registra uma carta de correção (CC-e). Retorna o link do PDF da CC-e. */
 export async function cartaCorrecaoNFe(
-  ref: string,
+  ident: IdentNFe,
   correcao: string,
 ): Promise<{ ccePdfUrl: string }> {
   const { base, token } = exigirConfig();
-  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ref)}/carta-correcao`, {
+  if (!ident.chave) {
+    throw new Error("Sem chave de acesso para registrar carta de correção.");
+  }
+  const resp = await fetch(`${base}/nfe/${encodeURIComponent(ident.chave)}/carta-correcao`, {
     method: "POST",
     headers: authHeaders(token, { "Content-Type": "application/json" }),
     body: JSON.stringify({ correcao }),

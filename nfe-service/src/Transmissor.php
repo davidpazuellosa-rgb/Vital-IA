@@ -175,9 +175,12 @@ final class Transmissor
         // Em evento, o resultado vem em retEvento->infEvento.
         $info = $std->retEvento->infEvento ?? $std;
         $cStat = (string) ($info->cStat ?? '');
+        // 101/135/155 = cancelamento homologado. Qualquer outro cStat é REJEIÇÃO
+        // (ex.: 501 fora do prazo) — a nota deve permanecer autorizada, então
+        // sinalizamos "rejeitada" para o app lançar e não mexer no status.
         $ok = in_array($cStat, ['101', '135', '155'], true);
         return [
-            'status' => $ok ? 'cancelada' : 'processando',
+            'status' => $ok ? 'cancelada' : 'rejeitada',
             'motivo' => (string) ($info->xMotivo ?? ''),
             'cStat' => $cStat,
         ];
