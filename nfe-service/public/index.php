@@ -79,6 +79,13 @@ try {
         responder(200, Transmissor::emitir(Sefaz::tools(), $payload, $numero, $serie));
     }
 
+    // ── Consulta cadastro: GET /consulta-cadastro?cnpj=&uf= (padrão: emitente/AM) ──
+    if ($metodo === 'GET' && $caminho === '/consulta-cadastro') {
+        $cnpj = preg_replace('/\D/', '', (string) ($_GET['cnpj'] ?? Sefaz::env('NFE_CNPJ')));
+        $uf = strtoupper((string) ($_GET['uf'] ?? Sefaz::env('NFE_UF', 'AM')));
+        responder(200, Transmissor::consultarCadastro(Sefaz::tools(), $cnpj, $uf));
+    }
+
     // ── Consultar: GET /nfe/{chave44} ──
     if ($metodo === 'GET' && preg_match('#^/nfe/(\d{44})$#', $caminho, $m)) {
         responder(200, Transmissor::consultar(Sefaz::tools(), $m[1]));
