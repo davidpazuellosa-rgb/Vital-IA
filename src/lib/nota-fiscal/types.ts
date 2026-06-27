@@ -24,6 +24,13 @@ export type ResultadoEmissao = {
   danfeBase64?: string; // DANFE (PDF) gerado pelo serviço
 };
 
+/**
+ * Identificador de uma NF-e já emitida, para operações pós-emissão.
+ * O Focus identifica pela `ref`; a engine direta SEFAZ usa a `chave` (44 díg.)
+ * e, no cancelamento, também o `protocolo` de autorização.
+ */
+export type IdentNFe = { ref: string; chave: string; protocolo: string };
+
 export type NotaFiscalItem = {
   descricao: string;
   ncm: string; // código NCM (8 dígitos)

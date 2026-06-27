@@ -1,4 +1,4 @@
-import type { NotaFiscalStatus, ResultadoEmissao } from "./types";
+import type { IdentNFe, NotaFiscalStatus, ResultadoEmissao } from "./types";
 import * as focus from "./focus";
 import * as sefaz from "./sefaz";
 
@@ -12,9 +12,9 @@ import * as sefaz from "./sefaz";
 /** Contrato comum dos motores. Os dois módulos precisam satisfazê-lo (checado no compilador). */
 type MotorNFe = {
   emitirNFe(ref: string, payload: Record<string, unknown>): Promise<ResultadoEmissao>;
-  consultarNFe(ref: string): Promise<ResultadoEmissao>;
-  cancelarNFe(ref: string, justificativa: string): Promise<NotaFiscalStatus>;
-  cartaCorrecaoNFe(ref: string, correcao: string): Promise<{ ccePdfUrl: string }>;
+  consultarNFe(ident: IdentNFe): Promise<ResultadoEmissao>;
+  cancelarNFe(ident: IdentNFe, justificativa: string): Promise<NotaFiscalStatus>;
+  cartaCorrecaoNFe(ident: IdentNFe, correcao: string): Promise<{ ccePdfUrl: string }>;
   baixarArquivo(url: string): Promise<{ conteudo: ArrayBuffer; contentType: string }>;
   ehHomologacao(): boolean;
 };

@@ -1,4 +1,4 @@
-import type { NotaFiscalStatus, ResultadoEmissao } from "./types";
+import type { IdentNFe, NotaFiscalStatus, ResultadoEmissao } from "./types";
 
 // Cliente da API REST do Focus NFe (https://focusnfe.com.br).
 // Em homologação use FOCUS_NFE_BASE_URL=https://homologacao.focusnfe.com.br
@@ -113,8 +113,9 @@ export async function emitirNFe(
   return interpretar(dados, resp, "emissao");
 }
 
-/** Consulta o status atual de uma NF-e já enviada (polling). */
-export async function consultarNFe(ref: string): Promise<FocusResultado> {
+/** Consulta o status atual de uma NF-e já enviada (polling). Focus usa a `ref`. */
+export async function consultarNFe(ident: IdentNFe): Promise<FocusResultado> {
+  const ref = ident.ref;
   const resp = await fetch(`${BASE_URL}/v2/nfe/${encodeURIComponent(ref)}`, {
     method: "GET",
     headers: { Authorization: authHeader() },
@@ -145,9 +146,10 @@ export async function baixarArquivo(
  * Lança em caso de rejeição/erro (a nota deve permanecer autorizada).
  */
 export async function cancelarNFe(
-  ref: string,
+  ident: IdentNFe,
   justificativa: string,
 ): Promise<NotaFiscalStatus> {
+  const ref = ident.ref;
   const resp = await fetch(`${BASE_URL}/v2/nfe/${encodeURIComponent(ref)}`, {
     method: "DELETE",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },
@@ -167,9 +169,10 @@ export async function cancelarNFe(
 
 /** Registra uma carta de correção (CC-e). Retorna o link do PDF da CC-e. */
 export async function cartaCorrecaoNFe(
-  ref: string,
+  ident: IdentNFe,
   correcao: string,
 ): Promise<{ ccePdfUrl: string }> {
+  const ref = ident.ref;
   const resp = await fetch(`${BASE_URL}/v2/nfe/${encodeURIComponent(ref)}/carta_correcao`, {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },

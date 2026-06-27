@@ -5,6 +5,10 @@ declare(strict_types=1);
 // Roteador único do microserviço NF-e. Contrato espelha src/lib/nota-fiscal/sefaz.ts
 // no Vital.IA. Autenticação: Bearer NFE_SERVICE_TOKEN.
 
+// Fuso de Manaus (UTC-4, sem horário de verão) — garante dhEmi/idLote corretos
+// mesmo que o container rode em UTC.
+date_default_timezone_set('America/Manaus');
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Vitalia\NfeService\Sefaz;
