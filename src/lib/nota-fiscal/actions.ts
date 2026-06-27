@@ -543,6 +543,23 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) return { ok: false, mensagem: error.message };
+
+  // Anexa automaticamente no acervo do cliente quando autorizada (não-fatal).
+  if (resultado.status === "autorizada") {
+    try {
+      await anexarNotaNoAcervo(supabase, user.id, {
+        id,
+        numero: resultado.numero,
+        cliente_id: nota.cliente_id,
+        contratacao_id: nota.contratacao_id,
+        danfe_url: danfeUrl,
+        xml_url: xmlUrl,
+      });
+    } catch {
+      /* anexo automático não reprova a emissão; pode-se anexar manualmente depois */
+    }
+  }
+
   revalidatePath(PATH);
   return resultado.status === "rejeitada"
     ? { ok: false, mensagem: resultado.motivo || "Nota rejeitada pela SEFAZ." }
@@ -588,58 +605,73 @@ export async function consultarStatusNotaFiscal(id: string) {
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw new Error(error.message);
+
+  // Anexo automático quando a consulta resolve para autorizada (não-fatal).
+  if (resultado.status === "autorizada") {
+    try {
+      const { data: n2 } = await supabase
+        .from("notas_fiscais")
+        .select("id, numero, cliente_id, contratacao_id, danfe_url, xml_url")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .single();
+      if (n2) await anexarNotaNoAcervo(supabase, user.id, n2);
+    } catch {
+      /* anexo automático não-fatal */
+    }
+  }
+
   revalidatePath(PATH);
 }
 
-/** Baixa DANFE e XML do provedor e anexa como documentos da contratação vinculada. */
-export async function anexarNotaNaContratacao(id: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+/**
+ * Baixa DANFE/XML e anexa como documentos no acervo do CLIENTE (e da contratação,
+ * se houver). Idempotente via `anexada_em`. Não exige contratação — uma nota só
+ * vinculada a cliente é anexada no nível do cliente. Sem cliente, não faz nada.
+ */
+async function anexarNotaNoAcervo(
+  supabase: ServerClient,
+  userId: string,
+  nota: {
+    id: string;
+    numero: string;
+    cliente_id: string | null;
+    contratacao_id: string | null;
+    danfe_url: string;
+    xml_url: string;
+  },
+): Promise<void> {
+  // Cliente: pela contratação (autoritativo) ou direto do vínculo da nota.
+  let clienteId = nota.cliente_id;
+  if (nota.contratacao_id) {
+    const { data: ct } = await supabase
+      .from("contratacoes")
+      .select("cliente_id")
+      .eq("id", nota.contratacao_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ct?.cliente_id) clienteId = ct.cliente_id as string;
+  }
+  if (!clienteId) return; // sem cliente vinculado — nada a anexar
 
-  const { data: nota } = await supabase
-    .from("notas_fiscais")
-    .select("status, numero, contratacao_id, danfe_url, xml_url")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
-  if (!nota) throw new Error("Nota não encontrada.");
-  if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser anexadas.");
-  if (!nota.contratacao_id) throw new Error("Vincule a nota a uma contratação primeiro.");
-
-  // cliente_id autoritativo a partir da contratação (não confia no campo da nota).
-  const { data: contratacao } = await supabase
-    .from("contratacoes")
-    .select("id, cliente_id")
-    .eq("id", nota.contratacao_id)
-    .eq("user_id", user.id)
-    .single();
-  if (!contratacao) throw new Error("Contratação não encontrada.");
-  const clienteId = contratacao.cliente_id as string;
-
-  const numero = nota.numero || "sn";
   const arquivos = [
     nota.danfe_url ? { url: nota.danfe_url, ext: "pdf", rotulo: "DANFE" } : null,
     nota.xml_url ? { url: nota.xml_url, ext: "xml", rotulo: "XML" } : null,
   ].filter((a): a is { url: string; ext: string; rotulo: string } => a !== null);
-  if (arquivos.length === 0) throw new Error("Nota sem DANFE/XML disponível.");
+  if (arquivos.length === 0) return;
 
-  // Claim idempotente: só a primeira execução prossegue (evita duplicar em clique/retry).
+  // Claim idempotente: só a primeira execução anexa (evita duplicar em retrigger).
   const { data: claim } = await supabase
     .from("notas_fiscais")
     .update({ anexada_em: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("id", nota.id)
+    .eq("user_id", userId)
     .is("anexada_em", null)
     .select("id");
-  if (!claim || claim.length === 0) {
-    throw new Error("Esta nota já foi anexada à contratação.");
-  }
+  if (!claim || claim.length === 0) return; // já anexada
 
-  // O prefixo do storage precisa ser o id da empresa (RLS do bucket "documentos").
-  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  const empresaUserId = await resolverEmpresaUserId(supabase, userId);
+  const numero = nota.numero || "sn";
   const criados: { path: string; rowId: string }[] = [];
   try {
     for (const arq of arquivos) {
@@ -657,7 +689,7 @@ export async function anexarNotaNaContratacao(id: string) {
         .insert({
           cliente_id: clienteId,
           contratacao_id: nota.contratacao_id,
-          user_id: user.id,
+          user_id: userId,
           tipo: "nota_fiscal",
           nome: `${arq.rotulo} NF ${numero}`,
           arquivo_path: path,
@@ -674,19 +706,44 @@ export async function anexarNotaNaContratacao(id: string) {
   } catch (e) {
     // Rollback do parcial e libera o claim para permitir nova tentativa limpa.
     for (const c of criados) {
-      await supabase.from("cliente_documentos").delete().eq("id", c.rowId).eq("user_id", user.id);
+      await supabase.from("cliente_documentos").delete().eq("id", c.rowId).eq("user_id", userId);
       await supabase.storage.from(BUCKET).remove([c.path]);
     }
     await supabase
       .from("notas_fiscais")
       .update({ anexada_em: null })
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id", nota.id)
+      .eq("user_id", userId);
     throw e instanceof Error ? e : new Error("Falha ao anexar a nota.");
   }
 
-  revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${nota.contratacao_id}`);
+  if (nota.contratacao_id) {
+    revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${nota.contratacao_id}`);
+  }
+  revalidatePath(`/vital-norte/clientes/${clienteId}`);
   revalidatePath(PATH);
+}
+
+/** Anexa manualmente uma nota autorizada ao acervo do cliente (fallback do automático). */
+export async function anexarNotaNaContratacao(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { data: nota } = await supabase
+    .from("notas_fiscais")
+    .select("id, numero, cliente_id, contratacao_id, danfe_url, xml_url, status")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!nota) throw new Error("Nota não encontrada.");
+  if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser anexadas.");
+  if (!nota.cliente_id && !nota.contratacao_id) {
+    throw new Error("Vincule a nota a um cliente para anexar.");
+  }
+  await anexarNotaNoAcervo(supabase, user.id, nota);
 }
 
 export async function cancelarNotaFiscal(id: string, justificativa: string) {

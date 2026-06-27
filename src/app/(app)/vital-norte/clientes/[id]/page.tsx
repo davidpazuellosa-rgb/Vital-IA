@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import type { Cliente, Contratacao } from "@/lib/clientes/types";
+import type { Cliente, Contratacao, ClienteDocumento } from "@/lib/clientes/types";
 import { RemoverClienteButton, ClienteStatus, AdicionarContratacao, DadosOrgaoCliente } from "@/components/clientes-client";
 
 export default async function ClienteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +22,23 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
     .eq("cliente_id", id)
     .order("created_at", { ascending: false });
   const contratacoes = (contData ?? []) as (Contratacao & { cliente_documentos: { count: number }[] })[];
+
+  // Notas Fiscais anexadas no nível do cliente (sem contratação) — auto-anexadas ao autorizar.
+  const { data: nfData } = await supabase
+    .from("cliente_documentos")
+    .select("*")
+    .eq("cliente_id", id)
+    .eq("tipo", "nota_fiscal")
+    .is("contratacao_id", null)
+    .order("created_at", { ascending: false });
+  const notasFiscais = (nfData ?? []) as ClienteDocumento[];
+  const nfUrls = new Map<string, string>();
+  await Promise.all(
+    notasFiscais.map(async (d) => {
+      const { data } = await supabase.storage.from("documentos").createSignedUrl(d.arquivo_path, 3600);
+      if (data?.signedUrl) nfUrls.set(d.id, data.signedUrl);
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -63,6 +80,42 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
           <DadosOrgaoCliente clienteId={c.id} cnpj={c.cnpj ?? ""} municipio={c.municipio ?? ""} uf={c.uf ?? ""} />
         </CardContent>
       </Card>
+
+      {notasFiscais.length > 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-col gap-3">
+            <div>
+              <h2 className="font-semibold">Notas Fiscais</h2>
+              <p className="text-xs text-muted-foreground">
+                NF-e autorizadas deste cliente — anexadas automaticamente ao emitir.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {notasFiscais.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <FileText className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{d.nome}</p>
+                    <p className="truncate text-xs text-muted-foreground">{d.arquivo_nome}</p>
+                  </div>
+                  {nfUrls.get(d.id) && (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={nfUrls.get(d.id)} target="_blank" rel="noreferrer">
+                        Abrir
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
