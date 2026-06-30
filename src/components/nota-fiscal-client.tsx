@@ -32,6 +32,7 @@ import {
   anexarNotaNaContratacao,
   cancelarNotaFiscal,
   cartaCorrecaoNotaFiscal,
+  buscarDadosCnpj,
 } from "@/lib/nota-fiscal/actions";
 import { formatarMoeda } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
@@ -142,6 +143,43 @@ export function NovaNotaFiscal({
   const [itens, setItens] = useState<ItemEditor[]>(itensIniciais());
 
   const setDestCampo = (k: keyof typeof dest, v: string) => setDest((d) => ({ ...d, [k]: v }));
+
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+  // Evita reconsultar o mesmo CNPJ a cada tecla/blur.
+  const [cnpjBuscado, setCnpjBuscado] = useState("");
+
+  // Ao completar 14 dígitos no documento, busca nome e endereço na Receita (BrasilAPI)
+  // e preenche o destinatário. Só atua para CNPJ — CPF (11 díg.) não tem base pública.
+  async function buscarCnpjAuto(valor: string) {
+    const doc = valor.replace(/\D/g, "");
+    if (doc.length !== 14 || doc === cnpjBuscado || buscandoCnpj) return;
+    setCnpjBuscado(doc);
+    setBuscandoCnpj(true);
+    try {
+      const dados = await buscarDadosCnpj(doc);
+      // Sobrescreve o nome só se estiver vazio ou ainda for o auto-preenchido.
+      setDestinatarioNome((atual) => (!atual.trim() || atual === nomeAuto ? dados.nome : atual));
+      setNomeAuto(dados.nome);
+      setDest((cur) => ({
+        ...cur,
+        cep: dados.cep || cur.cep,
+        logradouro: dados.logradouro || cur.logradouro,
+        numero: dados.numero || cur.numero,
+        bairro: dados.bairro || cur.bairro,
+        municipio: dados.municipio || cur.municipio,
+        uf: dados.uf || cur.uf,
+      }));
+      if (dados.uf) aplicarTipoOperacao(dados.uf === "AM" ? "interna" : "interestadual");
+      toast.success("Dados do CNPJ preenchidos");
+    } catch (err) {
+      setCnpjBuscado(""); // permite tentar de novo depois de uma falha
+      toast.error("Não foi possível buscar o CNPJ", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBuscandoCnpj(false);
+    }
+  }
 
   // CFOP: 5xxx = dentro do estado (AM); 6xxx = interestadual. Troca só o 1º dígito,
   // preservando o resto do CFOP escolhido em cada item.
@@ -362,14 +400,26 @@ export function NovaNotaFiscal({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="destinatarioDocumento">CNPJ / CPF</Label>
-                <Input
-                  id="destinatarioDocumento"
-                  name="destinatarioDocumento"
-                  value={dest.documento}
-                  onChange={(e) => setDestCampo("documento", e.target.value)}
-                  placeholder="Preenchido pelo cliente"
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="destinatarioDocumento"
+                    name="destinatarioDocumento"
+                    value={dest.documento}
+                    onChange={(e) => {
+                      setDestCampo("documento", e.target.value);
+                      buscarCnpjAuto(e.target.value);
+                    }}
+                    onBlur={(e) => buscarCnpjAuto(e.target.value)}
+                    placeholder="Preenchido pelo cliente"
+                    required
+                  />
+                  {buscandoCnpj && (
+                    <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {buscandoCnpj ? "Buscando dados na Receita…" : "CNPJ busca nome e endereço automaticamente."}
+                </p>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Indicação de IE (ICMS)</Label>
