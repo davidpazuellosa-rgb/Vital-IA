@@ -49,7 +49,6 @@ export const CATEGORIAS_CONTRATACAO: CategoriaCliente[] = [
   { slug: "empenho", nome: "Nota de Empenho", descricao: "Empenhos emitidos pelo órgão" },
   { slug: "contrato", nome: "Contrato e Termos", descricao: "Contrato, termo de ciência e aditivos" },
   { slug: "nota_fiscal", nome: "Notas Fiscais", descricao: "Notas fiscais emitidas" },
-  { slug: "declaracao_entrega", nome: "Declaração de Entrega", descricao: "Declarações para entrega dos itens vendidos" },
 ];
 
 export const CATEGORIA_AVULSO = "avulso";
