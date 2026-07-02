@@ -7,6 +7,7 @@ import { CATEGORIA_AVULSO } from "./types";
 import { buscarDadosCnpj } from "@/lib/nota-fiscal/actions";
 import type { NotaFiscalItem } from "@/lib/nota-fiscal/types";
 import { REPRESENTANTES_LEGAIS } from "@/lib/propostas/types";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 
 /** Busca os dados do órgão pelo CNPJ (BrasilAPI) e salva no cliente (para reuso na NF-e). */
 export async function preencherDadosOrgaoCliente(clienteId: string, cnpj: string) {
@@ -384,14 +385,19 @@ export async function gerarDeclaracaoEntrega({
     throw new Error("Nenhum item vendido encontrado. Emita ou salve uma nota fiscal nesta contratação antes de gerar a declaração.");
   }
 
-  const bytes = await gerarPdfDeclaracaoEntrega({
+  const dados = {
     empresa: (empresa ?? {}) as Record<string, unknown>,
     cliente: cliente as Record<string, unknown>,
     contratacao: contratacao as Record<string, unknown>,
     nota: (nota ?? {}) as Record<string, unknown>,
     itens,
     representante,
-  });
+  };
+  // Se houver um MODELO (PDF-formulário) em Documentos, preenche os campos dele e
+  // usa o seu design. Senão, gera o layout padrão por código (fallback).
+  const bytes =
+    (await preencherModeloDeclaracao(supabase, user.id, assinante, valoresDeclaracao(dados))) ??
+    (await gerarPdfDeclaracaoEntrega(dados));
 
   const docId = crypto.randomUUID();
   const identificador = arquivoSeguro(String(contratacao.identificador || contratacao.titulo || contratacaoId));
@@ -437,6 +443,91 @@ function normalizarItensNota(valor: unknown): NotaFiscalItem[] {
     }));
 }
 
+type DadosDeclaracao = {
+  empresa: Record<string, unknown>;
+  cliente: Record<string, unknown>;
+  contratacao: Record<string, unknown>;
+  nota: Record<string, unknown>;
+  itens: NotaFiscalItem[];
+  representante: (typeof REPRESENTANTES_LEGAIS)[number];
+};
+
+/** Mapa placeholder → valor (usado no modelo-formulário e no fallback por código). */
+function valoresDeclaracao({ empresa, cliente, contratacao, nota, itens, representante }: DadosDeclaracao): Record<string, string> {
+  const razaoSocial = textoValor(empresa.razao_social) || textoValor(empresa.nome_fantasia) || "Vital Norte";
+  const enderecoEntrega = [cliente.logradouro, cliente.numero, cliente.bairro, cliente.municipio, cliente.uf]
+    .map(textoValor)
+    .filter(Boolean)
+    .join(", ");
+  const itensTxt = itens
+    .map((it, i) => {
+      const total = (Number(it.quantidade) || 0) * (Number(it.valor_unitario) || 0);
+      return `${i + 1}. ${it.descricao} — ${formatarNumero(it.quantidade)} ${it.unidade || "UN"} — unit. ${formatarMoeda(it.valor_unitario)} — total ${formatarMoeda(total)}`;
+    })
+    .join("\n");
+  const nf = textoValor(nota.numero)
+    ? `NF ${textoValor(nota.numero)}${textoValor(nota.serie) ? ` / Série ${textoValor(nota.serie)}` : ""}`
+    : "";
+  return {
+    cliente_nome: textoValor(cliente.nome) || textoValor(cliente.orgao) || "",
+    cliente_cnpj: textoValor(cliente.cnpj) || "",
+    endereco_entrega: enderecoEntrega,
+    licitacao: [contratacao.titulo, contratacao.identificador].map(textoValor).filter(Boolean).join(" — "),
+    nota_fiscal: nf,
+    itens_entregues: itensTxt,
+    assinante_nome: representante.nome,
+    assinante_cargo: representante.cargo,
+    empresa_nome: razaoSocial,
+    empresa_cnpj: textoValor(empresa.cnpj) || "",
+    municipio: textoValor(empresa.municipio) || "Manaus",
+    data: formatarDataLonga(new Date()),
+  };
+}
+
+/**
+ * Usa um MODELO de Documentos se existir e for um PDF-FORMULÁRIO (campos nomeados
+ * iguais aos placeholders): preenche os campos e retorna os bytes. Se não houver
+ * modelo, ou o PDF não tiver campos, retorna null → o chamador usa o gerador padrão.
+ * Tipos aceitos: `modelo_declaracao_entrega_ruy` / `_pazu` (específico) ou
+ * `modelo_declaracao_entrega` (genérico).
+ */
+async function preencherModeloDeclaracao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  assinante: AssinanteDeclaracaoEntrega,
+  valores: Record<string, string>,
+): Promise<Uint8Array | null> {
+  const empresaUserId = await resolverEmpresaUserId(supabase, userId);
+  const sufixo = assinante === "ruy" ? "ruy" : "pazu";
+  const { data: docs } = await supabase
+    .from("documentos")
+    .select("tipo, arquivo_path")
+    .eq("user_id", empresaUserId)
+    .in("tipo", [`modelo_declaracao_entrega_${sufixo}`, "modelo_declaracao_entrega"]);
+  if (!docs || docs.length === 0) return null;
+  const modelo = docs.find((d) => d.tipo === `modelo_declaracao_entrega_${sufixo}`) ?? docs[0];
+
+  const { data: file } = await supabase.storage.from(BUCKET).download(modelo.arquivo_path);
+  if (!file) return null;
+
+  try {
+    const pdf = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()));
+    const form = pdf.getForm();
+    if (form.getFields().length === 0) return null; // PDF sem campos → usa o gerador padrão
+    for (const [campo, valor] of Object.entries(valores)) {
+      try {
+        form.getTextField(campo).setText(valor);
+      } catch {
+        /* campo inexistente no modelo — ignora */
+      }
+    }
+    form.flatten();
+    return await pdf.save();
+  } catch {
+    return null; // modelo inválido → fallback
+  }
+}
+
 async function gerarPdfDeclaracaoEntrega({
   empresa,
   cliente,
@@ -444,14 +535,7 @@ async function gerarPdfDeclaracaoEntrega({
   nota,
   itens,
   representante,
-}: {
-  empresa: Record<string, unknown>;
-  cliente: Record<string, unknown>;
-  contratacao: Record<string, unknown>;
-  nota: Record<string, unknown>;
-  itens: NotaFiscalItem[];
-  representante: (typeof REPRESENTANTES_LEGAIS)[number];
-}) {
+}: DadosDeclaracao) {
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
