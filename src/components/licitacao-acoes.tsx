@@ -1,11 +1,17 @@
 "use client";
 
-import { FileSpreadsheet, Scale } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
 import { EtapaSelect } from "@/components/etapa-select";
 import { BaixarEditalButton } from "@/components/baixar-edital-button";
-import { LicitacaoItem, type EtapaSlug } from "@/lib/licitacoes/types";
+import { ehExclusivoMeEpp, LicitacaoItem, type EtapaSlug } from "@/lib/licitacoes/types";
 
 type ArquivoEdital = { titulo: string; url: string };
 
@@ -39,13 +45,16 @@ export function LicitacaoAcoes({
   arquivosEdital?: ArquivoEdital[];
   temProposta?: boolean;
 }) {
-  function extrairItens() {
-    const csv = "﻿" + paraCsv(itens); // BOM para acentos no Excel
+  const exclusivos = itens.filter(ehExclusivoMeEpp);
+
+  function extrairItens(lista: LicitacaoItem[], sufixo = "") {
+    if (lista.length === 0) return;
+    const csv = "﻿" + paraCsv(lista); // BOM para acentos no Excel
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `itens-${numeroControle.replace(/[^\w]/g, "_")}.csv`;
+    a.download = `itens${sufixo}-${numeroControle.replace(/[^\w]/g, "_")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -62,10 +71,28 @@ export function LicitacaoAcoes({
           Ao marcar &ldquo;Vencida&rdquo;, a licitação vira um cliente automaticamente.
         </p>
       </div>
-      <Button onClick={extrairItens} disabled={itens.length === 0} className="justify-start">
-        <FileSpreadsheet />
-        Extrair itens (CSV)
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button disabled={itens.length === 0} className="justify-start">
+            <FileSpreadsheet />
+            Extrair itens (CSV)
+            <ChevronDown className="ml-auto" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuItem onClick={() => extrairItens(itens)}>
+            Todas
+            <span className="ml-auto text-xs text-muted-foreground">{itens.length}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => extrairItens(exclusivos, "-me-epp")}
+            disabled={exclusivos.length === 0}
+          >
+            Exclusividade ME/EPP
+            <span className="ml-auto text-xs text-muted-foreground">{exclusivos.length}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <CriarPropostaDialog licitacaoId={licitacaoId} temPropostaInicial={temProposta} className="w-full justify-start" />
       <Button variant="outline" disabled className="justify-start">
         <Scale />

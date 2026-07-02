@@ -74,6 +74,7 @@ interface PncpItemBruto {
   unidadeMedida: string | null;
   valorUnitarioEstimado: number | null;
   valorTotal: number | null;
+  tipoBeneficioNome: string | null;
 }
 
 function mapearItem(item: PncpItemBruto): LicitacaoItem {
@@ -84,6 +85,7 @@ function mapearItem(item: PncpItemBruto): LicitacaoItem {
     unidadeMedida: item.unidadeMedida ?? "",
     valorUnitarioEstimado: item.valorUnitarioEstimado ?? null,
     valorTotal: item.valorTotal ?? null,
+    tipoBeneficioNome: item.tipoBeneficioNome ?? "",
   };
 }
 

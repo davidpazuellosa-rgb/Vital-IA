@@ -145,6 +145,12 @@ export interface LicitacaoItem {
   unidadeMedida: string;
   valorUnitarioEstimado: number | null;
   valorTotal: number | null;
+  tipoBeneficioNome: string; // ex.: "Participação exclusiva para ME/EPP", "Não se aplica"
+}
+
+/** true quando o item é de participação exclusiva para ME/EPP (tipoBeneficio do PNCP). */
+export function ehExclusivoMeEpp(item: LicitacaoItem): boolean {
+  return item.tipoBeneficioNome.toLowerCase().includes("exclusiv");
 }
 
 export interface LicitacaoProvider {
