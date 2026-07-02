@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search } from "lucide-react";
+import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente, atualizarClienteStatus,
-  criarContratacao, removerContratacao, atualizarContratacaoStatus, preencherDadosOrgaoCliente,
+  criarContratacao, removerContratacao, atualizarContratacaoStatus, preencherDadosOrgaoCliente, gerarDeclaracaoEntrega,
 } from "@/lib/clientes/actions";
 
 export function DadosOrgaoCliente({
@@ -332,6 +332,46 @@ export function ContratacaoStatus({
         {salvo && <span className="flex items-center gap-1 text-sm text-primary"><Check className="size-4" /> Salvo</span>}
       </div>
     </div>
+  );
+}
+
+export function GerarDeclaracaoEntregaButton({ clienteId, contratacaoId }: { clienteId: string; contratacaoId: string }) {
+  const [pendente, startTransition] = useTransition();
+  const router = useRouter();
+
+  function gerar(assinante: "ruy" | "pazu") {
+    const t = toast.loading("Gerando declaração de entrega...");
+    startTransition(async () => {
+      try {
+        await gerarDeclaracaoEntrega({ clienteId, contratacaoId, assinante });
+        toast.success("Declaração de entrega gerada", { id: t });
+        router.refresh();
+      } catch (err) {
+        toast.error("Não foi possível gerar a declaração", {
+          id: t,
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    });
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" disabled={pendente}>
+          {pendente ? <Loader2 className="size-4 animate-spin" /> : <FileSignature className="size-4" />}
+          Gerar declaração de entrega
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); gerar("ruy"); }}>
+          Ruy
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); gerar("pazu"); }}>
+          Pazu
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

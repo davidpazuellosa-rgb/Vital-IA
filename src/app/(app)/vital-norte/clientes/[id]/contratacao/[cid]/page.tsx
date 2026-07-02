@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData } from "@/lib/format";
 import { CATEGORIAS_CONTRATACAO, type Contratacao, type ClienteDocumento } from "@/lib/clientes/types";
-import { ClienteDocUpload, ClienteDocAcoes, RemoverContratacaoButton, ContratacaoStatus } from "@/components/clientes-client";
+import { ClienteDocUpload, ClienteDocAcoes, RemoverContratacaoButton, ContratacaoStatus, GerarDeclaracaoEntregaButton } from "@/components/clientes-client";
 
 export default async function ContratacaoPage({ params }: { params: Promise<{ id: string; cid: string }> }) {
   const { id, cid } = await params;
@@ -46,7 +46,10 @@ export default async function ContratacaoPage({ params }: { params: Promise<{ id
           <h1 className="text-2xl font-semibold tracking-tight">{ct.titulo}</h1>
           {ct.identificador && <p className="text-sm text-muted-foreground">{ct.identificador}</p>}
         </div>
-        <RemoverContratacaoButton id={ct.id} clienteId={id} />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <GerarDeclaracaoEntregaButton clienteId={id} contratacaoId={ct.id} />
+          <RemoverContratacaoButton id={ct.id} clienteId={id} />
+        </div>
       </div>
 
       <Card className="shadow-sm">
