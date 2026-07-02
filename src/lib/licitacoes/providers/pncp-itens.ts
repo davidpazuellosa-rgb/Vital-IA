@@ -76,6 +76,14 @@ interface PncpItemBruto {
   valorTotal: number | null;
   tipoBeneficioNome: string | null;
   catalogoCodigoItem: string | number | null;
+  informacaoComplementar: string | null;
+  temResultado?: boolean;
+}
+
+interface PncpResultadoBruto {
+  marca?: string | null;
+  marcaFabricante?: string | null;
+  descricaoMarca?: string | null;
 }
 
 function mapearItem(item: PncpItemBruto): LicitacaoItem {
@@ -88,7 +96,26 @@ function mapearItem(item: PncpItemBruto): LicitacaoItem {
     valorTotal: item.valorTotal ?? null,
     tipoBeneficioNome: item.tipoBeneficioNome ?? "",
     codigoCatalogo: item.catalogoCodigoItem != null ? String(item.catalogoCodigoItem) : "",
+    descricaoCompleta: item.informacaoComplementar ?? "",
+    marcas: "", // preenchido depois, a partir dos resultados (quando o item tem resultado)
   };
+}
+
+/** Busca as marcas dos resultados de um item (só existem após o certame ter resultado). */
+async function buscarMarcasItem(ref: NumeroControle, numeroItem: number): Promise<string> {
+  try {
+    const url = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}/itens/${numeroItem}/resultados`;
+    const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+    if (!res.ok) return "";
+    const resultados = (await res.json()) as PncpResultadoBruto[];
+    if (!Array.isArray(resultados)) return "";
+    const marcas = resultados
+      .map((r) => (r.marca ?? r.marcaFabricante ?? r.descricaoMarca ?? "").trim())
+      .filter(Boolean);
+    return [...new Set(marcas)].join(", ");
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -105,7 +132,7 @@ export async function buscarItensPncp(numeroControlePNCP: string): Promise<Licit
   const base = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}/itens`;
   const TAMANHO_PAGINA = 50;
   const MAX_PAGINAS = 60; // trava de segurança (até 3000 itens)
-  const todos: LicitacaoItem[] = [];
+  const brutos: PncpItemBruto[] = [];
 
   for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
     let lote: PncpItemBruto[];
@@ -120,9 +147,18 @@ export async function buscarItensPncp(numeroControlePNCP: string): Promise<Licit
       break;
     }
     if (!Array.isArray(lote) || lote.length === 0) break;
-    todos.push(...lote.map(mapearItem));
+    brutos.push(...lote);
     if (lote.length < TAMANHO_PAGINA) break; // última página
   }
 
-  return todos;
+  const itens = brutos.map(mapearItem);
+  // Marcas vêm dos resultados do item — só buscamos para os que já têm resultado
+  // (licitação aberta = nenhum resultado = nenhuma chamada extra).
+  await Promise.all(
+    itens.map(async (item, i) => {
+      if (brutos[i].temResultado) item.marcas = await buscarMarcasItem(ref, item.numeroItem);
+    }),
+  );
+
+  return itens;
 }
