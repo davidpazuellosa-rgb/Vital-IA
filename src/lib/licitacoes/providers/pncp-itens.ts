@@ -76,22 +76,49 @@ interface PncpItemBruto {
   valorTotal: number | null;
 }
 
-/** Busca os itens de uma contratação a partir do seu numeroControlePNCP. */
-export async function buscarItensPncp(numeroControlePNCP: string): Promise<LicitacaoItem[]> {
-  const ref = parseNumeroControle(numeroControlePNCP);
-  if (!ref) return [];
-
-  const url = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}/itens`;
-  const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
-  if (!res.ok) return [];
-
-  const itens = (await res.json()) as PncpItemBruto[];
-  return itens.map((item) => ({
+function mapearItem(item: PncpItemBruto): LicitacaoItem {
+  return {
     numeroItem: item.numeroItem,
     descricao: item.descricao ?? "",
     quantidade: item.quantidade ?? null,
     unidadeMedida: item.unidadeMedida ?? "",
     valorUnitarioEstimado: item.valorUnitarioEstimado ?? null,
     valorTotal: item.valorTotal ?? null,
-  }));
+  };
+}
+
+/**
+ * Busca TODOS os itens de uma contratação a partir do seu numeroControlePNCP.
+ *
+ * A API de itens do PNCP é paginada e devolve só 10 por padrão (sem cabeçalho de
+ * total), então percorremos as páginas até uma vir incompleta/vazia. Antes o app
+ * mostrava apenas os 10 primeiros itens.
+ */
+export async function buscarItensPncp(numeroControlePNCP: string): Promise<LicitacaoItem[]> {
+  const ref = parseNumeroControle(numeroControlePNCP);
+  if (!ref) return [];
+
+  const base = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}/itens`;
+  const TAMANHO_PAGINA = 50;
+  const MAX_PAGINAS = 60; // trava de segurança (até 3000 itens)
+  const todos: LicitacaoItem[] = [];
+
+  for (let pagina = 1; pagina <= MAX_PAGINAS; pagina++) {
+    let lote: PncpItemBruto[];
+    try {
+      const res = await fetch(`${base}?pagina=${pagina}&tamanhoPagina=${TAMANHO_PAGINA}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) break;
+      lote = (await res.json()) as PncpItemBruto[];
+    } catch {
+      break;
+    }
+    if (!Array.isArray(lote) || lote.length === 0) break;
+    todos.push(...lote.map(mapearItem));
+    if (lote.length < TAMANHO_PAGINA) break; // última página
+  }
+
+  return todos;
 }
