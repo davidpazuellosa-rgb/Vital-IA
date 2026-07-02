@@ -16,15 +16,14 @@ import { ehExclusivoMeEpp, LicitacaoItem, type EtapaSlug } from "@/lib/licitacoe
 type ArquivoEdital = { titulo: string; url: string };
 
 function paraCsv(itens: LicitacaoItem[]): string {
-  const cabecalho = ["Item", "Descrição", "Quantidade", "Unidade", "Valor unitário", "Valor total"];
+  const cabecalho = ["Item", "Cód. catálogo", "Descrição", "Quantidade", "Unidade"];
   const linhas = itens.map((i) =>
     [
       i.numeroItem,
+      i.codigoCatalogo || "",
       `"${(i.descricao ?? "").replace(/"/g, '""')}"`,
       i.quantidade ?? "",
       i.unidadeMedida ?? "",
-      i.valorUnitarioEstimado ?? "",
-      i.valorTotal ?? "",
     ].join(";"),
   );
   return [cabecalho.join(";"), ...linhas].join("\n");

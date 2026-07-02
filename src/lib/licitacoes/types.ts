@@ -146,6 +146,7 @@ export interface LicitacaoItem {
   valorUnitarioEstimado: number | null;
   valorTotal: number | null;
   tipoBeneficioNome: string; // ex.: "Participação exclusiva para ME/EPP", "Não se aplica"
+  codigoCatalogo: string; // código do item no catálogo (CATMAT/CATSER) — opcional no PNCP
 }
 
 /** true quando o item é de participação exclusiva para ME/EPP (tipoBeneficio do PNCP). */
