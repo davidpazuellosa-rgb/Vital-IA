@@ -17,6 +17,44 @@ type ArquivoEdital = { titulo: string; url: string };
 
 const aspas = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
 
+// Conectores ignorados ao escolher a "primeira palavra significativa" do órgão.
+const CONECTORES = new Set(["da", "de", "do", "das", "dos", "e"]);
+
+// Prefixos genéricos de tipo de órgão — pulados para chegar ao nome que identifica
+// (ex.: "Comando da Marinha" → "Marinha"; "Prefeitura de Manaus" → "Manaus").
+const GENERICOS = new Set([
+  "comando", "ministério", "ministerio", "secretaria", "prefeitura", "governo",
+  "estado", "município", "municipio", "superintendência", "superintendencia",
+  "universidade", "instituto", "fundação", "fundacao", "fundo", "departamento",
+  "coordenação", "coordenacao", "gerência", "gerencia", "agência", "agencia",
+  "conselho", "câmara", "camara", "tribunal", "empresa", "companhia", "serviço",
+  "servico", "diretoria", "federal", "estadual", "municipal", "nacional",
+]);
+
+const semAcento = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+// Remove caracteres inválidos para nome de arquivo (mantém acentos e espaços).
+const limparParte = (v: string) => (v ?? "").replace(/[\\/:*?"<>|]/g, "").trim();
+
+/**
+ * Palavra que identifica o órgão: pula conectores (da/de/do) e prefixos genéricos
+ * de tipo de órgão. Ex.: "Comando da Marinha" → "Marinha".
+ * Se tudo for genérico, usa a primeira palavra não-conectora como fallback.
+ */
+function orgaoResumido(nome: string): string {
+  const palavras = (nome ?? "").split(/\s+/).filter(Boolean);
+  const relevante = (p: string) => {
+    const base = semAcento(p.toLowerCase());
+    return !CONECTORES.has(base) && !GENERICOS.has(base);
+  };
+  const escolhida =
+    palavras.find(relevante) ??
+    palavras.find((p) => !CONECTORES.has(semAcento(p.toLowerCase()))) ??
+    palavras[0] ??
+    "orgao";
+  return limparParte(escolhida);
+}
+
 function paraCsv(itens: LicitacaoItem[]): string {
   const cabecalho = ["Item", "Cód. catálogo", "Descrição", "Descrição completa", "Marcas", "Quantidade", "Unidade"];
   const linhas = itens.map((i) =>
@@ -38,6 +76,9 @@ export function LicitacaoAcoes({
   numeroControle,
   licitacaoId,
   etapa,
+  orgao = "",
+  uf = "",
+  esfera = "",
   arquivosEdital = [],
   temProposta = false,
 }: {
@@ -45,19 +86,33 @@ export function LicitacaoAcoes({
   numeroControle: string;
   licitacaoId: string;
   etapa: EtapaSlug;
+  orgao?: string;
+  uf?: string;
+  esfera?: string;
   arquivosEdital?: ArquivoEdital[];
   temProposta?: boolean;
 }) {
   const exclusivos = itens.filter(ehExclusivoMeEpp);
 
-  function extrairItens(lista: LicitacaoItem[], sufixo = "") {
+  // Nome legível: "<órgão>-<UF>-<esfera>-<abrangência>.csv"
+  // (ex.: "Marinha-AM-Federal-Exclusividade MEepp.csv"). Cai no nº de controle
+  // do PNCP se o órgão vier vazio, para nunca gerar arquivo sem nome.
+  function nomeArquivo(abrangencia: string): string {
+    const partes = [orgaoResumido(orgao), uf.toUpperCase(), limparParte(esfera), abrangencia]
+      .map(limparParte)
+      .filter(Boolean);
+    const base = partes.length > 1 ? partes.join("-") : numeroControle.replace(/[^\w]/g, "_");
+    return `${base}.csv`;
+  }
+
+  function extrairItens(lista: LicitacaoItem[], abrangencia: string) {
     if (lista.length === 0) return;
     const csv = "﻿" + paraCsv(lista); // BOM para acentos no Excel
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `itens${sufixo}-${numeroControle.replace(/[^\w]/g, "_")}.csv`;
+    a.download = nomeArquivo(abrangencia);
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -83,12 +138,12 @@ export function LicitacaoAcoes({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onClick={() => extrairItens(itens)}>
+          <DropdownMenuItem onClick={() => extrairItens(itens, "Todos os itens")}>
             Todas
             <span className="ml-auto text-xs text-muted-foreground">{itens.length}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => extrairItens(exclusivos, "-me-epp")}
+            onClick={() => extrairItens(exclusivos, "Exclusividade MEepp")}
             disabled={exclusivos.length === 0}
           >
             Exclusividade ME/EPP

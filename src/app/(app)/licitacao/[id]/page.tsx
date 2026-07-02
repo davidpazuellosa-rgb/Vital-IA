@@ -165,7 +165,7 @@ export default async function LicitacaoDetalhePage({
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={normalizarEtapa(lic.etapa)} arquivosEdital={arquivosEdital.map((a) => ({ titulo: a.titulo, url: a.url }))} temProposta={Boolean(propostaExistente)} />
+              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={normalizarEtapa(lic.etapa)} orgao={lic.orgao} uf={lic.uf} esfera={esferaNome(lic).split(" ")[0]} arquivosEdital={arquivosEdital.map((a) => ({ titulo: a.titulo, url: a.url }))} temProposta={Boolean(propostaExistente)} />
             </CardContent>
           </Card>
         </div>
