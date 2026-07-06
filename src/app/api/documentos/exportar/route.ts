@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { zipSync } from "fflate";
 import { createClient } from "@/lib/supabase/server";
-import { GRUPOS_DOCUMENTOS, type Documento } from "@/lib/documentos/types";
+import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, type Documento } from "@/lib/documentos/types";
 
 /**
  * Exporta em um único ZIP todos os documentos de um grupo do checklist.
@@ -11,7 +11,10 @@ import { GRUPOS_DOCUMENTOS, type Documento } from "@/lib/documentos/types";
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("grupo") ?? "";
   const grupo = GRUPOS_DOCUMENTOS.find((g) => g.slug === slug);
-  if (!grupo) return new Response("Grupo não encontrado.", { status: 400 });
+  // Grupo do checklist → seus tipos; "avulso" → documentos fora do checklist.
+  const tipos = grupo ? grupo.tipos.map((t) => t.slug) : slug === TIPO_AVULSO ? [TIPO_AVULSO] : null;
+  if (!tipos) return new Response("Grupo não encontrado.", { status: 400 });
+  const nomeZip = grupo ? grupo.slug : "avulsos";
 
   const supabase = await createClient();
   const {
@@ -19,7 +22,6 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return new Response("Não autenticado.", { status: 401 });
 
-  const tipos = grupo.tipos.map((t) => t.slug);
   const { data } = await supabase.from("documentos").select("*").in("tipo", tipos);
   const documentos = (data ?? []) as Documento[];
   if (documentos.length === 0) {
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
   return new Response(zip, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${grupo.slug}.zip"`,
+      "Content-Disposition": `attachment; filename="${nomeZip}.zip"`,
     },
   });
 }

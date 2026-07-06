@@ -98,7 +98,7 @@ export default async function DocumentosPage() {
       </section>
 
       {/* Outros documentos (avulsos) */}
-      <Grupo titulo="Outros documentos" descricao="Arquivos fora do checklist" enviados={avulsos.length}>
+      <Grupo titulo="Outros documentos" descricao="Arquivos fora do checklist" enviados={avulsos.length} slug={TIPO_AVULSO}>
         <div className="flex justify-end">
           <UploadDocumento variant="outline" size="sm" label="Adicionar avulso" />
         </div>
