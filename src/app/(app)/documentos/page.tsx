@@ -13,7 +13,7 @@ import {
   type Documento,
   type StatusValidade,
 } from "@/lib/documentos/types";
-import { UploadDocumento, DocumentoAcoes } from "@/components/documentos-client";
+import { UploadDocumento, DocumentoAcoes, BaixarGrupo } from "@/components/documentos-client";
 
 export default async function DocumentosPage() {
   const supabase = await createClient();
@@ -82,6 +82,7 @@ export default async function DocumentosPage() {
               descricao={grupo.descricao}
               enviados={enviadosGrupo}
               total={grupo.tipos.length}
+              slug={grupo.slug}
             >
               {grupo.tipos.map((tipo) => {
                 const doc = porTipo.get(tipo.slug);
@@ -118,12 +119,14 @@ function Grupo({
   descricao,
   enviados,
   total,
+  slug,
   children,
 }: {
   titulo: string;
   descricao: string;
   enviados: number;
   total?: number;
+  slug?: string;
   children: React.ReactNode;
 }) {
   const completo = total != null && enviados >= total;
@@ -135,6 +138,7 @@ function Grupo({
           <p className="font-semibold leading-tight">{titulo}</p>
           <p className="truncate text-xs text-muted-foreground">{descricao}</p>
         </div>
+        {slug && enviados > 0 && <BaixarGrupo slug={slug} />}
         <Badge
           variant="secondary"
           className={`shrink-0 font-medium tabular-nums ${completo ? "bg-primary/12 text-primary" : ""}`}

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil } from "lucide-react";
+import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +44,20 @@ function sanitizarNome(nome: string): string {
 }
 
 /* ---------------- Upload ---------------- */
+
+/** Baixa todos os documentos de um grupo do checklist num ZIP. */
+export function BaixarGrupo({ slug }: { slug: string }) {
+  return (
+    <a
+      href={`/api/documentos/exportar?grupo=${encodeURIComponent(slug)}`}
+      onClick={(e) => e.stopPropagation()}
+      title="Baixar todos os documentos deste grupo (ZIP)"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+    >
+      <Download className="size-3.5" /> Baixar todos
+    </a>
+  );
+}
 
 export function UploadDocumento({
   tipoFixo,
