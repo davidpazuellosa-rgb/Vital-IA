@@ -639,14 +639,14 @@ export function NotaFiscalAcoes({
 
       {danfeUrl && (
         <Button size="sm" variant="outline" asChild>
-          <a href={danfeUrl} target="_blank" rel="noreferrer">
+          <a href={danfeUrl + (danfeUrl.includes("?") ? "&" : "?") + "download=danfe.pdf"}>
             <FileDown className="size-4" /> DANFE
           </a>
         </Button>
       )}
       {xmlUrl && (
         <Button size="sm" variant="outline" asChild>
-          <a href={xmlUrl} target="_blank" rel="noreferrer">
+          <a href={xmlUrl + (xmlUrl.includes("?") ? "&" : "?") + "download=nota-fiscal.xml"}>
             <FileCode className="size-4" /> XML
           </a>
         </Button>
