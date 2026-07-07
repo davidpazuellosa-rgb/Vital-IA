@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search } from "lucide-react";
+import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search, Download, ChevronDown, FolderArchive, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -226,6 +226,45 @@ export function ClienteDocAcoes({ id, clienteId, contratacaoId, url }: { id: str
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={(e) => { e.preventDefault(); remover(); }}>
           <Trash2 className="size-4" /> Remover
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/* ---------- Baixar todos os documentos da contratação ---------- */
+export function BaixarTudoContratacao({ cid, temDocs }: { cid: string; temDocs: boolean }) {
+  if (!temDocs) return null;
+
+  function baixar(rota: "contratacao-pdf" | "contratacao-zip") {
+    const a = document.createElement("a");
+    a.href = `/api/documentos/${rota}?cid=${encodeURIComponent(cid)}`;
+    a.click();
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Download className="size-4" />
+          Baixar tudo
+          <ChevronDown className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); baixar("contratacao-pdf"); }}>
+          <FileText className="size-4" />
+          <div className="flex flex-col">
+            <span>Juntos (PDF único)</span>
+            <span className="text-xs text-muted-foreground">Todos os documentos em um só PDF</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); baixar("contratacao-zip"); }}>
+          <FolderArchive className="size-4" />
+          <div className="flex flex-col">
+            <span>Separados (.zip)</span>
+            <span className="text-xs text-muted-foreground">Cada documento em um arquivo</span>
+          </div>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
