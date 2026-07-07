@@ -34,7 +34,7 @@ import {
   cartaCorrecaoNotaFiscal,
   buscarDadosCnpj,
 } from "@/lib/nota-fiscal/actions";
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, comDownload } from "@/lib/format";
 import type { NotaFiscalStatus } from "@/lib/nota-fiscal/types";
 
 type ClienteOpcao = {
@@ -639,14 +639,14 @@ export function NotaFiscalAcoes({
 
       {danfeUrl && (
         <Button size="sm" variant="outline" asChild>
-          <a href={danfeUrl + (danfeUrl.includes("?") ? "&" : "?") + "download=danfe.pdf"}>
+          <a href={comDownload(danfeUrl, "danfe.pdf")}>
             <FileDown className="size-4" /> DANFE
           </a>
         </Button>
       )}
       {xmlUrl && (
         <Button size="sm" variant="outline" asChild>
-          <a href={xmlUrl + (xmlUrl.includes("?") ? "&" : "?") + "download=nota-fiscal.xml"}>
+          <a href={comDownload(xmlUrl, "nota-fiscal.xml")}>
             <FileCode className="size-4" /> XML
           </a>
         </Button>

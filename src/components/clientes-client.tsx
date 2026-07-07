@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search, Download, ChevronDown, FolderArchive, FileText } from "lucide-react";
+import { Plus, Upload, Loader2, MoreVertical, Eye, Trash2, Check, ArrowRight, Search, Download, ChevronDown, FolderArchive, FileText, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
+import { comDownload } from "@/lib/format";
 import {
   criarCliente, registrarClienteDocumento, removerClienteDocumento, removerCliente, atualizarClienteStatus,
   criarContratacao, removerContratacao, atualizarContratacaoStatus, preencherDadosOrgaoCliente,
@@ -196,7 +197,19 @@ export function ClienteDocUpload({
 }
 
 /* ---------- Ações de um documento ---------- */
-export function ClienteDocAcoes({ id, clienteId, contratacaoId, url }: { id: string; clienteId: string; contratacaoId: string; url: string | null }) {
+export function ClienteDocAcoes({
+  id,
+  clienteId,
+  contratacaoId,
+  url,
+  nomeArquivo,
+}: {
+  id: string;
+  clienteId: string;
+  contratacaoId: string;
+  url: string | null;
+  nomeArquivo?: string;
+}) {
   const [pendente, startTransition] = useTransition();
   function remover() {
     if (!confirm("Remover este documento? O arquivo será apagado.")) return;
@@ -221,6 +234,11 @@ export function ClienteDocAcoes({ id, clienteId, contratacaoId, url }: { id: str
         {url && (
           <DropdownMenuItem asChild>
             <a href={url} target="_blank" rel="noreferrer"><Eye className="size-4" /> Visualizar</a>
+          </DropdownMenuItem>
+        )}
+        {url && (
+          <DropdownMenuItem asChild>
+            <a href={comDownload(url, nomeArquivo || "documento")}><FileDown className="size-4" /> Baixar</a>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

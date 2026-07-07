@@ -208,6 +208,7 @@ function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string |
       <DocumentoAcoes
         id={doc.id}
         nome={doc.nome}
+        arquivoNome={doc.arquivo_nome}
         urlVisualizacao={url}
         dataValidade={doc.data_validade}
         semValidade={semValidade}

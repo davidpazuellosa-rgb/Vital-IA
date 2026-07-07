@@ -118,7 +118,7 @@ function LinhaDoc({ doc, clienteId, contratacaoId, url }: { doc: ClienteDocument
       <Badge variant="secondary" className="hidden shrink-0 font-normal tabular-nums sm:inline-flex">
         {formatarData(doc.created_at)}
       </Badge>
-      <ClienteDocAcoes id={doc.id} clienteId={clienteId} contratacaoId={contratacaoId} url={url} />
+      <ClienteDocAcoes id={doc.id} clienteId={clienteId} contratacaoId={contratacaoId} url={url} nomeArquivo={doc.arquivo_nome} />
     </div>
   );
 }

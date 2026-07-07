@@ -10,3 +10,12 @@ export function formatarData(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("pt-BR");
 }
+
+/**
+ * Acrescenta o parâmetro `download` a uma URL assinada do Supabase Storage.
+ * Sem ele, o navegador renderiza o arquivo inline (ex.: PDF/XML) em vez de
+ * baixar, porque a URL é cross-origin.
+ */
+export function comDownload(url: string, nomeArquivo: string): string {
+  return url + (url.includes("?") ? "&" : "?") + "download=" + encodeURIComponent(nomeArquivo);
+}

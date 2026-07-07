@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download } from "lucide-react";
+import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,7 @@ import {
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO } from "@/lib/documentos/types";
 import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
+import { comDownload } from "@/lib/format";
 
 const BUCKET = "documentos";
 
@@ -196,12 +197,14 @@ export function UploadDocumento({
 export function DocumentoAcoes({
   id,
   nome,
+  arquivoNome,
   urlVisualizacao,
   dataValidade,
   semValidade,
 }: {
   id: string;
   nome: string;
+  arquivoNome: string;
   urlVisualizacao: string | null;
   dataValidade: string | null;
   semValidade?: boolean;
@@ -265,6 +268,14 @@ export function DocumentoAcoes({
               <a href={urlVisualizacao} target="_blank" rel="noreferrer">
                 <Eye className="size-4" />
                 Visualizar
+              </a>
+            </DropdownMenuItem>
+          )}
+          {urlVisualizacao && (
+            <DropdownMenuItem asChild>
+              <a href={comDownload(urlVisualizacao, arquivoNome || nome)}>
+                <FileDown className="size-4" />
+                Baixar
               </a>
             </DropdownMenuItem>
           )}
