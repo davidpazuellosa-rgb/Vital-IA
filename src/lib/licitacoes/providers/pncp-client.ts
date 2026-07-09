@@ -99,6 +99,31 @@ interface PaginaCombo {
   totalRegistros: number;
 }
 
+// Tamanho de página nativa usado para localizar e montar a janela invertida
+// (mais novo → mais antigo). Não precisa ser igual ao tamanhoPagina pedido
+// pela UI; só afeta quantas chamadas nativas são necessárias por combo.
+const TAM_JANELA = 50;
+
+/**
+ * A API do PNCP não tem parâmetro de ordenação: ela sempre devolve os itens
+ * em ordem crescente de publicação (mais antigo primeiro). Para exibir do
+ * mais novo para o mais antigo, calculamos aqui qual intervalo de índices
+ * (0-based, na ordem crescente nativa) corresponde à página `pagina` quando
+ * o combo é lido de trás para frente, em blocos de `tamanhoPagina`.
+ * Ex.: página 1 = os últimos `tamanhoPagina` itens (os mais recentes).
+ * Retorna `null` quando a página pedida está além do total de itens do combo.
+ */
+function janelaInvertida(
+  totalRegistros: number,
+  tamanhoPagina: number,
+  pagina: number,
+): { lo: number; hi: number } | null {
+  const hi = totalRegistros - (pagina - 1) * tamanhoPagina - 1;
+  if (hi < 0) return null;
+  const lo = Math.max(0, totalRegistros - pagina * tamanhoPagina);
+  return { lo, hi };
+}
+
 async function buscarCombo(
   filtro: UniversalFilter,
   apenasAberto: boolean,
@@ -107,27 +132,74 @@ async function buscarCombo(
   uf: string | undefined,
 ): Promise<PaginaCombo> {
   const baseUrl = apenasAberto ? PROPOSTA_URL : PUBLICACAO_URL;
-  const params = new URLSearchParams({
-    pagina: String(paginacao.pagina),
-    tamanhoPagina: String(paginacao.tamanhoPagina),
-  });
+  const baseParams = new URLSearchParams();
   if (modalidadeId != null) {
-    params.set("codigoModalidadeContratacao", String(modalidadeId));
+    baseParams.set("codigoModalidadeContratacao", String(modalidadeId));
   }
   if (apenasAberto) {
-    params.set("dataFinal", horizonteEncerramento());
+    baseParams.set("dataFinal", horizonteEncerramento());
   } else {
-    params.set("dataInicial", toYyyymmdd(filtro.dataInicial));
-    params.set("dataFinal", toYyyymmdd(filtro.dataFinal));
+    baseParams.set("dataInicial", toYyyymmdd(filtro.dataInicial));
+    baseParams.set("dataFinal", toYyyymmdd(filtro.dataFinal));
   }
-  if (uf) params.set("uf", uf);
+  if (uf) baseParams.set("uf", uf);
 
-  const resposta = await buscarPagina(baseUrl, params);
-  return {
-    itens: resposta.data,
-    totalPaginas: resposta.totalPaginas,
-    totalRegistros: resposta.totalRegistros,
-  };
+  // 1ª chamada: os itens em si não são usados diretamente (são os mais
+  // antigos do combo), mas é assim que descobrimos totalRegistros — a única
+  // forma de calcular "onde fica o final" do combo, já que a API não ordena.
+  const paramsUm = new URLSearchParams(baseParams);
+  paramsUm.set("pagina", "1");
+  paramsUm.set("tamanhoPagina", String(TAM_JANELA));
+  const primeira = await buscarPagina(baseUrl, paramsUm);
+  const totalRegistros = primeira.totalRegistros;
+  const totalPaginas = Math.ceil(totalRegistros / paginacao.tamanhoPagina);
+
+  if (totalRegistros === 0) {
+    return { itens: [], totalPaginas: 0, totalRegistros: 0 };
+  }
+
+  const janela = janelaInvertida(totalRegistros, paginacao.tamanhoPagina, paginacao.pagina);
+  if (!janela) {
+    return { itens: [], totalPaginas, totalRegistros };
+  }
+
+  // A janela pedida cai em 1 ou 2 páginas nativas (tamanho TAM_JANELA) —
+  // no máximo 2, porque o tamanho da janela nunca passa do tamanho da grade.
+  const paginaNativaInicio = Math.floor(janela.lo / TAM_JANELA) + 1;
+  const paginaNativaFim = Math.floor(janela.hi / TAM_JANELA) + 1;
+  const numerosNativos =
+    paginaNativaInicio === paginaNativaFim
+      ? [paginaNativaInicio]
+      : [paginaNativaInicio, paginaNativaFim];
+
+  const paginasNativas = await Promise.all(
+    numerosNativos.map(async (n) => {
+      if (n === 1) return primeira.data;
+      const p = new URLSearchParams(baseParams);
+      p.set("pagina", String(n));
+      p.set("tamanhoPagina", String(TAM_JANELA));
+      const r = await buscarPagina(baseUrl, p);
+      return r.data;
+    }),
+  );
+
+  // Mapa índice-crescente → item, só com o que cai dentro da janela pedida.
+  const porIndice = new Map<number, PncpItem>();
+  numerosNativos.forEach((n, i) => {
+    const base = (n - 1) * TAM_JANELA;
+    paginasNativas[i].forEach((item, pos) => {
+      const indice = base + pos;
+      if (indice >= janela.lo && indice <= janela.hi) porIndice.set(indice, item);
+    });
+  });
+
+  // Índice crescente = publicação crescente; invertendo, fica do mais novo
+  // para o mais antigo (o que a UI deve exibir).
+  const itens = [...porIndice.keys()]
+    .sort((a, b) => b - a)
+    .map((i) => porIndice.get(i)!);
+
+  return { itens, totalPaginas, totalRegistros };
 }
 
 export async function buscarPncp(
@@ -191,7 +263,11 @@ export async function buscarPncp(
       if (filtro.valorMax != null && (item.valorTotalEstimado ?? Infinity) > filtro.valorMax) return false;
       return true;
     })
-    .map(mapItem);
+    .map(mapItem)
+    // Cada combo já vem do mais novo para o mais antigo, mas ao mesclar
+    // várias combinações (múltiplas UFs/modalidades) a ordem entre elas não
+    // é garantida — este sort final unifica o resultado mesclado.
+    .sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
 
   return { itens, totalPaginas, totalRegistros, incompleto };
 }

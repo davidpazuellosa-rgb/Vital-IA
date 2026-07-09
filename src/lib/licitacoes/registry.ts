@@ -22,7 +22,6 @@ export async function buscarLicitacoes(
   paginacao: Paginacao,
 ): Promise<ResultadoBusca> {
   const plataformas = filtro.plataformas.length > 0 ? filtro.plataformas : ["pncp" as const];
-  const apenasAberto = filtro.apenasAberto ?? true;
 
   const resultados = await Promise.all(
     plataformas.map((id) => PROVIDERS[id].buscar(filtro, paginacao)),
@@ -39,15 +38,10 @@ export async function buscarLicitacoes(
       return true;
     });
 
-  if (apenasAberto) {
-    // Encerramentos mais próximos primeiro (mais útil para enviar proposta).
-    itens.sort((a, b) =>
-      (a.dataEncerramentoProposta ?? "9999").localeCompare(b.dataEncerramentoProposta ?? "9999"),
-    );
-  } else {
-    // Publicações mais recentes primeiro.
-    itens.sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
-  }
+  // Mais recente publicada primeiro — sempre, com ou sem "somente em aberto"
+  // marcado. Cada provedor já devolve seus itens nessa ordem; este sort só
+  // garante a ordem correta ao mesclar várias plataformas.
+  itens.sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
 
   return {
     itens,
