@@ -148,6 +148,28 @@ export type ResultadoValidade = {
   diasRestantes: number | null;
 };
 
+/**
+ * Site oficial para emitir/renovar cada tipo de documento (2ª via). Só entram
+ * os tipos que têm um portal público de emissão — documentos internos ou
+ * pessoais (declarações, atestados, RG/CPF dos sócios, balanço, etc.) não
+ * têm site aplicável e ficam de fora deste mapa.
+ */
+export const SITE_RESPONSAVEL: Record<string, string> = {
+  cnd_federal: "https://servicos.receita.fazenda.gov.br/servicos/certidao/",
+  fgts: "https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf",
+  trabalhista: "https://cndt-certidao.tst.jus.br/",
+  estadual: "https://www.sefaz.am.gov.br/portfolio-servicos/detalhes/541",
+  municipal: "https://semefatende.manaus.am.gov.br/cidadao/certidoes/",
+  cnpj: "https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp",
+  inscricao_estadual: "https://sistemas.sefaz.am.gov.br/gcc/menucontribuinte/index.action",
+  inscricao_municipal: "https://nfse-prd.manaus.am.gov.br/nfse/servlet/hloginconsultacadastral",
+  falencia: "https://consultasaj.tjam.jus.br/esaj/portal.do?servico=810000",
+};
+
+export function siteResponsavel(slug: string): string | null {
+  return SITE_RESPONSAVEL[slug] ?? null;
+}
+
 export function avaliarValidade(dataValidade: string | null): ResultadoValidade {
   if (!dataValidade) {
     return { status: "sem_data", rotulo: "Sem data", diasRestantes: null };

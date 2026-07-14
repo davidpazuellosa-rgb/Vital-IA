@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download, FileDown } from "lucide-react";
+import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download, FileDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO } from "@/lib/documentos/types";
+import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
 import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { comDownload } from "@/lib/format";
@@ -196,6 +196,7 @@ export function UploadDocumento({
 
 export function DocumentoAcoes({
   id,
+  tipo,
   nome,
   arquivoNome,
   urlVisualizacao,
@@ -203,12 +204,14 @@ export function DocumentoAcoes({
   semValidade,
 }: {
   id: string;
+  tipo: string;
   nome: string;
   arquivoNome: string;
   urlVisualizacao: string | null;
   dataValidade: string | null;
   semValidade?: boolean;
 }) {
+  const urlSite = siteResponsavel(tipo);
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(dataValidade ?? "");
   const [renomeando, setRenomeando] = useState(false);
@@ -276,6 +279,14 @@ export function DocumentoAcoes({
               <a href={comDownload(urlVisualizacao, arquivoNome || nome)}>
                 <FileDown className="size-4" />
                 Baixar
+              </a>
+            </DropdownMenuItem>
+          )}
+          {urlSite && (
+            <DropdownMenuItem asChild>
+              <a href={urlSite} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" />
+                Site responsável
               </a>
             </DropdownMenuItem>
           )}
