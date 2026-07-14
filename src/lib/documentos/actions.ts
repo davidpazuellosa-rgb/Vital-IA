@@ -74,6 +74,74 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
   revalidatePath("/documentos");
 }
 
+export type SubstituirDocumentoInput = {
+  id: string;
+  path: string;
+  arquivoNome: string;
+  mimeType: string;
+};
+
+/**
+ * Substitui o arquivo de um documento já cadastrado (2ª via), mantendo o
+ * mesmo id/tipo/nome. Reextrai a data de validade do novo arquivo — mesma
+ * lógica do cadastro inicial — e remove o arquivo antigo do Storage.
+ */
+export async function substituirDocumento(input: SubstituirDocumentoInput) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+
+  if (!input.path.startsWith(`${empresaUserId}/`)) {
+    throw new Error("Caminho de arquivo inválido.");
+  }
+
+  const { data: doc, error: docErr } = await supabase
+    .from("documentos")
+    .select("arquivo_path, tipo")
+    .eq("id", input.id)
+    .eq("user_id", empresaUserId)
+    .single();
+  if (docErr || !doc) throw new Error("Documento não encontrado.");
+
+  let dataValidade: string | null = null;
+  let dataEmissao: string | null = null;
+  const ehPdf = input.mimeType === "application/pdf" || input.arquivoNome.toLowerCase().endsWith(".pdf");
+  if (ehPdf && !tipoSemValidade(doc.tipo)) {
+    const { data: blob } = await supabase.storage.from(BUCKET).download(input.path);
+    if (blob) {
+      const datas = await extrairDatasDoPdf(await blob.arrayBuffer());
+      dataValidade = datas.dataValidade;
+      dataEmissao = datas.dataEmissao;
+    }
+  }
+
+  const { error: updErr } = await supabase
+    .from("documentos")
+    .update({
+      arquivo_path: input.path,
+      arquivo_nome: input.arquivoNome,
+      data_emissao: dataEmissao,
+      data_validade: dataValidade,
+      validade_automatica: dataValidade != null,
+    })
+    .eq("id", input.id)
+    .eq("user_id", empresaUserId);
+
+  if (updErr) {
+    // desfaz o upload do novo arquivo para não deixar órfão
+    await supabase.storage.from(BUCKET).remove([input.path]);
+    throw new Error(updErr.message);
+  }
+
+  // Remove o arquivo antigo do Storage (o banco já aponta para o novo).
+  if (doc.arquivo_path && doc.arquivo_path !== input.path) {
+    await supabase.storage.from(BUCKET).remove([doc.arquivo_path]);
+  }
+
+  revalidatePath("/documentos");
+}
+
 export async function removerDocumento(id: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

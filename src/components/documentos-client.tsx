@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download, FileDown, ExternalLink } from "lucide-react";
+import { Upload, MoreVertical, Eye, CalendarCog, Trash2, Loader2, Plus, Pencil, Download, FileDown, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
-import { registrarDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
+import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { comDownload } from "@/lib/format";
 
@@ -216,7 +216,46 @@ export function DocumentoAcoes({
   const [valor, setValor] = useState(dataValidade ?? "");
   const [renomeando, setRenomeando] = useState(false);
   const [novoNome, setNovoNome] = useState(nome);
+  const [substituindo, setSubstituindo] = useState(false);
+  const [erroSubstituir, setErroSubstituir] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
+  const [enviandoSubstituto, startSubstituirTransition] = useTransition();
+
+  function onSubmitSubstituir(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErroSubstituir(null);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const file = fd.get("arquivo");
+    if (!(file instanceof File) || file.size === 0) {
+      setErroSubstituir("Selecione um arquivo.");
+      return;
+    }
+    const t = toast.loading("Enviando novo arquivo…");
+    startSubstituirTransition(async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Sessão expirada. Faça login novamente.");
+        const empresaUserId = await obterEmpresaUserId();
+        const path = `${empresaUserId}/${id}/${sanitizarNome(file.name)}`;
+        const { error: upErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: true });
+        if (upErr) throw new Error(`Falha no upload: ${upErr.message}`);
+
+        await substituirDocumento({ id, path, arquivoNome: file.name, mimeType: file.type });
+
+        form.reset();
+        setSubstituindo(false);
+        toast.success("Documento substituído", { id: t, description: "A validade foi verificada automaticamente." });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao substituir o documento.";
+        setErroSubstituir(msg);
+        toast.error("Falha ao substituir", { id: t, description: msg });
+      }
+    });
+  }
 
   function salvarData() {
     const t = toast.loading("Salvando validade…");
@@ -290,6 +329,10 @@ export function DocumentoAcoes({
               </a>
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setErroSubstituir(null); setSubstituindo(true); }}>
+            <RefreshCw className="size-4" />
+            Substituir arquivo
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setNovoNome(nome); setRenomeando(true); }}>
             <Pencil className="size-4" />
             Renomear
@@ -363,6 +406,37 @@ export function DocumentoAcoes({
               Salvar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={substituindo} onOpenChange={(v) => { setSubstituindo(v); if (!v) setErroSubstituir(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Substituir arquivo</DialogTitle>
+            <DialogDescription>
+              Envie a 2ª via deste documento. Em PDFs com texto, a validade é detectada
+              automaticamente — você pode corrigir depois em &ldquo;Editar validade&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onSubmitSubstituir} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`arquivo-sub-${id}`}>Novo arquivo</Label>
+              <Input
+                id={`arquivo-sub-${id}`}
+                name="arquivo"
+                type="file"
+                accept=".pdf,image/*,application/pdf"
+                required
+              />
+            </div>
+            {erroSubstituir && <p className="text-sm text-destructive">{erroSubstituir}</p>}
+            <DialogFooter>
+              <Button type="submit" disabled={enviandoSubstituto}>
+                {enviandoSubstituto ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                {enviandoSubstituto ? "Enviando..." : "Substituir"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
