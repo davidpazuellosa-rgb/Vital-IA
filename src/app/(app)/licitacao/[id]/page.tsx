@@ -113,17 +113,10 @@ export default async function LicitacaoDetalhePage({
               <Campo rotulo="Esfera" valor={esferaNome(lic)} />
               <Campo rotulo="Estado" valor={lic.uf || "—"} />
               <Campo rotulo="Município" valor={lic.municipio || "—"} />
-              {localEntrega ? (
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Local de entrega</span>
-                  <span className="text-sm font-medium leading-snug">{localEntrega.trecho}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Extraído automaticamente de &ldquo;{localEntrega.origem}&rdquo; — confirme no edital antes de usar.
-                  </span>
-                </div>
-              ) : (
-                <Campo rotulo="Local de entrega" valor="Não encontrado no edital" />
-              )}
+              <Campo
+                rotulo="Local de entrega"
+                valor={localEntrega ? `${localEntrega.cidade}/${localEntrega.uf}` : "Não encontrado no edital"}
+              />
               <Campo rotulo="Situação" valor={lic.situacao || "—"} />
               <Campo rotulo="Abertura das propostas" valor={formatarData(lic.data_abertura_proposta)} />
               <Campo rotulo="Encerramento das propostas" valor={formatarData(lic.data_encerramento_proposta)} />

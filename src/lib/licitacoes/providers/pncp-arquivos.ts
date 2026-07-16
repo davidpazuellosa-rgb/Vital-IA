@@ -96,7 +96,7 @@ function resultadoVazio(
   return { ...arquivo, status, metodoLeitura: null, paginas: 0, caracteres: 0, texto: "" };
 }
 
-export type LocalEntregaEncontrado = { trecho: string; origem: string };
+export type LocalEntregaEncontrado = { cidade: string; uf: string | null; origem: string };
 
 // Cobre as redações mais comuns nos editais/TRs — testado contra documentos
 // reais do PNCP. "local de entrega" sozinho não é suficiente: muitos termos
@@ -109,11 +109,31 @@ const PADRAO_LOCAL_ENTREGA =
 const ARQUIVO_PRIORITARIO = /edital|termo de refer[êe]ncia/i;
 const LIMITE_ARQUIVOS_LIDOS = 6; // teto de segurança (processos com muitos anexos)
 
+// Nome de cidade: começa maiúscula, aceita conectores minúsculos no meio
+// (ex.: "Rio de Janeiro", "Foz do Iguaçu", "São João da Boa Vista").
+const PALAVRA_CIDADE = "(?:[A-ZÀ-Ú][\\wÀ-ÿ]*|d[aeo]s?)";
+const NOME_CIDADE = `([A-ZÀ-Ú][\\wÀ-ÿ]*(?:\\s${PALAVRA_CIDADE}){0,3})`;
+const PADROES_CIDADE = [
+  new RegExp(`cidade de\\s+${NOME_CIDADE}\\s*[/-]\\s*([A-Z]{2})\\b`, "i"),
+  new RegExp(`munic[ií]pio de\\s+${NOME_CIDADE}\\s*[/-]\\s*([A-Z]{2})\\b`, "i"),
+  new RegExp(`,\\s*${NOME_CIDADE}\\s*[/-]\\s*([A-Z]{2})\\b`),
+  new RegExp(`\\b${NOME_CIDADE}\\s*(?:/|\\s-\\s)\\s*([A-Z]{2})\\b`),
+];
+
+/** Extrai "Cidade/UF" de um trecho de endereço (ex.: "na cidade de Manaus/AM" → Manaus, AM). */
+function extrairCidade(trecho: string): { cidade: string; uf: string } | null {
+  for (const padrao of PADROES_CIDADE) {
+    const m = padrao.exec(trecho);
+    if (m) return { cidade: m[1].trim(), uf: m[2].toUpperCase() };
+  }
+  return null;
+}
+
 /**
- * Procura o trecho "local de entrega/execução" nos arquivos do PNCP desta
+ * Localiza a cidade de entrega/execução nos arquivos do PNCP desta
  * contratação. O PNCP não expõe esse dado como campo estruturado — só existe
  * como texto livre dentro do edital/termo de referência. Lê os arquivos mais
- * prováveis primeiro e para assim que encontra a primeira ocorrência.
+ * prováveis primeiro (edital/TR) e para assim que consegue extrair uma cidade.
  */
 export async function buscarLocalEntrega(arquivos: ArquivoPncp[]): Promise<LocalEntregaEncontrado | null> {
   const ordenados = [...arquivos]
@@ -130,9 +150,13 @@ export async function buscarLocalEntrega(arquivos: ArquivoPncp[]): Promise<Local
     const texto = lido.texto.replace(/\s+/g, " ");
     const m = PADRAO_LOCAL_ENTREGA.exec(texto);
     if (!m || m.index == null) continue;
+    // Cidade costuma vir perto da cláusula de entrega, não necessariamente
+    // colada — olha uma janela ao redor do trecho encontrado.
     const inicio = Math.max(0, m.index - 40);
     const fim = Math.min(texto.length, m.index + m[0].length + 280);
-    return { trecho: texto.slice(inicio, fim).trim(), origem: arquivo.titulo };
+    const janela = texto.slice(inicio, fim);
+    const cidade = extrairCidade(janela);
+    if (cidade) return { cidade: cidade.cidade, uf: cidade.uf, origem: arquivo.titulo };
   }
   return null;
 }
