@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { normalizarEtapa, PLATAFORMAS } from "@/lib/licitacoes/types";
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
-import { buscarArquivosPncp } from "@/lib/licitacoes/providers/pncp-arquivos";
+import { buscarArquivosPncp, buscarLocalEntrega } from "@/lib/licitacoes/providers/pncp-arquivos";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 import { LicitacaoItensTabela } from "@/components/licitacao-itens-tabela";
@@ -51,6 +51,8 @@ export default async function LicitacaoDetalhePage({
     buscarItensPncp(lic.numero_controle_pncp),
     buscarArquivosPncp(lic.numero_controle_pncp),
   ]);
+  // Não é campo estruturado no PNCP — só existe como texto livre no edital/TR.
+  const localEntrega = await buscarLocalEntrega(arquivosEdital);
   const valorItens = itens.reduce((s, i) => s + (i.valorTotal ?? 0), 0);
   const iniciais = (lic.orgao || "LI").slice(0, 2).toUpperCase();
 
@@ -111,6 +113,17 @@ export default async function LicitacaoDetalhePage({
               <Campo rotulo="Esfera" valor={esferaNome(lic)} />
               <Campo rotulo="Estado" valor={lic.uf || "—"} />
               <Campo rotulo="Município" valor={lic.municipio || "—"} />
+              {localEntrega ? (
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Local de entrega</span>
+                  <span className="text-sm font-medium leading-snug">{localEntrega.trecho}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Extraído automaticamente de &ldquo;{localEntrega.origem}&rdquo; — confirme no edital antes de usar.
+                  </span>
+                </div>
+              ) : (
+                <Campo rotulo="Local de entrega" valor="Não encontrado no edital" />
+              )}
               <Campo rotulo="Situação" valor={lic.situacao || "—"} />
               <Campo rotulo="Abertura das propostas" valor={formatarData(lic.data_abertura_proposta)} />
               <Campo rotulo="Encerramento das propostas" valor={formatarData(lic.data_encerramento_proposta)} />
