@@ -1,4 +1,4 @@
-import { LicitacaoItem, UnifiedLicitacao } from "../types";
+import { LicitacaoItem, ResultadoBusca, UnifiedLicitacao } from "../types";
 
 const PNCP_API = "https://pncp.gov.br/api/pncp/v1";
 
@@ -16,22 +16,7 @@ interface PncpCompraBruta {
   linkSistemaOrigem: string | null;
 }
 
-/** Busca os dados de uma contratação (perfil) a partir do numeroControlePNCP. */
-export async function buscarCompraPncp(numeroControlePNCP: string): Promise<UnifiedLicitacao | null> {
-  const ref = parseNumeroControle(numeroControlePNCP);
-  if (!ref) return null;
-
-  // O detalhe da compra foi movido para a API de consulta (/api/consulta/v1)
-  const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
-  let compra: PncpCompraBruta;
-  try {
-    const resposta = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
-    if (!resposta.ok) return null;
-    compra = (await resposta.json()) as PncpCompraBruta;
-  } catch {
-    return null;
-  }
-
+function mapCompra(compra: PncpCompraBruta): UnifiedLicitacao {
   const objeto = compra.objetoCompra ?? "";
   return {
     id: compra.numeroControlePNCP,
@@ -51,6 +36,67 @@ export async function buscarCompraPncp(numeroControlePNCP: string): Promise<Unif
     dataEncerramentoProposta: compra.dataEncerramentoProposta ?? null,
     linkOrigem: compra.linkSistemaOrigem ?? null,
   };
+}
+
+type ResultadoCompra =
+  | { status: "ok"; licitacao: UnifiedLicitacao }
+  | { status: "nao_encontrada" }
+  | { status: "erro" };
+
+/**
+ * Busca o detalhe de uma contratação pelo numeroControlePNCP, distinguindo
+ * "não existe" (404) de "PNCP fora do ar" (timeout/rede/5xx). O endpoint de
+ * detalhe do PNCP é instável e às vezes expira: re-tentamos algumas vezes com
+ * timeout curto antes de desistir.
+ */
+async function buscarCompraPncpDetalhado(
+  numeroControlePNCP: string,
+  tentativas = 3,
+): Promise<ResultadoCompra> {
+  const ref = parseNumeroControle(numeroControlePNCP);
+  if (!ref) return { status: "nao_encontrada" };
+
+  // O detalhe da compra foi movido para a API de consulta (/api/consulta/v1)
+  const url = `https://pncp.gov.br/api/consulta/v1/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
+  for (let i = 0; i < tentativas; i++) {
+    // Backoff entre tentativas: o PNCP costuma responder 502/503 quando
+    // sobrecarregado, e insistir rápido demais vira 429 (rate-limit).
+    if (i > 0) await new Promise((r) => setTimeout(r, 600 * i));
+    try {
+      const resposta = await fetch(url, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (resposta.status === 404) return { status: "nao_encontrada" };
+      if (!resposta.ok) continue; // 5xx/301/429 transitório → tenta de novo
+      const compra = (await resposta.json()) as PncpCompraBruta;
+      return { status: "ok", licitacao: mapCompra(compra) };
+    } catch {
+      // timeout/rede → tenta de novo
+    }
+  }
+  return { status: "erro" };
+}
+
+/** Busca os dados de uma contratação (perfil) a partir do numeroControlePNCP. */
+export async function buscarCompraPncp(numeroControlePNCP: string): Promise<UnifiedLicitacao | null> {
+  const r = await buscarCompraPncpDetalhado(numeroControlePNCP);
+  return r.status === "ok" ? r.licitacao : null;
+}
+
+/**
+ * Versão da busca por número de controle no formato de resultado da busca.
+ * `incompleto: true` sinaliza PNCP fora do ar (para a UI oferecer "tente
+ * novamente"); lista vazia sem `incompleto` significa que não existe.
+ */
+export async function buscarLicitacaoPorNumeroControle(
+  numeroControlePNCP: string,
+): Promise<ResultadoBusca> {
+  const r = await buscarCompraPncpDetalhado(numeroControlePNCP);
+  if (r.status === "ok") return { itens: [r.licitacao], totalPaginas: 1, totalRegistros: 1 };
+  if (r.status === "nao_encontrada") return { itens: [], totalPaginas: 0, totalRegistros: 0 };
+  return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
 }
 
 interface NumeroControle {
