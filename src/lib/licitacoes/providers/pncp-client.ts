@@ -8,6 +8,7 @@ import {
 
 const PUBLICACAO_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
 const PROPOSTA_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta";
+const ORGAOS_URL = "https://pncp.gov.br/api/consulta/v1/orgaos";
 const DEFAULT_MODALIDADES = [4, 5, 6, 7, 8, 9];
 
 /** Data limite (AAAAMMDD) de encerramento de propostas para o modo "em aberto": hoje + 1 ano. */
@@ -330,4 +331,52 @@ export async function buscarPncpComFiltroLocal(
 
 export function nomeModalidade(id: number): string {
   return MODALIDADES.find((m) => m.id === id)?.nome ?? String(id);
+}
+
+/**
+ * Reconhece um número de controle PNCP no texto informado.
+ * Formato oficial: {CNPJ 14 díg}-{tipo}-{sequencial}/{ano}
+ * Ex.: "04407029000143-1-000043/2026" → { cnpj, sequencial: 43, ano: 2026 }.
+ * Aceita espaços ao redor e sequencial com zeros à esquerda. `null` quando não casa.
+ */
+export function parseNumeroControlePNCP(
+  texto: string | undefined | null,
+): { cnpj: string; sequencial: number; ano: number } | null {
+  if (!texto) return null;
+  const m = texto.trim().match(/^(\d{14})-\d+-(\d+)\/(\d{4})$/);
+  if (!m) return null;
+  const sequencial = Number(m[2]);
+  const ano = Number(m[3]);
+  if (!sequencial || !ano) return null;
+  return { cnpj: m[1], sequencial, ano };
+}
+
+/**
+ * Busca uma contratação específica pelo número de controle PNCP, indo direto
+ * no endpoint da compra — não depende de janela de datas, UF nem modalidade.
+ * Retorna 0 ou 1 item. `incompleto: true` sinaliza falha de rede (não "não existe").
+ */
+export async function buscarPncpPorNumeroControle(texto: string): Promise<ResultadoBusca> {
+  const ref = parseNumeroControlePNCP(texto);
+  if (!ref) return { itens: [], totalPaginas: 0, totalRegistros: 0 };
+
+  const url = `${ORGAOS_URL}/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch {
+    return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
+  }
+  if (res.status === 404 || res.status === 204) {
+    return { itens: [], totalPaginas: 0, totalRegistros: 0 };
+  }
+  if (!res.ok) {
+    return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
+  }
+  const item = (await res.json()) as PncpItem;
+  return { itens: [mapItem(item)], totalPaginas: 1, totalRegistros: 1 };
 }

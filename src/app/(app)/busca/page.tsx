@@ -228,9 +228,9 @@ export default function BuscaPage() {
             <div className="flex flex-col gap-4 border-t pt-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="flex flex-col gap-2">
-                  <Label>Palavra-chave</Label>
+                  <Label>Palavra-chave ou nº PNCP</Label>
                   <Input
-                    placeholder="ex: informática, merenda, obra..."
+                    placeholder="ex: informática, merenda ou 04407029000143-1-000043/2026"
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                   />

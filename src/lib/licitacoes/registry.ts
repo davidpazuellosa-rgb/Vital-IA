@@ -6,6 +6,7 @@ import {
   UniversalFilter,
 } from "./types";
 import { pncpProvider } from "./providers/pncp";
+import { buscarPncpPorNumeroControle, parseNumeroControlePNCP } from "./providers/pncp-client";
 import { comprasnetProvider } from "./providers/comprasnet";
 import { ecomprasAmProvider } from "./providers/ecompras-am";
 import { comprasManausProvider } from "./providers/compras-manaus";
@@ -21,6 +22,12 @@ export async function buscarLicitacoes(
   filtro: UniversalFilter,
   paginacao: Paginacao,
 ): Promise<ResultadoBusca> {
+  // Busca direta por número de controle PNCP (ex.: "04407029000143-1-000043/2026"):
+  // vai direto no registro exato, ignorando plataformas, datas e modalidades.
+  if (parseNumeroControlePNCP(filtro.keyword)) {
+    return buscarPncpPorNumeroControle(filtro.keyword!.trim());
+  }
+
   const plataformas = filtro.plataformas.length > 0 ? filtro.plataformas : ["pncp" as const];
 
   const resultados = await Promise.all(
