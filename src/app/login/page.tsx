@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Mail, Lock, Loader2 } from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ type FormState = { error: string } | { success: string } | null;
 
 export default function LoginPage() {
   const [modo, setModo] = useState<"entrar" | "cadastrar">("entrar");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const action = modo === "entrar" ? signIn : signUp;
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => (await action(formData)) ?? null,
@@ -90,13 +91,23 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     name="password"
-                    type="password"
+                    type={mostrarSenha ? "text" : "password"}
                     required
                     minLength={6}
                     autoComplete={modo === "entrar" ? "current-password" : "new-password"}
                     placeholder="••••••••"
-                    className="pl-9"
+                    className="px-9"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={mostrarSenha}
+                    title={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                    className="absolute right-1.5 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {mostrarSenha ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
                 </div>
               </div>
 
