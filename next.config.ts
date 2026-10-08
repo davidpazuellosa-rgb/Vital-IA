@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Build em container (VPS): NEXT_OUTPUT=standalone. Na Vercel fica desligado.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   serverExternalPackages: ["@napi-rs/canvas"],
   experimental: {
     serverActions: {
