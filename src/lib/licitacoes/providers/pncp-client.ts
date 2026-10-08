@@ -206,6 +206,11 @@ export async function buscarPncp(
   filtro: UniversalFilter,
   paginacao: Paginacao,
 ): Promise<ResultadoBusca> {
+  // A API de consulta não pesquisa texto: filtrar a palavra-chave localmente só
+  // enxergava a página atual (20 de ~34 mil abertas). Com palavra-chave, usa a
+  // busca textual do PNCP, que pesquisa a base inteira e ordena por relevância.
+  if (filtro.keyword?.trim()) return buscarPncpPorTexto(filtro, paginacao);
+
   const apenasAberto = filtro.apenasAberto ?? true;
 
   // Modalidades escolhidas pelo usuário têm prioridade. Sem escolha:
@@ -247,18 +252,11 @@ export async function buscarPncp(
     }
   }
 
-  const keyword = filtro.keyword?.trim().toLowerCase();
-  const orgaoFiltro = filtro.orgao?.trim().toLowerCase();
+  const orgaoFiltro = filtro.orgao?.trim() ? semAcento(filtro.orgao) : "";
 
   const itens = itensBrutos
     .filter((item) => {
-      if (keyword) {
-        const alvo = `${item.objetoCompra ?? ""} ${item.informacaoComplementar ?? ""}`.toLowerCase();
-        if (!alvo.includes(keyword)) return false;
-      }
-      if (orgaoFiltro) {
-        if (!item.orgaoEntidade?.razaoSocial?.toLowerCase().includes(orgaoFiltro)) return false;
-      }
+      if (orgaoFiltro && !semAcento(item.orgaoEntidade?.razaoSocial ?? "").includes(orgaoFiltro)) return false;
       if (filtro.valorMin != null && (item.valorTotalEstimado ?? 0) < filtro.valorMin) return false;
       if (filtro.valorMax != null && (item.valorTotalEstimado ?? Infinity) > filtro.valorMax) return false;
       return true;
@@ -272,8 +270,114 @@ export async function buscarPncp(
   return { itens, totalPaginas, totalRegistros, incompleto };
 }
 
+/** Minúsculas e sem acento ("Eletrônico" → "eletronico"), para comparar texto livre. */
+function semAcento(texto: string): string {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+const BUSCA_TEXTO_URL = "https://pncp.gov.br/api/search/";
+
+interface PncpBuscaItem {
+  numero_controle_pncp: string;
+  description: string | null;
+  orgao_nome: string | null;
+  esfera_id: string | null;
+  uf: string | null;
+  municipio_nome: string | null;
+  modalidade_licitacao_nome: string | null;
+  situacao_nome: string | null;
+  valor_total_estimado?: number | null;
+  valor_global?: number | null;
+  data_publicacao_pncp: string | null;
+  data_inicio_recebimento_propostas?: string | null;
+  data_fim_recebimento_propostas?: string | null;
+  data_inicio_vigencia?: string | null;
+  data_fim_vigencia?: string | null;
+  link_sistema_origem?: string | null;
+}
+
+function mapItemBusca(item: PncpBuscaItem): UnifiedLicitacao {
+  const objeto = item.description ?? "";
+  return {
+    id: item.numero_controle_pncp,
+    plataforma: "pncp",
+    numeroControlePNCP: item.numero_controle_pncp,
+    titulo: objeto.slice(0, 140),
+    descricao: objeto,
+    orgao: item.orgao_nome ?? "",
+    esfera: item.esfera_id ?? "",
+    uf: item.uf ?? "",
+    municipio: item.municipio_nome ?? "",
+    modalidade: item.modalidade_licitacao_nome ?? "",
+    situacao: item.situacao_nome ?? "",
+    valorEstimado: item.valor_total_estimado ?? item.valor_global ?? null,
+    dataPublicacao: item.data_publicacao_pncp ?? null,
+    dataAberturaProposta: item.data_inicio_recebimento_propostas ?? item.data_inicio_vigencia ?? null,
+    dataEncerramentoProposta: item.data_fim_recebimento_propostas ?? item.data_fim_vigencia ?? null,
+    linkOrigem: item.link_sistema_origem ?? null,
+  };
+}
+
+/**
+ * Busca por palavra-chave na base inteira do PNCP (a mesma busca do portal),
+ * ordenada por relevância. Ignora acentos ("eletronico" acha "eletrônico");
+ * aspas buscam a frase exata. O endpoint derruba conexões com frequência
+ * (rate-limit), então tenta algumas vezes com espera crescente.
+ */
+async function buscarPncpPorTexto(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca> {
+  const apenasAberto = filtro.apenasAberto ?? true;
+  const params = new URLSearchParams({
+    q: filtro.keyword!.trim(),
+    tipos_documento: "edital",
+    ordenacao: "relevancia",
+    pagina: String(paginacao.pagina),
+    tam_pagina: String(paginacao.tamanhoPagina),
+  });
+  if (apenasAberto) params.set("status", "recebendo_proposta");
+  if (filtro.ufs?.length) params.set("ufs", filtro.ufs.join("|"));
+  if (filtro.modalidades?.length) params.set("modalidades", filtro.modalidades.join("|"));
+
+  let resposta: { items?: PncpBuscaItem[]; total?: number } | null = null;
+  for (let tentativa = 0; tentativa < 4 && !resposta; tentativa++) {
+    if (tentativa > 0) await new Promise((r) => setTimeout(r, 1_500 * tentativa));
+    try {
+      const res = await fetch(`${BUSCA_TEXTO_URL}?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.ok) resposta = await res.json();
+    } catch {
+      // conexão derrubada/timeout → tenta de novo
+    }
+  }
+  if (!resposta) return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
+
+  // Filtros que a busca textual não aplica: órgão, valor e, fora do modo
+  // "em aberto", o período de publicação (aplicados na página recebida).
+  const orgaoFiltro = filtro.orgao?.trim() ? semAcento(filtro.orgao) : "";
+  const itens = (resposta.items ?? [])
+    .map(mapItemBusca)
+    .filter((item) => {
+      if (orgaoFiltro && !semAcento(item.orgao).includes(orgaoFiltro)) return false;
+      if (filtro.valorMin != null && (item.valorEstimado ?? 0) < filtro.valorMin) return false;
+      if (filtro.valorMax != null && (item.valorEstimado ?? Infinity) > filtro.valorMax) return false;
+      if (!apenasAberto && item.dataPublicacao) {
+        const dia = item.dataPublicacao.slice(0, 10);
+        if (dia < filtro.dataInicial || dia > filtro.dataFinal) return false;
+      }
+      return true;
+    });
+
+  const totalRegistros = resposta.total ?? itens.length;
+  return { itens, totalRegistros, totalPaginas: Math.ceil(totalRegistros / paginacao.tamanhoPagina) };
+}
+
 const TAMANHO_COLETA_FILTRO_LOCAL = 50;
 const LIMITE_PAGINAS_COLETA = 25;
+// Com palavra-chave os resultados já vêm filtrados por relevância: poucas
+// páginas bastam e evitam martelar a busca textual (que tem rate-limit).
+const LIMITE_PAGINAS_COLETA_TEXTO = 6;
 
 /**
  * Alguns adaptadores são recortes do PNCP (ex.: Compras.gov.br/Federal ou Manaus)
@@ -293,6 +397,7 @@ export async function buscarPncpComFiltroLocal(
   let paginaPncp = 1;
   let totalPaginasPncp = 1;
   let incompleto = false;
+  const limitePaginas = filtro.keyword?.trim() ? LIMITE_PAGINAS_COLETA_TEXTO : LIMITE_PAGINAS_COLETA;
 
   do {
     const resultado = await buscarPncp(filtro, {
@@ -312,7 +417,7 @@ export async function buscarPncpComFiltroLocal(
   } while (
     coletados.length < alvo + 1 &&
     paginaPncp <= totalPaginasPncp &&
-    paginaPncp <= LIMITE_PAGINAS_COLETA
+    paginaPncp <= limitePaginas
   );
 
   const inicio = (paginacao.pagina - 1) * paginacao.tamanhoPagina;

@@ -46,10 +46,13 @@ export async function buscarLicitacoes(
       return true;
     });
 
-  // Mais recente publicada primeiro — sempre, com ou sem "somente em aberto"
-  // marcado. Cada provedor já devolve seus itens nessa ordem; este sort só
-  // garante a ordem correta ao mesclar várias plataformas.
-  itens.sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
+  // Sem palavra-chave: mais recente publicada primeiro (cada provedor já devolve
+  // nessa ordem; o sort só unifica ao mesclar plataformas). Com palavra-chave a
+  // ordem é a de relevância da busca textual do PNCP — reordenar por data
+  // jogaria resultados fracos para o topo.
+  if (!filtro.keyword?.trim()) {
+    itens.sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
+  }
 
   return {
     itens,
