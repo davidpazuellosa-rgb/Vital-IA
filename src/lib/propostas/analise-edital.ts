@@ -1,7 +1,7 @@
 import { avaliarValidade, type Documento } from "@/lib/documentos/types";
 import type { ArquivoEditalLido } from "@/lib/licitacoes/providers/pncp-arquivos";
 import type { LicitacaoItem } from "@/lib/licitacoes/types";
-import { analisarTextosComGroq, obterClienteGroq } from "./groq";
+import { analisarTextosComIa, iaConfigurada } from "./ia";
 
 export type StatusRequisito = "disponivel" | "faltante" | "vencido" | "a_gerar";
 
@@ -136,9 +136,9 @@ export async function analisarEditalHibrido({ arquivos, documentosEmpresa, itens
 }): Promise<AnaliseEdital> {
   const local = analisarConteudoEdital({ arquivos, documentosEmpresa, itens });
   const legiveis = arquivos.filter((arquivo) => arquivo.status === "lido" && arquivo.texto.trim());
-  if (!obterClienteGroq() || !legiveis.length) return local;
+  if (!iaConfigurada() || !legiveis.length) return local;
 
-  const resultados = await analisarTextosComGroq({
+  const resultados = await analisarTextosComIa({
     arquivos: legiveis.map(({ titulo, texto }) => ({ titulo, texto })),
     contextoEmpresa,
   });
@@ -180,7 +180,7 @@ export async function analisarEditalHibrido({ arquivos, documentosEmpresa, itens
     if (!condicoes.some((item) => item.nome === condicao.nome)) condicoes.push(condicao);
   }
   const arquivosOcr = arquivos.filter((arquivo) => arquivo.metodoLeitura === "ocr").length;
-  if (arquivosOcr) alertas.add(`OCR da Groq aplicado com sucesso em ${arquivosOcr} arquivo(s) escaneado(s).`);
+  if (arquivosOcr) alertas.add(`OCR da IA (DeepSeek Flash) aplicado com sucesso em ${arquivosOcr} arquivo(s) escaneado(s).`);
 
   return { ...local, analisadoEm: new Date().toISOString(), documentos, declaracoes, condicoes, alertas: [...alertas] };
 }

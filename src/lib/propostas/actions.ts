@@ -7,7 +7,7 @@ import { buscarArquivosPncp, lerArquivoEdital } from "@/lib/licitacoes/providers
 import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { createClient } from "@/lib/supabase/server";
 import { analisarConteudoEdital, analisarEditalHibrido, type AnaliseEdital } from "./analise-edital";
-import { extrairTextoPdfComOcrGroq, obterClienteGroq } from "./groq";
+import { extrairTextoPdfComOcr, iaConfigurada } from "./ia";
 import { REPRESENTANTES_LEGAIS } from "./types";
 
 function texto(formData: FormData, campo: string): string {
@@ -150,11 +150,11 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     buscarArquivosPncp(licitacao.numero_controle_pncp),
     buscarItensPncp(licitacao.numero_controle_pncp),
   ]);
-  const groqConfigurado = Boolean(obterClienteGroq());
+  const iaAtiva = iaConfigurada();
   const arquivos: Awaited<ReturnType<typeof lerArquivoEdital>>[] = [];
   for (const arquivo of arquivosPncp) {
     arquivos.push(await lerArquivoEdital(arquivo, {
-      ocr: groqConfigurado ? extrairTextoPdfComOcrGroq : undefined,
+      ocr: iaAtiva ? extrairTextoPdfComOcr : undefined,
     }));
   }
   let analise: AnaliseEdital = analisarConteudoEdital({
@@ -163,9 +163,9 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     itens,
   });
 
-  if (groqConfigurado) {
+  if (iaAtiva) {
     try {
-      console.info("[Análise] Executando análise híbrida RegEx + Groq.");
+      console.info("[Análise] Executando análise híbrida RegEx + IA (DeepSeek).");
       analise = await analisarEditalHibrido({
         arquivos,
         documentosEmpresa: (documentos ?? []) as Documento[],
@@ -173,11 +173,11 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
         contextoEmpresa: [empresa?.porte && `Porte: ${empresa.porte}`, empresa?.natureza_juridica && `Natureza jurídica: ${empresa.natureza_juridica}`].filter(Boolean).join("; "),
       });
     } catch (error) {
-      console.error("[Análise] Groq indisponível; resultado local preservado:", error instanceof Error ? error.message : error);
-      analise.alertas.push("A análise semântica da Groq não pôde ser concluída. O checklist foi gerado pelo parser local e deve ser revisado.");
+      console.error("[Análise] IA indisponível; resultado local preservado:", error instanceof Error ? error.message : error);
+      analise.alertas.push("A análise semântica da IA não pôde ser concluída. O checklist foi gerado pelo parser local e deve ser revisado.");
     }
   } else {
-    analise.alertas.push("GROQ_API_KEY não configurada. Análise realizada somente pelo parser local.");
+    analise.alertas.push("DEEPSEEK_API_KEY não configurada. Análise realizada somente pelo parser local.");
   }
 
   const { error } = await supabase.from("propostas").upsert({
