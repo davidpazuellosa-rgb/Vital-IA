@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell, Settings, Receipt } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell, Settings, Receipt, Globe } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +30,7 @@ const NAV_ITEMS = [
 
 const VITAL_NORTE_ITEMS = [
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
+  { href: "/vital-norte/sistemas", label: "Sistemas de Licitação", icon: Globe },
   { href: "/vital-norte/dados", label: "Dados da Empresa", icon: FileText },
   { href: "/vital-norte/clientes", label: "Clientes", icon: Users },
   { href: "/vital-norte/nota-fiscal", label: "Nota Fiscal", icon: Receipt },
