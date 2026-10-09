@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Copy, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -75,6 +75,56 @@ const SUGESTOES = [
   "Quais licitações salvas encerram nos próximos 7 dias?",
   "Me resuma os dados da minha empresa",
 ];
+
+/** Copia para a área de transferência (com plano B para navegadores sem a API moderna). */
+async function copiarTexto(texto: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    try {
+      const area = document.createElement("textarea");
+      area.value = texto;
+      area.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      area.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** Botão discreto de copiar: aparece ao passar o mouse na mensagem (sempre visível no toque). */
+function BotaoCopiar({ texto, rotulo, className }: { texto: string; rotulo: string; className?: string }) {
+  const [copiado, setCopiado] = useState(false);
+  async function copiar() {
+    if (await copiarTexto(texto)) {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
+    } else {
+      toast.error("Não foi possível copiar");
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => void copiar()}
+      title={copiado ? "Copiado!" : rotulo}
+      aria-label={rotulo}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100",
+        copiado ? "opacity-100 text-primary" : "opacity-0 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100",
+        className,
+      )}
+    >
+      {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      {copiado ? "Copiado" : "Copiar"}
+    </button>
+  );
+}
 
 const novoId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now() + Math.random()));
 const CONVERSA_KEY = "vitalia:vita:conversa";
@@ -473,7 +523,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
           <div className="flex flex-col gap-4">
             {mensagens.map((m) =>
               m.papel === "user" ? (
-                <div key={m.id} className="ml-8 flex flex-col items-end gap-1.5 self-end">
+                <div key={m.id} className="group/msg ml-8 flex flex-col items-end gap-0.5 self-end">
                   {m.anexos.length > 0 && (
                     <div className="flex flex-wrap justify-end gap-1">
                       {m.anexos.map((a, i) => {
@@ -489,9 +539,10 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                   {m.conteudo && (
                     <div className={cn("rounded-2xl rounded-br-md bg-primary px-3.5 py-2 whitespace-pre-wrap text-primary-foreground", expandido ? "text-sm" : "text-[12px]")}>{m.conteudo}</div>
                   )}
+                  {m.conteudo && <BotaoCopiar texto={m.conteudo} rotulo="Copiar mensagem" />}
                 </div>
               ) : (
-                <div key={m.id} className="flex flex-col gap-2">
+                <div key={m.id} className="group/msg flex flex-col gap-2">
                   {m.ferramentas.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {m.ferramentas.map((f, i) => (
@@ -515,6 +566,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {m.erro}
                     </p>
                   )}
+                  {m.conteudo && !m.transmitindo && <BotaoCopiar texto={m.conteudo} rotulo="Copiar resposta completa" className="-mt-1 w-fit" />}
                 </div>
               ),
             )}
