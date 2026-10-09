@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  AlertTriangle, CheckCircle2, CircleDashed, Clock, Copy, ExternalLink, FileCheck2, Loader2, Paperclip, Send, Undo2,
+  AlertTriangle, CheckCircle2, CircleDashed, Clock, Copy, Download, ExternalLink, FileArchive, FileCheck2, FileSignature, Loader2, Paperclip, Send, Undo2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { AbrirSistema } from "@/components/sistemas-client";
 import { formatarMoeda } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { desfazerEnvioProposta, obterPacoteEnvio, registrarEnvioProposta } from "@/lib/propostas/envio";
+import { COR_NIVEL_PRAZO, prazoDe } from "@/lib/propostas/prazo";
 import type { ItemEnvio, PacoteEnvio } from "@/lib/propostas/envio-types";
 import { cn } from "@/lib/utils";
 
@@ -26,25 +27,6 @@ const dataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt
 /** 1234.5 → "1234,50" (o que as plataformas aceitam colar em campo de preço). */
 const decimal = (n: number) => n.toFixed(2).replace(".", ",");
 const agoraLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-
-type Nivel = "ok" | "atencao" | "urgente" | "encerrado";
-
-function prazoDe(encerramento: string | null): { texto: string; nivel: Nivel } {
-  if (!encerramento) return { texto: "Prazo não informado", nivel: "atencao" };
-  const ms = new Date(encerramento).getTime() - Date.now();
-  if (ms <= 0) return { texto: "Prazo encerrado", nivel: "encerrado" };
-  const horas = ms / 3_600_000;
-  if (horas < 24) return { texto: `Encerra em ${Math.max(1, Math.floor(horas))}h`, nivel: "urgente" };
-  const dias = Math.floor(horas / 24);
-  return { texto: `Encerra em ${dias} dia${dias > 1 ? "s" : ""}`, nivel: dias <= 2 ? "atencao" : "ok" };
-}
-
-const COR_NIVEL: Record<Nivel, string> = {
-  ok: "border-transparent bg-primary/10 text-primary",
-  atencao: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  urgente: "border-transparent bg-destructive/12 text-destructive",
-  encerrado: "border-transparent bg-destructive/12 text-destructive",
-};
 
 async function copiar(texto: string, rotulo: string) {
   try {
@@ -142,7 +124,7 @@ export function Conteudo({ pacote, licitacaoId, aoMudar }: { pacote: PacoteEnvio
             {licitacao.numeroControlePNCP} <Copy className="size-3" />
           </button>
           {plataforma && <Badge variant="outline" className="font-normal">{plataforma.nome}</Badge>}
-          <Badge variant="outline" className={cn("gap-1 font-medium", COR_NIVEL[prazo.nivel])}><Clock className="size-3" /> {prazo.texto}</Badge>
+          <Badge variant="outline" className={cn("gap-1 font-medium", COR_NIVEL_PRAZO[prazo.nivel])}><Clock className="size-3" /> {prazo.texto}</Badge>
           <span className="text-xs text-muted-foreground">Propostas até {dataHora(licitacao.encerramento)}</span>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -187,6 +169,36 @@ export function Conteudo({ pacote, licitacaoId, aoMudar }: { pacote: PacoteEnvio
           <LinhaManual marcado={conferi.assinada} onChange={(v) => setConferi((c) => ({ ...c, assinada: v }))} titulo="Proposta final assinada (gov.br)" />
           <LinhaManual marcado={conferi.declaracoes} onChange={(v) => setConferi((c) => ({ ...c, declaracoes: v }))} titulo="Declarações assinadas, se o edital pedir" />
         </ul>
+      </div>
+
+      {/* Documentos para anexar */}
+      <div className="rounded-lg border">
+        <p className="border-b px-3 py-2 text-sm font-semibold">Documentos para anexar na plataforma</p>
+        <div className="flex flex-col gap-2 p-3 sm:flex-row sm:flex-wrap sm:items-center">
+          {proposta?.analisada && proposta.documentosDisponiveis > 0 ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={`/api/propostas/${licitacaoId}/habilitacao`} download>
+                <FileArchive /> Habilitação em ZIP ({proposta.documentosDisponiveis} doc{proposta.documentosDisponiveis > 1 ? "s" : ""})
+              </a>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled title="Analise o edital e mantenha os documentos no acervo."><FileArchive /> Habilitação em ZIP</Button>
+          )}
+          {proposta?.analisada && proposta.declaracoes > 0 ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={`/api/propostas/${licitacaoId}/declaracoes`} download>
+                <FileSignature /> Declarações para assinar ({proposta.declaracoes})
+              </a>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled><FileSignature /> Declarações para assinar</Button>
+          )}
+          <p className="text-xs text-muted-foreground sm:basis-full">
+            O ZIP só inclui documentos <strong>em dia</strong> (a validade é conferida na hora) e traz um LEIAME com o que entrou, o que ficou de fora e o que ainda falta.
+            A proposta final assinada é gerada em “Abrir rascunho”.
+          </p>
+          {!proposta?.analisada && <p className="text-xs text-amber-700 dark:text-amber-400 sm:basis-full"><Download className="mr-1 inline size-3" /> Abra o rascunho da proposta uma vez para o edital ser analisado.</p>}
+        </div>
       </div>
 
       {/* Itens para copiar */}
