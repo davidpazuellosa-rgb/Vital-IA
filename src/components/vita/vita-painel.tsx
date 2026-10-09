@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -178,6 +179,54 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
     }
   }
 
+  // Arrastar arquivos para QUALQUER lugar da tela manda para a Vita (e abre o painel se estiver fechado).
+  const { abrir } = useVita();
+  const adicionarRef = useRef(adicionarArquivos);
+  useEffect(() => { adicionarRef.current = adicionarArquivos; });
+  useEffect(() => {
+    let profundidade = 0;
+    const temArquivos = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const entrar = (e: DragEvent) => {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      profundidade += 1;
+      setArrastandoArquivo(true);
+    };
+    const sobre = (e: DragEvent) => {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const sair = (e: DragEvent) => {
+      if (!temArquivos(e)) return;
+      profundidade = Math.max(0, profundidade - 1);
+      if (profundidade === 0) setArrastandoArquivo(false);
+    };
+    const soltar = (e: DragEvent) => {
+      profundidade = 0;
+      setArrastandoArquivo(false);
+      if (!temArquivos(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      const arquivos = Array.from(e.dataTransfer?.files ?? []);
+      if (!arquivos.length) return;
+      abrir();
+      void adicionarRef.current(arquivos);
+    };
+    const cancelar = () => { profundidade = 0; setArrastandoArquivo(false); };
+    window.addEventListener("dragenter", entrar);
+    window.addEventListener("dragover", sobre);
+    window.addEventListener("dragleave", sair);
+    window.addEventListener("drop", soltar);
+    window.addEventListener("dragend", cancelar);
+    return () => {
+      window.removeEventListener("dragenter", entrar);
+      window.removeEventListener("dragover", sobre);
+      window.removeEventListener("dragleave", sair);
+      window.removeEventListener("drop", soltar);
+      window.removeEventListener("dragend", cancelar);
+    };
+  }, [abrir]);
+
   function removerAnexo(id: string) {
     const a = anexos.find((x) => x.id === id);
     setAnexos((l) => l.filter((x) => x.id !== id));
@@ -325,17 +374,18 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
   }
 
   return (
-    <div
-      className="relative flex h-full min-h-0 flex-col"
-      onDragEnter={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setArrastandoArquivo(true); } }}
-      onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
-      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setArrastandoArquivo(false); }}
-      onDrop={(e) => { e.preventDefault(); setArrastandoArquivo(false); void adicionarArquivos(Array.from(e.dataTransfer.files)); }}
-    >
-      {arrastandoArquivo && (
-        <div className="pointer-events-none absolute inset-2 z-20 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary">
-          <Upload className="size-6" /> Solte para anexar (até {MAX_ANEXOS})
-        </div>
+    <div className="relative flex h-full min-h-0 flex-col">
+      {arrastandoArquivo && createPortal(
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-background/60 p-4 backdrop-blur-[2px] animate-in fade-in-0 duration-150">
+          <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-background px-10 py-8 text-center shadow-xl">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
+              <Upload className="size-5" />
+            </div>
+            <p className="text-sm font-semibold">Solte para enviar à Vita</p>
+            <p className="text-xs text-muted-foreground">PDF, fotos, planilhas, Word ou texto · até {MAX_ANEXOS} arquivos</p>
+          </div>
+        </div>,
+        document.body,
       )}
       {/* Cabeçalho */}
       <header className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
@@ -510,9 +560,6 @@ function BoasVindas({ onEscolher }: { onEscolher: (s: string) => void }) {
           <Sparkles className="size-6" />
         </div>
         <p className="text-base font-semibold">Olá! Eu sou a Vita.</p>
-        <p className="max-w-xs text-sm text-muted-foreground">
-          Busco licitações, leio itens, confiro seus documentos e leio PDFs, fotos e planilhas que você anexar. Salvo ou removo licitações — sempre com a sua aprovação.
-        </p>
       </div>
       <div className="flex flex-col gap-1.5">
         {SUGESTOES.map((s) => (
