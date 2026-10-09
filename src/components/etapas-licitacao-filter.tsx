@@ -62,20 +62,14 @@ export function EtapasLicitacaoFilter({ etapas, barra }: { etapas: EtapaFiltrada
 
       {barra}
 
-      <section
+      <div
         id="etapa-licitacoes-panel"
         role="tabpanel"
         aria-labelledby={`etapa-tab-${etapaSelecionada.slug}`}
-        className="overflow-hidden rounded-xl border bg-card shadow-sm"
+        className="flex flex-col gap-3"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-primary/15 bg-primary/8 px-4 py-3">
-          <h2 className="min-w-0 truncate font-semibold text-primary">{etapaSelecionada.nome}</h2>
-          <span className="shrink-0 text-sm font-medium text-primary/80">
-            {etapaSelecionada.quantidade} {etapaSelecionada.quantidade === 1 ? "licitação" : "licitações"}
-          </span>
-        </header>
-        <div className="flex flex-col gap-3 p-3">{etapaSelecionada.conteudo}</div>
-      </section>
+        {etapaSelecionada.conteudo}
+      </div>
     </div>
   );
 }
