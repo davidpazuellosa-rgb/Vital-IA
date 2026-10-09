@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -15,11 +16,12 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { normalizarEtapa, PLATAFORMAS } from "@/lib/licitacoes/types";
-import { buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
-import { buscarArquivosPncp, buscarLocalEntrega } from "@/lib/licitacoes/providers/pncp-arquivos";
+import { carregarDadosPncp, localEntregaSegura, type DadosPncp } from "@/lib/licitacoes/dados-pncp";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 import { LicitacaoItensTabela } from "@/components/licitacao-itens-tabela";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TentarNovamente } from "@/components/tentar-novamente";
 
 export const maxDuration = 300;
 
@@ -47,13 +49,11 @@ export default async function LicitacaoDetalhePage({
     .select("id")
     .eq("licitacao_id", id)
     .maybeSingle();
-  const [itens, arquivosEdital] = await Promise.all([
-    buscarItensPncp(lic.numero_controle_pncp),
-    buscarArquivosPncp(lic.numero_controle_pncp),
-  ]);
-  // Não é campo estruturado no PNCP — só existe como texto livre no edital/TR.
-  const localEntrega = await buscarLocalEntrega(arquivosEdital);
-  const valorItens = itens.reduce((s, i) => s + (i.valorTotal ?? 0), 0);
+  // A página abre na hora com os dados salvos; o que vem do PNCP (itens, arquivos, local de entrega)
+  // chega depois, cada parte no seu bloco, e uma falha do PNCP nunca derruba a tela.
+  const dados = carregarDadosPncp(lic.numero_controle_pncp);
+  // Não é campo estruturado no PNCP — só existe como texto livre no edital/TR (lento: lê os PDFs).
+  const localEntrega = dados.then((d) => localEntregaSegura(d.arquivos));
   const iniciais = (lic.orgao || "LI").slice(0, 2).toUpperCase();
 
   return (
@@ -113,10 +113,9 @@ export default async function LicitacaoDetalhePage({
               <Campo rotulo="Esfera" valor={esferaNome(lic)} />
               <Campo rotulo="Estado" valor={lic.uf || "—"} />
               <Campo rotulo="Município" valor={lic.municipio || "—"} />
-              <Campo
-                rotulo="Local de entrega"
-                valor={localEntrega ? `${localEntrega.cidade}/${localEntrega.uf}` : "Não encontrado no edital"}
-              />
+              <Suspense fallback={<Campo rotulo="Local de entrega" valor="Lendo o edital…" />}>
+                <CampoLocalEntrega local={localEntrega} />
+              </Suspense>
               <Campo rotulo="Situação" valor={lic.situacao || "—"} />
               <Campo rotulo="Abertura das propostas" valor={formatarData(lic.data_abertura_proposta)} />
               <Campo rotulo="Encerramento das propostas" valor={formatarData(lic.data_encerramento_proposta)} />
@@ -127,12 +126,9 @@ export default async function LicitacaoDetalhePage({
             <CardContent className="flex flex-col gap-3">
               <SecaoTitulo>Resumo financeiro</SecaoTitulo>
               <Campo rotulo="Valor estimado" valor={formatarMoeda(lic.valor_estimado)} destaque />
-              {itens.length > 0 && (
-                <>
-                  <Campo rotulo="Soma dos itens" valor={formatarMoeda(valorItens)} />
-                  <Campo rotulo="Quantidade de itens" valor={String(itens.length)} />
-                </>
-              )}
+              <Suspense fallback={<Skeleton className="h-10 w-full" />}>
+                <ResumoItens dados={dados} />
+              </Suspense>
             </CardContent>
           </Card>
         </div>
@@ -155,28 +151,121 @@ export default async function LicitacaoDetalhePage({
             </CardContent>
           </Card>
 
-          <Card className="py-0 shadow-sm">
-            <CardContent className="px-0">
-              <div className="flex items-center gap-2 border-b px-5 py-3.5">
-                <Package className="size-4 text-primary" />
-                <span className="font-semibold">Itens</span>
-                <Badge variant="secondary" className="ml-1 font-normal">{itens.length}</Badge>
-              </div>
-              <LicitacaoItensTabela itens={itens} />
-            </CardContent>
-          </Card>
+          <Suspense fallback={<CartaoItensCarregando />}>
+            <CartaoItens dados={dados} />
+          </Suspense>
         </div>
 
         {/* ===== Coluna direita: ações + resumo ===== */}
         <div className="flex flex-col gap-4 lg:sticky lg:top-20">
           <Card className="shadow-sm">
             <CardContent>
-              <LicitacaoAcoes itens={itens} numeroControle={lic.numero_controle_pncp} licitacaoId={id} etapa={normalizarEtapa(lic.etapa)} orgao={lic.orgao} uf={lic.uf} esfera={esferaNome(lic).split(" ")[0]} arquivosEdital={arquivosEdital.map((a) => ({ titulo: a.titulo, url: a.url }))} temProposta={Boolean(propostaExistente)} />
+              <Suspense fallback={<div className="flex flex-col gap-2"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></div>}>
+                <AcoesLicitacao
+                  dados={dados}
+                  numeroControle={lic.numero_controle_pncp}
+                  licitacaoId={id}
+                  etapa={normalizarEtapa(lic.etapa)}
+                  orgao={lic.orgao}
+                  uf={lic.uf}
+                  esfera={esferaNome(lic).split(" ")[0]}
+                  temProposta={Boolean(propostaExistente)}
+                />
+              </Suspense>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+/* ---------- blocos que dependem do PNCP (cada um espera os dados no seu próprio Suspense) ---------- */
+
+async function CampoLocalEntrega({ local }: { local: ReturnType<typeof localEntregaSegura> }) {
+  const l = await local;
+  return <Campo rotulo="Local de entrega" valor={l ? (l.uf ? `${l.cidade}/${l.uf}` : l.cidade) : "Não encontrado no edital"} />;
+}
+
+async function ResumoItens({ dados }: { dados: Promise<DadosPncp> }) {
+  const { itens } = await dados;
+  if (itens.length === 0) return null;
+  const valorItens = itens.reduce((s, i) => s + (i.valorTotal ?? 0), 0);
+  return (
+    <>
+      <Campo rotulo="Soma dos itens" valor={formatarMoeda(valorItens)} />
+      <Campo rotulo="Quantidade de itens" valor={String(itens.length)} />
+    </>
+  );
+}
+
+function CartaoItensCarregando() {
+  return (
+    <Card className="py-0 shadow-sm">
+      <CardContent className="px-0">
+        <div className="flex items-center gap-2 border-b px-5 py-3.5">
+          <Package className="size-4 text-primary" />
+          <span className="font-semibold">Itens</span>
+        </div>
+        <div className="flex flex-col gap-3 p-5">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-5/6" />
+          <p className="text-xs text-muted-foreground">Buscando os itens no PNCP…</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function CartaoItens({ dados }: { dados: Promise<DadosPncp> }) {
+  const { itens, falhou } = await dados;
+  return (
+    <Card className="py-0 shadow-sm">
+      <CardContent className="px-0">
+        <div className="flex items-center gap-2 border-b px-5 py-3.5">
+          <Package className="size-4 text-primary" />
+          <span className="font-semibold">Itens</span>
+          <Badge variant="secondary" className="ml-1 font-normal">{itens.length}</Badge>
+        </div>
+        {itens.length === 0 && falhou ? (
+          <div className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+            <p className="text-sm text-muted-foreground">O PNCP não respondeu agora. Os dados salvos desta licitação continuam ao lado.</p>
+            <TentarNovamente />
+          </div>
+        ) : (
+          <LicitacaoItensTabela itens={itens} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+async function AcoesLicitacao({
+  dados, numeroControle, licitacaoId, etapa, orgao, uf, esfera, temProposta,
+}: {
+  dados: Promise<DadosPncp>;
+  numeroControle: string;
+  licitacaoId: string;
+  etapa: ReturnType<typeof normalizarEtapa>;
+  orgao: string;
+  uf: string;
+  esfera: string;
+  temProposta: boolean;
+}) {
+  const { itens, arquivos } = await dados;
+  return (
+    <LicitacaoAcoes
+      itens={itens}
+      numeroControle={numeroControle}
+      licitacaoId={licitacaoId}
+      etapa={etapa}
+      orgao={orgao}
+      uf={uf}
+      esfera={esfera}
+      arquivosEdital={arquivos.map((a) => ({ titulo: a.titulo, url: a.url }))}
+      temProposta={temProposta}
+    />
   );
 }
 

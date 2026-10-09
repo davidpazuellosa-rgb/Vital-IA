@@ -9,6 +9,7 @@ import { formatarData, formatarMoeda } from "@/lib/format";
 import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { SalvarLicitacaoButton } from "@/components/salvar-licitacao-button";
+import { TentarNovamente } from "@/components/tentar-novamente";
 
 export default async function LicitacaoPncpPerfil({
   searchParams,
@@ -18,8 +19,25 @@ export default async function LicitacaoPncpPerfil({
   const { n } = await searchParams;
   if (!n) notFound();
 
-  const [lic, itens] = await Promise.all([buscarCompraPncp(n), buscarItensPncp(n)]);
-  if (!lic) notFound();
+  const [lic, itens] = await Promise.all([buscarCompraPncp(n), buscarItensPncp(n).catch(() => [])]);
+  if (!lic) {
+    // buscarCompraPncp devolve null tanto para "não existe" quanto para PNCP fora do ar: se for o
+    // segundo caso, oferece tentar de novo em vez de um 404 enganoso.
+    return (
+      <div className="flex flex-col gap-4">
+        <Button asChild variant="ghost" size="sm" className="w-fit gap-1.5 px-2 text-muted-foreground">
+          <Link href="/busca"><ArrowLeft className="size-4" /> Busca</Link>
+        </Button>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <p className="font-medium">Não consegui abrir esta licitação agora</p>
+            <p className="max-w-md text-sm text-muted-foreground">O PNCP está lento ou fora do ar. Tente novamente em instantes.</p>
+            <TentarNovamente />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

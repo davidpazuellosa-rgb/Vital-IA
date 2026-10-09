@@ -186,6 +186,7 @@ export async function buscarItensPncp(numeroControlePNCP: string): Promise<Licit
       const res = await fetch(`${base}?pagina=${pagina}&tamanhoPagina=${TAMANHO_PAGINA}`, {
         headers: { Accept: "application/json" },
         cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) break;
       lote = (await res.json()) as PncpItemBruto[];

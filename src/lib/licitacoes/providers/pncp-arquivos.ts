@@ -32,8 +32,18 @@ export async function buscarArquivosPncp(numeroControlePNCP: string): Promise<Ar
   if (!ref) return [];
 
   const url = `${PNCP_API}/orgaos/${ref.cnpj}/compras/${ref.ano}/${ref.sequencial}/arquivos`;
-  const resposta = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
-  if (!resposta.ok) return [];
+  // O PNCP é instável: timeout curto e algumas tentativas com pausa. Se nenhuma funcionar, lança
+  // (quem chama decide: a página de perfil mostra "tentar novamente"; a análise do edital avisa).
+  let resposta: Response | null = null;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    if (tentativa > 0) await new Promise((r) => setTimeout(r, 700 * tentativa));
+    try {
+      const r = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(12_000) });
+      if (r.status === 404) return [];
+      if (r.ok) { resposta = r; break; }
+    } catch { /* timeout/rede: tenta de novo */ }
+  }
+  if (!resposta) throw new Error("O PNCP não respondeu ao pedir os arquivos do edital.");
 
   const arquivos = (await resposta.json()) as ArquivoPncpBruto[];
   return arquivos.map((arquivo) => ({
