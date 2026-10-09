@@ -9,6 +9,7 @@ import { LicitacaoCard } from "@/components/licitacao-card";
 import { RemoverLicitacaoButton } from "@/components/remover-licitacao-button";
 import { EtapaSelect } from "@/components/etapa-select";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
+import { EnvioPropostaDialog } from "@/components/envio-proposta-dialog";
 import { EtapasLicitacaoFilter } from "@/components/etapas-licitacao-filter";
 
 const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
@@ -46,9 +47,12 @@ export default async function MinhasLicitacoesPage() {
   const total = licitacoes.length;
   const idsLicitacoes = licitacoes.map((item) => item.id);
   const { data: propostas } = idsLicitacoes.length
-    ? await supabase.from("propostas").select("licitacao_id").in("licitacao_id", idsLicitacoes)
+    ? await supabase.from("propostas").select("licitacao_id, status").in("licitacao_id", idsLicitacoes)
     : { data: [] };
   const licitacoesComProposta = new Set((propostas ?? []).map((item) => String(item.licitacao_id)));
+  const licitacoesEnviadas = new Set(
+    (propostas ?? []).filter((item) => item.status === "enviada").map((item) => String(item.licitacao_id)),
+  );
 
   const alertasIds = userId
     ? ((await serviceSupabase.from("alertas").select("id").eq("user_id", userId)).data ?? []).map((alerta) => String(alerta.id))
@@ -137,6 +141,7 @@ export default async function MinhasLicitacoesPage() {
                       action={
                         <div className="flex items-center gap-1.5">
                           <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />
+                          <EnvioPropostaDialog licitacaoId={item.id} enviada={licitacoesEnviadas.has(item.id)} size="sm" compacto />
                           <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
                           <RemoverLicitacaoButton id={item.id} />
                         </div>

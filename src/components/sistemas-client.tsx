@@ -20,7 +20,7 @@ import type { SistemaLicitacao } from "@/lib/sistemas/types";
  * exibida em iframe (X-Frame-Options) e, nos que permitem, o navegador bloqueia
  * os cookies de sessão dentro do quadro — o login não se manteria.
  */
-export function AbrirSistema({ id, url }: { id: string; url: string }) {
+export function AbrirSistema({ id, url, rotulo = "Abrir", className = "flex-1" }: { id: string; url: string; rotulo?: string; className?: string }) {
   function abrir() {
     const janela = window.open("", `vitalia-sistema-${id}`);
     if (!janela) {
@@ -42,8 +42,8 @@ export function AbrirSistema({ id, url }: { id: string; url: string }) {
   }
 
   return (
-    <Button onClick={abrir} className="flex-1">
-      <ExternalLink /> Abrir
+    <Button onClick={abrir} className={className}>
+      <ExternalLink /> {rotulo}
     </Button>
   );
 }
