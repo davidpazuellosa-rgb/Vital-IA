@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, Settings, FolderOpen, Globe, FileText, Package, Users, Receipt, Bell, FileSignature } from "lucide-react";
+import { Search, Bookmark, Settings, FolderOpen, Globe, FileText, Package, Users, Receipt, Bell, FileSignature, Sparkles } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { VitaBotao } from "@/components/vita/vita-botao";
@@ -13,6 +13,7 @@ const TITLES: Array<[string, { label: string; icon: typeof Search }]> = [
   ["/licitacao/pncp", { label: "Busca de Licitações", icon: Search }],
   ["/licitacao", { label: "Minhas Licitações", icon: Bookmark }],
   ["/assinador-propostas", { label: "Assinador de Propostas", icon: FileSignature }],
+  ["/vita", { label: "Vita", icon: Sparkles }],
   ["/documentos", { label: "Documentos", icon: FolderOpen }],
   ["/vital-norte/sistemas", { label: "Sistemas de Licitação", icon: Globe }],
   ["/vital-norte/dados", { label: "Dados da Empresa", icon: FileText }],

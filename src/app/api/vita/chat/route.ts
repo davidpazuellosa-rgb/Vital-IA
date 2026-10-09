@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { blocoAnexos, lerAnexo, MAX_ANEXOS, MAX_BYTES_ANEXO, type AnexoEnviado, type AnexoLido } from "@/lib/vita/anexos";
 import { instrucoesVita } from "@/lib/vita/contexto";
 import { executarFerramenta, FERRAMENTAS, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
+import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
+import { FERRAMENTAS_DE_MEMORIA } from "@/lib/vita/catalogo-ferramentas";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -26,6 +28,7 @@ type MensagemModelo =
 /** Uma rodada no DeepSeek em streaming: repassa o texto ao vivo e devolve as ferramentas pedidas. */
 async function rodadaModelo(
   mensagens: MensagemModelo[],
+  ferramentas: readonly unknown[],
   sinal: AbortSignal,
   aoTexto: (delta: string) => void,
 ): Promise<{ texto: string; chamadas: ChamadaFerramenta[] }> {
@@ -37,7 +40,7 @@ async function rodadaModelo(
     body: JSON.stringify({
       model: MODELO,
       messages: mensagens,
-      tools: FERRAMENTAS,
+      tools: ferramentas,
       thinking: { type: "disabled" },
       temperature: 0.3,
       max_tokens: 4_000,
@@ -147,10 +150,15 @@ export async function POST(request: NextRequest) {
       else historico.push({ role: "assistant", content: m.conteudo });
     }
   }
-  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""));
+  // Memória geral e ferramentas ligadas/desligadas (página "Vita").
+  const config = await carregarConfig(supabase);
+  const memorias = config.memoriaAtiva ? await carregarMemoriasAtivas(supabase) : [];
+  const desativadas = new Set([...config.desativadas, ...(config.memoriaAtiva ? [] : FERRAMENTAS_DE_MEMORIA)]);
+  const ferramentasAtivas = FERRAMENTAS.filter((f) => !desativadas.has(f.function.name));
+  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias });
   const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
-  const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas };
+  const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas, conversaId };
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -191,7 +199,7 @@ export async function POST(request: NextRequest) {
 
       try {
         for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
-          const { texto, chamadas } = await rodadaModelo([...base, ...protocolo], request.signal, (d) => {
+          const { texto, chamadas } = await rodadaModelo([...base, ...protocolo], ferramentasAtivas, request.signal, (d) => {
             textoFinal += d;
             enviar({ tipo: "texto", delta: d });
           });
@@ -203,7 +211,10 @@ export async function POST(request: NextRequest) {
           for (const c of chamadas) {
             const rotulo = ROTULO_FERRAMENTA[c.function.name] ?? c.function.name;
             enviar({ tipo: "ferramenta", id: c.id, nome: c.function.name, rotulo, estado: "inicio" });
-            const r = await executarFerramenta(c.function.name, c.function.arguments, ctx);
+            // Defesa em profundidade: mesmo que o modelo peça uma ferramenta desligada, não executa.
+            const r = desativadas.has(c.function.name)
+              ? { paraModelo: JSON.stringify({ erro: "Esta ferramenta foi desativada pelo usuário (página Vita). Explique isso e sugira ativá-la lá." }) }
+              : await executarFerramenta(c.function.name, c.function.arguments, ctx);
             if (r.acao) {
               const { data: acao } = await supabase
                 .from("vita_acoes")

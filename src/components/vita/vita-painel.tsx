@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -495,10 +495,18 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             </div>
             <p className="min-w-0 flex-1 text-sm font-semibold">Vita</p>
             <Historico atual={conversaId} onAbrir={abrirConversa} onApagada={(id) => { if (id === conversaId) novaConversa(); }} />
+            <Button asChild variant="ghost" size="icon" className="size-8">
+              <Link href="/vita" onClick={aoNavegar} title="Memórias e ferramentas" aria-label="Memórias e ferramentas"><Brain className="size-4" /></Link>
+            </Button>
             <Button variant="ghost" size="icon" className="size-8" onClick={novaConversa} title="Nova conversa" aria-label="Nova conversa">
               <MessageSquarePlus className="size-4" />
             </Button>
           </>
+        )}
+        {expandido && (
+          <Button asChild variant="ghost" size="icon" className="size-8">
+            <Link href="/vita" onClick={aoNavegar} title="Memórias e ferramentas" aria-label="Memórias e ferramentas"><Brain className="size-4" /></Link>
+          </Button>
         )}
         <Button
           variant="ghost"

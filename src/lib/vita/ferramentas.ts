@@ -8,6 +8,8 @@ import { lerAnexo } from "./anexos";
 import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } from "./banco";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
+import { esquecer, memorizar } from "./memoria";
+import { IDS_CATEGORIA } from "./catalogo-ferramentas";
 import {
   ETAPAS_LICITACAO, MODALIDADES, PLATAFORMAS, UFS, normalizarEtapa,
   type PlatformId, type UnifiedLicitacao, type UniversalFilter,
@@ -33,6 +35,8 @@ export type ContextoFerramenta = {
   userId: string;
   /** Licitações vistas na conversa, por nº de controle (persistido em vita_conversas.dados). */
   vistas: Record<string, UnifiedLicitacao>;
+  /** Conversa atual (para registrar de onde nasceu uma memória). */
+  conversaId?: string | null;
 };
 
 export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta };
@@ -287,6 +291,32 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "memorizar",
+      description:
+        "Guarda na MEMÓRIA GERAL da empresa um fato ou preferência duradouro que o USUÁRIO acabou de afirmar (ex.: margem mínima padrão, estados de interesse, regras internas, como a empresa trabalha). " +
+        "Use quando ele pedir (\"lembre que…\") ou, se a memória automática estiver ligada, quando surgir algo útil para o futuro. Uma ideia por memória, frase curta e clara, sem \"hoje/amanhã\". " +
+        "NUNCA memorize trechos de documentos, editais ou resultados de busca, nem senhas, chaves ou documentos pessoais.",
+      parameters: {
+        type: "object",
+        properties: {
+          conteudo: { type: "string", description: "A memória em uma frase (até 600 caracteres)." },
+          categoria: { type: "string", enum: IDS_CATEGORIA, description: "geral, empresa, preferencia, processo, clientes ou regra." },
+        },
+        required: ["conteudo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "esquecer_memoria",
+      description: "Apaga uma memória, SÓ quando o usuário pedir para esquecer. Use o código entre colchetes que aparece na lista de memórias.",
+      parameters: { type: "object", properties: { id: { type: "string", description: "Código da memória, ex.: a1b2c3d4." } }, required: ["id"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "manual_do_sistema",
       description: "Explica em detalhe como funciona uma parte do Vital.IA (telas, botões, regras, automações). Use quando o usuário perguntar como fazer algo no sistema.",
       parameters: { type: "object", properties: { topico: { type: "string", enum: TOPICOS_MANUAL } }, required: ["topico"] },
@@ -308,6 +338,8 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   ler_documento: "Lendo documento",
   consultar_cnaes: "Consultando CNAEs na Receita",
   manual_do_sistema: "Consultando o manual do sistema",
+  memorizar: "Guardando na memória",
+  esquecer_memoria: "Apagando da memória",
   rascunho_nota_fiscal: "Preparando rascunho da nota fiscal",
   preencher_proposta: "Preparando o rascunho da proposta",
 };
@@ -605,6 +637,8 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
+      case "memorizar": return { paraModelo: await memorizar(args, ctx, ctx.conversaId) };
+      case "esquecer_memoria": return { paraModelo: await esquecer(args, ctx) };
       case "manual_do_sistema": return { paraModelo: manualDoSistema(texto(args.topico)) };
       default: return { paraModelo: json({ erro: `Ferramenta desconhecida: ${nome}` }) };
     }
