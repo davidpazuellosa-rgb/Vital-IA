@@ -12,35 +12,40 @@ export function BaixarEditalButton({
   numeroControle: string;
   disponivel: boolean;
 }) {
-  const [baixando, setBaixando] = useState(false);
+  const [preparando, setPreparando] = useState(false);
 
   async function baixar() {
-    setBaixando(true);
-    const t = toast.loading("Baixando edital…", { description: "Empacotando os arquivos do PNCP." });
+    setPreparando(true);
+    const base = `/api/licitacoes/edital-zip?n=${encodeURIComponent(numeroControle)}`;
     try {
-      const res = await fetch(`/api/licitacoes/edital-zip?n=${encodeURIComponent(numeroControle)}`);
+      // Confere rápido se há arquivos (e se o PNCP responde) antes de iniciar o download.
+      const res = await fetch(`${base}&verificar=1`);
       if (!res.ok) {
         const corpo = await res.json().catch(() => null);
-        throw new Error(corpo?.error ?? "Falha ao baixar o edital.");
+        throw new Error(corpo?.error ?? "Falha ao preparar o download do edital.");
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      // O ZIP vem em fluxo: o próprio navegador conduz o download (com andamento) — sem segurar uma
+      // requisição de minutos na página, que era o que falhava com o PNCP lento.
       const a = document.createElement("a");
-      a.href = url;
+      a.href = base;
       a.download = `edital-${numeroControle.replace(/[^\w]/g, "_")}.zip`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Edital baixado", { id: t });
+      a.remove();
+      toast.success("Download do edital iniciado", {
+        description: "O PNCP costuma ser lento: acompanhe o andamento na lista de downloads do navegador.",
+        duration: 8000,
+      });
     } catch (e) {
-      toast.error("Não foi possível baixar", { id: t, description: e instanceof Error ? e.message : undefined });
+      toast.error("Não foi possível baixar", { description: e instanceof Error ? e.message : undefined });
     } finally {
-      setBaixando(false);
+      setPreparando(false);
     }
   }
 
   return (
-    <Button variant="outline" className="justify-start" onClick={baixar} disabled={!disponivel || baixando}>
-      {baixando ? <Loader2 className="animate-spin" /> : <Download />}
+    <Button variant="outline" className="justify-start" onClick={baixar} disabled={!disponivel || preparando}>
+      {preparando ? <Loader2 className="animate-spin" /> : <Download />}
       Baixar edital (ZIP)
       {!disponivel && <span className="ml-auto text-xs text-muted-foreground">indisponível</span>}
     </Button>
