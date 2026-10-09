@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import type { UnifiedLicitacao } from "@/lib/licitacoes/types";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { createClient } from "@/lib/supabase/server";
+import { blocoAnexos, lerAnexo, MAX_ANEXOS, MAX_BYTES_ANEXO, type AnexoEnviado, type AnexoLido } from "@/lib/vita/anexos";
 import { instrucoesVita } from "@/lib/vita/contexto";
 import { executarFerramenta, FERRAMENTAS, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 
@@ -14,8 +16,10 @@ const HISTORICO = 40;            // mensagens anteriores enviadas ao modelo
 const LIMITE_RESULTADO = 6_000;  // caracteres guardados por resultado de ferramenta
 
 type ChamadaFerramenta = { id: string; type: "function"; function: { name: string; arguments: string } };
+type ParteConteudo = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type MensagemModelo =
-  | { role: "system" | "user"; content: string }
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | ParteConteudo[] }
   | { role: "assistant"; content: string; tool_calls?: ChamadaFerramenta[] }
   | { role: "tool"; tool_call_id: string; content: string };
 
@@ -88,8 +92,20 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Não autenticado.", { status: 401 });
 
-  const corpo = (await request.json().catch(() => ({}))) as { conversaId?: string; mensagem?: string; pagina?: string };
-  const mensagem = String(corpo.mensagem ?? "").trim();
+  const corpo = (await request.json().catch(() => ({}))) as {
+    conversaId?: string; mensagem?: string; pagina?: string; anexos?: AnexoEnviado[];
+  };
+  const anexos = Array.isArray(corpo.anexos) ? corpo.anexos : [];
+  if (anexos.length > MAX_ANEXOS) return new Response(`No máximo ${MAX_ANEXOS} anexos por mensagem.`, { status: 400 });
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  for (const a of anexos) {
+    // Só arquivos que o próprio usuário enviou para a pasta da Vita da empresa.
+    if (typeof a?.path !== "string" || !a.path.startsWith(`${empresaUserId}/vita/`) || a.path.includes("..")) {
+      return new Response("Anexo inválido.", { status: 400 });
+    }
+    if (Number(a.tamanho) > MAX_BYTES_ANEXO) return new Response(`"${a.nome}" passa de 20 MB.`, { status: 400 });
+  }
+  const mensagem = String(corpo.mensagem ?? "").trim() || (anexos.length ? "Analise o(s) arquivo(s) anexado(s)." : "");
   if (!mensagem) return new Response("Mensagem vazia.", { status: 400 });
   if (mensagem.length > 8_000) return new Response("Mensagem longa demais (máx. 8.000 caracteres).", { status: 400 });
 
@@ -115,11 +131,15 @@ export async function POST(request: NextRequest) {
     .eq("conversa_id", conversaId)
     .order("created_at", { ascending: false })
     .limit(HISTORICO);
-  await supabase.from("vita_mensagens").insert({ conversa_id: conversaId, user_id: user.id, papel: "user", conteudo: mensagem });
 
   const historico: MensagemModelo[] = [];
   for (const m of (anteriores ?? []).reverse()) {
-    if (m.papel === "user") historico.push({ role: "user", content: m.conteudo });
+    if (m.papel === "user") {
+      const anexosSalvos = ((m.dados as { anexos?: Array<AnexoLido & { tamanho?: number }> })?.anexos) ?? [];
+      const reproduzidos = anexosSalvos.map((a) =>
+        a.tipo === "imagem" ? { ...a, texto: "(imagem enviada antes nesta conversa; a análise está na resposta seguinte)" } : a);
+      historico.push({ role: "user", content: m.conteudo + blocoAnexos(reproduzidos) });
+    }
     else if (m.papel === "evento") historico.push({ role: "system", content: m.conteudo });
     else {
       const protocolo = (m.dados as { protocolo?: MensagemModelo[] })?.protocolo;
@@ -128,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
   }
   const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""));
-  const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico, { role: "user", content: mensagem }];
+  const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
   const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas };
   const enc = new TextEncoder();
@@ -139,6 +159,29 @@ export async function POST(request: NextRequest) {
         try { controller.enqueue(enc.encode(`data: ${JSON.stringify(evento)}\n\n`)); } catch { /* cliente saiu */ }
       };
       enviar({ tipo: "conversa", id: conversaId, titulo });
+
+      // Lê os anexos (mostrando o progresso) e monta a mensagem atual para o modelo.
+      const lidos: AnexoLido[] = [];
+      for (const [i, a] of anexos.entries()) {
+        const idEv = `anexo_${i}`;
+        enviar({ tipo: "ferramenta", id: idEv, nome: "ler_anexo", rotulo: `Lendo ${a.nome}`, estado: "inicio" });
+        lidos.push(await lerAnexo(supabase, { path: a.path, nome: String(a.nome), tamanho: Number(a.tamanho), mime: String(a.mime ?? "") }));
+        enviar({ tipo: "ferramenta", id: idEv, nome: "ler_anexo", rotulo: `Lendo ${a.nome}`, estado: "fim" });
+      }
+      const textoAtual = mensagem + blocoAnexos(lidos);
+      const imagens = lidos.filter((a) => a.imagem);
+      base.push({
+        role: "user",
+        content: imagens.length
+          ? [{ type: "text", text: textoAtual }, ...imagens.map((a) => ({ type: "image_url" as const, image_url: { url: a.imagem! } }))]
+          : textoAtual,
+      });
+      await supabase.from("vita_mensagens").insert({
+        conversa_id: conversaId, user_id: user.id, papel: "user", conteudo: mensagem,
+        dados: lidos.length
+          ? { anexos: lidos.map((a, i) => ({ nome: a.nome, path: a.path, tipo: a.tipo, tamanho: Number(anexos[i].tamanho), observacao: a.observacao ?? null, texto: a.texto.slice(0, 20_000) })) }
+          : {},
+      });
 
       const protocolo: MensagemModelo[] = [];
       const ferramentasUsadas: Array<{ nome: string; rotulo: string }> = [];

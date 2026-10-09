@@ -7,10 +7,14 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type ResumoConversa } from "@/lib/vita/conversas";
+import { obterEmpresaUserId } from "@/lib/documentos/actions";
+import { createClient } from "@/lib/supabase/client";
+import { ACEITOS, MAX_ANEXOS, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
+import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
 import { cn } from "@/lib/utils";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
 
@@ -21,12 +25,49 @@ type Msg = {
   conteudo: string;
   ferramentas: Ferramenta[];
   acoes: string[];
+  anexos: AnexoExibido[];
   erro?: string;
   transmitindo?: boolean;
 };
 
+type AnexoLocal = {
+  id: string;
+  nome: string;
+  tamanho: number;
+  mime: string;
+  tipo: TipoAnexo;
+  estado: "enviando" | "pronto" | "erro";
+  path?: string;
+  erro?: string;
+};
+
+const sanitizar = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100) || "arquivo";
+const tamanhoLegivel = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB`);
+const ICONE_ANEXO: Record<string, typeof FileIcon> = { pdf: FileText, imagem: ImageIcon, planilha: FileSpreadsheet, documento: FileText, texto: FileText };
+
+/** Fotos grandes são reduzidas no navegador (lado maior 2000 px, JPEG): envio mais rápido e leitura por IA mais barata. */
+async function prepararImagem(arquivo: File): Promise<{ blob: Blob; nome: string; mime: string }> {
+  const original = { blob: arquivo as Blob, nome: arquivo.name, mime: arquivo.type || "image/jpeg" };
+  const heic = /heic|heif/i.test(arquivo.type + arquivo.name);
+  if (arquivo.type === "image/gif" || (!heic && arquivo.size < 1.5 * 1024 * 1024)) return original;
+  try {
+    const bmp = await createImageBitmap(arquivo);
+    const escala = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * escala);
+    canvas.height = Math.round(bmp.height * escala);
+    canvas.getContext("2d")?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob) return original;
+    return { blob, nome: arquivo.name.replace(/\.[^.]+$/, "") + ".jpg", mime: "image/jpeg" };
+  } catch {
+    return original; // navegador não decodifica (ex.: HEIC no Chrome): vai o original e a Vita avisa
+  }
+}
+
 const SUGESTOES = [
   "Busque pregões de gêneros alimentícios abertos no Amazonas",
+  "Anexe uma tabela de preços ou uma certidão e eu leio para você",
   "Algum documento meu está vencido ou vencendo?",
   "Quais licitações salvas encerram nos próximos 7 dias?",
   "Me resuma os dados da minha empresa",
@@ -106,6 +147,42 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
   const abortar = useRef<AbortController | null>(null);
   const fim = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
+  const seletor = useRef<HTMLInputElement>(null);
+  const empresaId = useRef<string | null>(null);
+  const [anexos, setAnexos] = useState<AnexoLocal[]>([]);
+  const [arrastandoArquivo, setArrastandoArquivo] = useState(false);
+  const enviandoAnexo = anexos.some((a) => a.estado === "enviando");
+  const anexosProntos = anexos.filter((a) => a.estado === "pronto");
+
+  async function adicionarArquivos(lista: File[]) {
+    const vagas = MAX_ANEXOS - anexos.length;
+    if (lista.length > vagas) toast.error(`No máximo ${MAX_ANEXOS} arquivos por mensagem.`, { description: vagas > 0 ? `Só ${vagas} foram adicionados.` : undefined });
+    for (const arquivo of lista.slice(0, Math.max(0, vagas))) {
+      const recusa = motivoRecusa(arquivo);
+      if (recusa) { toast.error(arquivo.name, { description: recusa }); continue; }
+      const id = novoId();
+      const tipo = tipoDoArquivo(arquivo.name, arquivo.type);
+      setAnexos((l) => [...l, { id, nome: arquivo.name, tamanho: arquivo.size, mime: arquivo.type, tipo, estado: "enviando" }]);
+      void (async () => {
+        try {
+          const preparado = tipo === "imagem" ? await prepararImagem(arquivo) : { blob: arquivo as Blob, nome: arquivo.name, mime: arquivo.type || "application/octet-stream" };
+          empresaId.current ??= await obterEmpresaUserId();
+          const path = `${empresaId.current}/vita/${new Date().toISOString().slice(0, 7)}/${id}-${sanitizar(preparado.nome)}`;
+          const { error } = await createClient().storage.from("documentos").upload(path, preparado.blob, { contentType: preparado.mime, upsert: false });
+          if (error) throw new Error(error.message);
+          setAnexos((l) => l.map((a) => (a.id === id ? { ...a, estado: "pronto", path, nome: preparado.nome, mime: preparado.mime, tamanho: preparado.blob.size } : a)));
+        } catch (e) {
+          setAnexos((l) => l.map((a) => (a.id === id ? { ...a, estado: "erro", erro: e instanceof Error ? e.message : "Falha no envio" } : a)));
+        }
+      })();
+    }
+  }
+
+  function removerAnexo(id: string) {
+    const a = anexos.find((x) => x.id === id);
+    setAnexos((l) => l.filter((x) => x.id !== id));
+    if (a?.path) void createClient().storage.from("documentos").remove([a.path]);
+  }
 
   const abrirConversa = useCallback(async (id: string) => {
     setCarregando(true);
@@ -154,13 +231,15 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
 
   async function enviar(textoBruto?: string) {
     const texto = (textoBruto ?? entrada).trim();
-    if (!texto || enviando) return;
+    const paraEnviar = textoBruto ? [] : anexosProntos;
+    if ((!texto && !paraEnviar.length) || enviando || enviandoAnexo) return;
     setEntrada("");
+    if (!textoBruto) setAnexos([]);
     setEnviando(true);
     setMensagens((l) => [
       ...l,
-      { id: novoId(), papel: "user", conteudo: texto, ferramentas: [], acoes: [] },
-      { id: novoId(), papel: "assistant", conteudo: "", ferramentas: [], acoes: [], transmitindo: true },
+      { id: novoId(), papel: "user", conteudo: texto, ferramentas: [], acoes: [], anexos: paraEnviar.map((a) => ({ nome: a.nome, tipo: a.tipo })) },
+      { id: novoId(), papel: "assistant", conteudo: "", ferramentas: [], acoes: [], anexos: [], transmitindo: true },
     ]);
     const controle = new AbortController();
     abortar.current = controle;
@@ -168,7 +247,10 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
       const res = await fetch("/api/vita/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversaId, mensagem: texto, pagina: pathname }),
+        body: JSON.stringify({
+          conversaId, mensagem: texto, pagina: pathname,
+          anexos: paraEnviar.map((a) => ({ path: a.path, nome: a.nome, tamanho: a.tamanho, mime: a.mime })),
+        }),
         signal: controle.signal,
       });
       if (!res.ok || !res.body) throw new Error((await res.text().catch(() => "")) || `Erro ${res.status}`);
@@ -243,7 +325,18 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
   }
 
   return (
-    <>
+    <div
+      className="relative flex h-full min-h-0 flex-col"
+      onDragEnter={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setArrastandoArquivo(true); } }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setArrastandoArquivo(false); }}
+      onDrop={(e) => { e.preventDefault(); setArrastandoArquivo(false); void adicionarArquivos(Array.from(e.dataTransfer.files)); }}
+    >
+      {arrastandoArquivo && (
+        <div className="pointer-events-none absolute inset-2 z-20 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-background/90 text-sm font-medium text-primary">
+          <Upload className="size-6" /> Solte para anexar (até {MAX_ANEXOS})
+        </div>
+      )}
       {/* Cabeçalho */}
       <header className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
         <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
@@ -272,8 +365,22 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
           <div className="flex flex-col gap-4">
             {mensagens.map((m) =>
               m.papel === "user" ? (
-                <div key={m.id} className="ml-8 self-end rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm whitespace-pre-wrap text-primary-foreground">
-                  {m.conteudo}
+                <div key={m.id} className="ml-8 flex flex-col items-end gap-1.5 self-end">
+                  {m.anexos.length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {m.anexos.map((a, i) => {
+                        const Icone = ICONE_ANEXO[a.tipo] ?? FileIcon;
+                        return (
+                          <span key={a.nome + i} title={a.observacao ?? a.nome} className="inline-flex max-w-52 items-center gap-1 rounded-md border bg-background px-2 py-1 text-[11px] text-muted-foreground">
+                            <Icone className="size-3 shrink-0 text-primary" /> <span className="truncate">{a.nome}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {m.conteudo && (
+                    <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm whitespace-pre-wrap text-primary-foreground">{m.conteudo}</div>
+                  )}
                 </div>
               ) : (
                 <div key={m.id} className="flex flex-col gap-2">
@@ -313,14 +420,60 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
         onSubmit={(e) => { e.preventDefault(); void enviar(); }}
         className="shrink-0 border-t p-3"
       >
-        <div className="flex items-end gap-2 rounded-xl border bg-background px-3 py-2 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
+        <div className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-2 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
+          {anexos.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {anexos.map((a) => {
+                const Icone = ICONE_ANEXO[a.tipo] ?? FileIcon;
+                return (
+                  <span
+                    key={a.id}
+                    title={a.erro ?? a.nome}
+                    className={cn(
+                      "inline-flex max-w-full items-center gap-1.5 rounded-lg border py-1 pl-2 pr-1 text-xs",
+                      a.estado === "erro" ? "border-destructive/40 bg-destructive/5 text-destructive" : "bg-muted/50",
+                    )}
+                  >
+                    {a.estado === "enviando" ? <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" /> : <Icone className="size-3.5 shrink-0 text-primary" />}
+                    <span className="max-w-40 truncate">{a.nome}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{a.estado === "erro" ? "falhou" : tamanhoLegivel(a.tamanho)}</span>
+                    <button type="button" onClick={() => removerAnexo(a.id)} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Remover ${a.nome}`}>
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+          <input
+            ref={seletor}
+            type="file"
+            multiple
+            accept={ACEITOS}
+            className="sr-only"
+            onChange={(e) => { void adicionarArquivos(Array.from(e.target.files ?? [])); e.target.value = ""; }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 rounded-lg text-muted-foreground"
+            onClick={() => seletor.current?.click()}
+            disabled={anexos.length >= MAX_ANEXOS}
+            title={`Anexar arquivos (até ${MAX_ANEXOS}): PDF, foto, planilha, Word`}
+            aria-label="Anexar arquivos"
+          >
+            <Paperclip className="size-4" />
+          </Button>
           <textarea
             ref={campo}
             value={entrada}
             onChange={(e) => setEntrada(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void enviar(); } }}
+            onPaste={(e) => { const arquivos = Array.from(e.clipboardData.files); if (arquivos.length) { e.preventDefault(); void adicionarArquivos(arquivos); } }}
             rows={1}
-            placeholder="Pergunte à Vita…"
+            placeholder={anexos.length ? "O que fazer com os arquivos?" : "Pergunte à Vita ou anexe arquivos…"}
             className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-0.5 text-sm outline-none [field-sizing:content] placeholder:text-muted-foreground"
           />
           {enviando ? (
@@ -328,16 +481,24 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
               <Square className="size-3 fill-current" />
             </Button>
           ) : (
-            <Button type="submit" size="icon" className="size-7 shrink-0 rounded-lg" disabled={!entrada.trim()} title="Enviar (Enter)" aria-label="Enviar">
-              <ArrowUp className="size-4" />
+            <Button
+              type="submit"
+              size="icon"
+              className="size-7 shrink-0 rounded-lg"
+              disabled={enviandoAnexo || (!entrada.trim() && !anexosProntos.length)}
+              title={enviandoAnexo ? "Aguarde o envio dos anexos" : "Enviar (Enter)"}
+              aria-label="Enviar"
+            >
+              {enviandoAnexo ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
             </Button>
           )}
+          </div>
         </div>
         <p className="mt-1.5 flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
           <ShieldCheck className="size-3" /> A Vita só altera algo depois da sua aprovação.
         </p>
       </form>
-    </>
+    </div>
   );
 }
 
@@ -350,7 +511,7 @@ function BoasVindas({ onEscolher }: { onEscolher: (s: string) => void }) {
         </div>
         <p className="text-base font-semibold">Olá! Eu sou a Vita.</p>
         <p className="max-w-xs text-sm text-muted-foreground">
-          Busco licitações, leio editais e itens, confiro seus documentos e salvo ou removo licitações — sempre com a sua aprovação.
+          Busco licitações, leio itens, confiro seus documentos e leio PDFs, fotos e planilhas que você anexar. Salvo ou removo licitações — sempre com a sua aprovação.
         </p>
       </div>
       <div className="flex flex-col gap-1.5">

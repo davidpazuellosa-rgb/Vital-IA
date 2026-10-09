@@ -12,12 +12,14 @@ export type AcaoVita = {
   status: "pendente" | "executada" | "recusada" | "falhou";
   resultado: string | null;
 };
+export type AnexoExibido = { nome: string; tipo: string; observacao?: string | null };
 export type MensagemVita = {
   id: string;
   papel: "user" | "assistant";
   conteudo: string;
   ferramentas: Array<{ nome: string; rotulo: string }>;
   acoes: string[];
+  anexos: AnexoExibido[];
 };
 
 async function sessao() {
@@ -56,15 +58,23 @@ export async function carregarConversa(id: string): Promise<{ mensagens: Mensage
   ]);
   return {
     mensagens: (msgs ?? []).map((m) => {
-      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[] };
-      return { id: m.id, papel: m.papel as MensagemVita["papel"], conteudo: m.conteudo, ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [] };
+      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[] };
+      return {
+        id: m.id, papel: m.papel as MensagemVita["papel"], conteudo: m.conteudo,
+        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [],
+        anexos: (dados.anexos ?? []).map((a) => ({ nome: a.nome, tipo: a.tipo, observacao: a.observacao ?? null })),
+      };
     }),
     acoes: Object.fromEntries((acoes ?? []).map((a) => [a.id, a as AcaoVita])),
   };
 }
 
+/** Apaga a conversa e os arquivos anexados nela (que nunca foram para o acervo). */
 export async function apagarConversa(id: string): Promise<void> {
   const supabase = await sessao();
+  const { data: msgs } = await supabase.from("vita_mensagens").select("dados").eq("conversa_id", id).eq("papel", "user");
+  const caminhos = (msgs ?? []).flatMap((m) => ((m.dados as { anexos?: Array<{ path?: string }> })?.anexos ?? []).map((a) => a.path ?? "")).filter(Boolean);
+  if (caminhos.length) await supabase.storage.from("documentos").remove(caminhos);
   const { error } = await supabase.from("vita_conversas").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
