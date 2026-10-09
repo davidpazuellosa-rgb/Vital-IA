@@ -1,6 +1,9 @@
 import origens from "./origens.json";
 
-export type PlatformId = "pncp" | "comprasnet" | "ecompras-am" | "compras-manaus" | "licitar-digital";
+/** Ids dos sistemas de origem indexados (precisam bater com origens.json). */
+export type OrigemIndexadaId = "licitar-digital" | "bll-compras" | "licitanet" | "portal-compras-publicas" | "bnc-compras";
+
+export type PlatformId = "pncp" | "comprasnet" | "ecompras-am" | "compras-manaus" | OrigemIndexadaId;
 
 export interface PlatformInfo {
   id: PlatformId;

@@ -1,6 +1,7 @@
 import {
   LicitacaoProvider,
   Paginacao,
+  OrigemIndexadaId,
   PlatformId,
   ResultadoBusca,
   UniversalFilter,
@@ -10,14 +11,17 @@ import { buscarLicitacaoPorNumeroControle, parseNumeroControle } from "./provide
 import { comprasnetProvider } from "./providers/comprasnet";
 import { ecomprasAmProvider } from "./providers/ecompras-am";
 import { comprasManausProvider } from "./providers/compras-manaus";
-import { licitarDigitalProvider } from "./providers/licitar-digital";
+import { criarProviderOrigem } from "./providers/origem-indexada";
+import origens from "./origens.json";
 
 const PROVIDERS: Record<PlatformId, LicitacaoProvider> = {
   pncp: pncpProvider,
   comprasnet: comprasnetProvider,
   "ecompras-am": ecomprasAmProvider,
   "compras-manaus": comprasManausProvider,
-  "licitar-digital": licitarDigitalProvider,
+  ...(Object.fromEntries(
+    origens.map((o) => [o.id, criarProviderOrigem(o.id as PlatformId)]),
+  ) as Record<OrigemIndexadaId, LicitacaoProvider>),
 };
 
 export async function buscarLicitacoes(

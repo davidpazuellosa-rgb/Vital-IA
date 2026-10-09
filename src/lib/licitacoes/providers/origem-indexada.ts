@@ -1,8 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { LicitacaoProvider, Paginacao, ResultadoBusca, UnifiedLicitacao, UniversalFilter } from "../types";
+import { LicitacaoProvider, Paginacao, PlatformId, ResultadoBusca, UnifiedLicitacao, UniversalFilter } from "../types";
 import { tokensOrgao } from "./pncp-client";
-
-const ORIGEM = "licitar-digital";
 
 type LinhaOrigem = {
   numero_controle_pncp: string;
@@ -25,10 +23,10 @@ const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 /** Remove caracteres que têm significado nos filtros do PostgREST/ilike. */
 const seguro = (s: string) => s.replace(/[%_,()\\*]/g, " ").trim();
 
-function mapLinha(l: LinhaOrigem): UnifiedLicitacao {
+function mapLinha(l: LinhaOrigem, plataforma: PlatformId): UnifiedLicitacao {
   return {
     id: l.numero_controle_pncp,
-    plataforma: ORIGEM,
+    plataforma,
     numeroControlePNCP: l.numero_controle_pncp,
     titulo: l.titulo,
     descricao: l.descricao,
@@ -47,16 +45,18 @@ function mapLinha(l: LinhaOrigem): UnifiedLicitacao {
 }
 
 /**
- * Licitar Digital: lê o índice próprio (tabela licitacoes_origem), preenchido pela
- * rotina scripts/indexar-origem.mjs — o PNCP não filtra por sistema de origem.
+ * Provider de um sistema de origem (Licitar Digital, BLL, Licitanet…): lê o índice próprio
+ * (tabela licitacoes_origem), preenchido pela rotina scripts/indexar-origem.mjs — o PNCP
+ * não filtra por sistema de origem. Os sistemas são os de origens.json.
  */
-export const licitarDigitalProvider: LicitacaoProvider = {
-  id: ORIGEM,
+export function criarProviderOrigem(origem: PlatformId): LicitacaoProvider {
+  return {
+  id: origem,
   async buscar(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca> {
     const supabase = createServiceClient();
     const apenasAberto = filtro.apenasAberto ?? true;
 
-    let q = supabase.from("licitacoes_origem").select("*", { count: "exact" }).eq("origem", ORIGEM);
+    let q = supabase.from("licitacoes_origem").select("*", { count: "exact" }).eq("origem", origem);
     if (apenasAberto) {
       q = q.or(`data_encerramento_proposta.gte.${new Date().toISOString()},data_encerramento_proposta.is.null`);
     } else {
@@ -82,9 +82,10 @@ export const licitarDigitalProvider: LicitacaoProvider = {
 
     const total = count ?? data?.length ?? 0;
     return {
-      itens: ((data ?? []) as LinhaOrigem[]).map(mapLinha),
+      itens: ((data ?? []) as LinhaOrigem[]).map((l) => mapLinha(l, origem)),
       totalRegistros: total,
       totalPaginas: Math.ceil(total / paginacao.tamanhoPagina),
     };
   },
-};
+  };
+}
