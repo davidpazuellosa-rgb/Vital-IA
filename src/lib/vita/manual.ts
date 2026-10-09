@@ -48,7 +48,7 @@ Menu do documento: Visualizar, Baixar, Site responsável (emitir nova via), Subs
 
   assinador: `Assinador de Propostas (/assinador-propostas): guia para assinar no gov.br (o gov.br não permite embutir no sistema). Passos: baixar o PDF no Vital.IA → abrir o Assinador gov.br → assinar → voltar e usar "Importar assinado" / "Importar proposta final".`,
 
-  dados_empresa: `Dados da Empresa (/vital-norte/dados): formulário manual (razão social, fantasia, CNPJ, porte ME/EPP/Demais, natureza jurídica, abertura, CNAE principal, inscrições, endereço, contato, dados bancários). A Vita NÃO altera esses dados — o usuário edita na tela. Os CNAEs secundários podem ser consultados na Receita pela Vita (consultar_cnaes).
+  dados_empresa: `Dados da Empresa (/vital-norte/dados): formulário manual (razão social, fantasia, CNPJ, porte ME/EPP/Demais, natureza jurídica, abertura, CNAE principal, inscrições, endereço, contato, dados bancários). A Vita pode alterar esses dados com aprovação (cartão com antes → depois). Os CNAEs secundários podem ser consultados na Receita pela Vita (consultar_cnaes).
 Cartão "Propostas": checklist de prontidão (dados cadastrais/bancários, modelo de proposta no acervo, padrões, responsável) e padrões: validade (dias, padrão 60), representante legal (David Pazuello Franco de Sá ou Ruy Menezes Leão Neto, cargo Sócio Administrador), impostos inclusos, observações padrão.
 Configurações (/configuracoes) só tem atalhos para estas telas.`,
 
@@ -61,7 +61,7 @@ A Vita pode cadastrar/alterar/remover itens (com aprovação), inclusive vários
 Página do cliente: status, próximo passo; "Dados do órgão (para nota fiscal)" — CNPJ + Buscar e salvar (Receita via BrasilAPI); notas fiscais; lista de contratações (Nova licitação: título e identificador).
 Contratação: status, próximo passo, documentos por categoria — Proposta enviada, Edital e Termo de Referência, Nota de Empenho, Contrato e Termos, Notas Fiscais, outros. "Baixar tudo" em PDF único ou ZIP.`,
 
-  nota_fiscal: `Nota Fiscal (/vital-norte/nota-fiscal): emissão de NF-e (hoje em HOMOLOGAÇÃO, sem valor fiscal). A VITA NÃO EMITE, NÃO CANCELA E NÃO ALTERA NOTAS — apenas consulta.
+  nota_fiscal: `Nota Fiscal (/vital-norte/nota-fiscal): emissão de NF-e (hoje em HOMOLOGAÇÃO, sem valor fiscal). A Vita pode criar e editar RASCUNHOS (com aprovação), com a mesma validação da tela; NÃO emite, NÃO cancela e NÃO faz carta de correção.
 Nova nota (rascunho): cliente e contratação opcionais (preenchem o destinatário), natureza da operação, interna (AM, CFOP 5xxx) ou interestadual (6xxx), destinatário (CNPJ com busca automática, indicador de IE, endereço completo), itens (descrição, NCM, CFOP, unidade, qtd, valor), observações.
 Ações: Editar e Emitir (só rascunho), Atualizar status (processando), DANFE, XML, Anexar à contratação, Remover (rascunho/rejeitada/cancelada); no detalhe: Carta de correção e Cancelar nota (autorizada). Status: rascunho, processando, autorizada, rejeitada, cancelada. Quando autorizada, DANFE e XML vão automaticamente para os documentos do cliente.`,
 
@@ -70,8 +70,8 @@ O que um alerta encontra é SALVO automaticamente em Minhas Licitações (Oportu
 Canais: Telegram (token do bot + chat id) e e-mail (Resend). WhatsApp ainda não conectado. A Vita não vê nem altera tokens/chaves.`,
 
   vita: `Vita: assistente de IA. Busca licitações no PNCP, detalha itens, consulta qualquer dado do sistema, lê documentos do acervo e dos clientes, lê até 8 anexos por mensagem (PDF, imagens, XLSX, CSV, DOCX, TXT; 20 MB cada), consulta CNAEs na Receita.
-Ações que mudam algo viram um cartão de aprovação (Aprovar/Recusar): salvar/remover licitação e alterar_dados (catálogo, clientes, contratações, alertas, sistemas de licitação, etapa/observações de licitações salvas, nome/tipo/datas de documentos, configuração de proposta).
-Não faz: enviar proposta em plataforma, emitir/cancelar nota fiscal, alterar dados da empresa, ver senhas/tokens, mandar mensagens para terceiros. Conversas ficam salvas no histórico (com busca).`,
+Ações que mudam algo viram um cartão de aprovação (Aprovar/Recusar): salvar/remover licitação; alterar_dados (dados da empresa, catálogo, clientes, contratações, alertas, sistemas de licitação, etapa/observações de licitações salvas, nome/tipo/datas de documentos, configuração de proposta); rascunho de nota fiscal; preencher marca/preço dos itens do rascunho da proposta.
+Não faz: emitir/cancelar nota fiscal, gerar PDF/assinar/enviar proposta, ver senhas/tokens, mandar mensagens para terceiros. Conversas ficam salvas no histórico (com busca).`,
 
   fluxo_completo: `Fluxo de ponta a ponta:
 1. Busca → Salvar (ou alertas salvam sozinhos) → etapa Oportunidade.

@@ -6,6 +6,7 @@ import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { lerAnexo } from "./anexos";
 import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } from "./banco";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
+import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import {
   ETAPAS_LICITACAO, MODALIDADES, PLATAFORMAS, UFS, normalizarEtapa,
   type PlatformId, type UnifiedLicitacao, type UniversalFilter,
@@ -19,7 +20,7 @@ import {
 
 export type DetalheAcao = { rotulo: string; valor: string };
 export type AcaoProposta = {
-  tipo: "salvar_licitacao" | "remover_licitacao_salva" | "alterar_dados";
+  tipo: "salvar_licitacao" | "remover_licitacao_salva" | "alterar_dados" | "rascunho_nota_fiscal" | "preencher_proposta";
   parametros: Record<string, unknown>;
   resumo: string;
   detalhes: DetalheAcao[];
@@ -190,6 +191,74 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "rascunho_nota_fiscal",
+      description:
+        "PROPÕE criar (sem id) ou alterar (com id) um RASCUNHO de nota fiscal. NÃO executa nem emite: o usuário aprova num cartão, e a emissão é sempre feita por ele na tela. " +
+        "Com cliente_id e sem destinatario, usa os dados do órgão salvos no cliente. Exige endereço completo, CEP de 8 dígitos, NCM (8 dígitos) e CFOP (4 dígitos; 5xxx dentro do AM, 6xxx fora).",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "id do rascunho a alterar (consulte em notas_fiscais). Omitir para criar." },
+          cliente_id: { type: "string" },
+          contratacao_id: { type: "string" },
+          natureza_operacao: { type: "string", description: "Padrão: Venda de mercadoria." },
+          observacoes: { type: "string" },
+          destinatario: {
+            type: "object",
+            properties: {
+              nome: { type: "string" }, documento: { type: "string", description: "CNPJ ou CPF" }, ie: { type: "string" },
+              ind_ie: { type: "integer", description: "1 contribuinte, 2 isento, 9 não contribuinte" },
+              cep: { type: "string" }, logradouro: { type: "string" }, numero: { type: "string" }, bairro: { type: "string" },
+              municipio: { type: "string" }, uf: { type: "string" },
+            },
+          },
+          itens: {
+            type: "array",
+            description: "Lista COMPLETA de itens da nota (substitui a atual).",
+            items: {
+              type: "object",
+              properties: {
+                descricao: { type: "string" }, ncm: { type: "string" }, cfop: { type: "string" }, unidade: { type: "string" },
+                quantidade: { type: "number" }, valor_unitario: { type: "number" },
+              },
+              required: ["descricao", "ncm", "cfop", "quantidade", "valor_unitario"],
+            },
+          },
+          motivo: { type: "string" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "preencher_proposta",
+      description:
+        "PROPÕE preencher o RASCUNHO da proposta de uma licitação salva: marca, valor unitário e se o item entra na proposta. NÃO executa: o usuário aprova num cartão. " +
+        "Se ainda não houver rascunho, parte dos itens do PNCP. Envie só os itens que mudam. Nunca altera proposta já enviada.",
+      parameters: {
+        type: "object",
+        properties: {
+          numero_controle_pncp: { type: "string" },
+          itens: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                numero_item: { type: "integer" }, marca: { type: "string" }, valor_unitario: { type: "number" }, selecionado: { type: "boolean" },
+              },
+              required: ["numero_item"],
+            },
+          },
+          motivo: { type: "string" },
+        },
+        required: ["numero_controle_pncp", "itens"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "ler_documento",
       description:
         "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo (tabela documentos) ou de clientes/contratações (tabela cliente_documentos). " +
@@ -238,6 +307,8 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   ler_documento: "Lendo documento",
   consultar_cnaes: "Consultando CNAEs na Receita",
   manual_do_sistema: "Consultando o manual do sistema",
+  rascunho_nota_fiscal: "Preparando rascunho da nota fiscal",
+  preencher_proposta: "Preparando o rascunho da proposta",
 };
 
 /* ------------------------------------------------------------------------------------------- */
@@ -523,6 +594,8 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "alterar_dados": return await proporAlteracao(args, ctx.supabase);
       case "ler_documento": return await lerDocumento(args, ctx);
       case "consultar_cnaes": return await cnaes(args, ctx);
+      case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
+      case "preencher_proposta": return await proporProposta(args, ctx.supabase);
       case "manual_do_sistema": return { paraModelo: manualDoSistema(texto(args.topico)) };
       default: return { paraModelo: json({ erro: `Ferramenta desconhecida: ${nome}` }) };
     }

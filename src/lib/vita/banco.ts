@@ -29,9 +29,11 @@ type RegraTabela = {
 
 export const TABELAS: Record<string, RegraTabela> = {
   empresa: {
-    descricao: "Dados cadastrais da empresa (1 linha).",
+    descricao: "Dados cadastrais da empresa (1 linha; usados em propostas e notas fiscais).",
     leitura: ["razao_social", "nome_fantasia", "cnpj", "porte", "natureza_juridica", "data_abertura", "cnae_principal", "inscricao_estadual", "inscricao_municipal", "email", "telefone", "cep", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "dados_bancarios", "updated_at"],
-    escopo: "empresa",
+    escrita: ["razao_social", "nome_fantasia", "cnpj", "porte", "natureza_juridica", "data_abertura", "cnae_principal", "inscricao_estadual", "inscricao_municipal", "email", "telefone", "cep", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "dados_bancarios"],
+    operacoes: ["atualizar"],
+    escopo: "empresa", chave: "user_id", pagina: "/vital-norte/dados",
   },
   documentos: {
     descricao: "Acervo de documentos de habilitação (certidões etc.) com validade. O arquivo é lido com ler_documento.",
@@ -67,12 +69,12 @@ export const TABELAS: Record<string, RegraTabela> = {
     escopo: "usuario", chave: "id", pagina: "/minhas-licitacoes",
   },
   propostas: {
-    descricao: "Propostas (rascunho ou enviada) de cada licitação salva (licitacao_id → saved_licitacoes.id).",
+    descricao: "Propostas (rascunho, gerada ou enviada) de cada licitação salva (licitacao_id → saved_licitacoes.id). Para preencher marca/preço use preencher_proposta.",
     leitura: ["id", "licitacao_id", "status", "validade_dias", "prazo_entrega", "condicoes_pagamento", "observacoes", "itens", "edital_analisado_em", "plataforma_envio", "enviada_em", "protocolo_envio", "valor_enviado", "updated_at"],
     escopo: "usuario",
   },
   notas_fiscais: {
-    descricao: "Notas fiscais (NF-e) emitidas e rascunhos. SOMENTE LEITURA para a Vita.",
+    descricao: "Notas fiscais (NF-e) emitidas e rascunhos. Para criar/alterar RASCUNHO use rascunho_nota_fiscal (nunca alterar_dados).",
     leitura: ["id", "cliente_id", "contratacao_id", "status", "numero", "serie", "natureza_operacao", "valor_total", "itens", "observacoes", "destinatario_nome", "destinatario_documento", "destinatario_municipio", "destinatario_uf", "chave", "motivo_rejeicao", "created_at", "updated_at"],
     escopo: "usuario",
   },
@@ -183,6 +185,7 @@ export async function consultarDados(args: Record<string, unknown>, supabase: Su
 /* ------------------------------- alterações (com aprovação) ------------------------------- */
 
 const MAX_LOTE = 50;
+const txtOuNulo = (v: unknown) => (v == null || String(v).trim() === "" ? null : String(v).trim());
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v));
 
 function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
@@ -195,6 +198,10 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
     // Numa alteração parcial o nome pode não vir; só exige nome quando ele é enviado (ou no cadastro).
     const n = normalizarItem("nome" in dados ? dados : { ...dados, nome: "-" });
     dados = Object.fromEntries(Object.keys(dados).map((k) => [k, n[k as keyof typeof n]]));
+  }
+  if (tabela === "empresa") {
+    for (const [k, v] of Object.entries(dados)) dados[k] = k === "data_abertura" ? (txtOuNulo(v)) : String(v ?? "").trim();
+    if (typeof dados.uf === "string") dados.uf = dados.uf.toUpperCase().slice(0, 2);
   }
   if (tabela === "saved_licitacoes" && "etapa" in dados && !ETAPAS_LICITACAO.some((e) => e.slug === dados.etapa)) {
     throw new Error(`Etapa inválida. Use: ${ETAPAS_LICITACAO.map((e) => e.slug).join(", ")}.`);
@@ -213,6 +220,7 @@ export async function proporAlteracao(args: Record<string, unknown>, supabase: S
 
   try {
     const detalhes: DetalheAcao[] = [];
+    let avisoExtra: string | undefined;
     let parametros: Record<string, unknown>;
     let resumo: string;
 
@@ -250,7 +258,10 @@ export async function proporAlteracao(args: Record<string, unknown>, supabase: S
         if (!mudancas.length) return { paraModelo: json({ resultado: "Nada muda: os valores já são esses." }) };
         for (const [k, v] of mudancas) detalhes.push({ rotulo: k, valor: `${fmt(linhaAtual[k])} → ${fmt(v)}` });
         parametros = { tabela, operacao, id, dados: Object.fromEntries(mudancas) };
-        resumo = `Alterar ${tabela}${linhaAtual.nome ? `: ${String(linhaAtual.nome).slice(0, 60)}` : ""}`;
+        resumo = tabela === "empresa" ? "Alterar Dados da Empresa" : `Alterar ${tabela}${linhaAtual.nome ? `: ${String(linhaAtual.nome).slice(0, 60)}` : ""}`;
+        if (tabela === "empresa" && mudancas.some(([k]) => k === "cnpj" || k === "razao_social")) {
+          avisoExtra = "Atenção: CNPJ e razão social saem nas propostas e nas notas fiscais. Confira com o cartão CNPJ antes de aprovar.";
+        }
       } else {
         for (const k of ["nome", "titulo", "keyword", "url", "categoria"].filter((c) => linhaAtual[c] != null)) detalhes.push({ rotulo: k, valor: fmt(linhaAtual[k]) });
         parametros = { tabela, operacao, id };
@@ -260,7 +271,7 @@ export async function proporAlteracao(args: Record<string, unknown>, supabase: S
     if (motivo) detalhes.push({ rotulo: "Motivo", valor: motivo });
     return {
       paraModelo: json({ resultado: "PENDENTE: cartão de aprovação exibido ao usuário. Ainda NÃO foi feito — não diga que foi." }),
-      acao: { tipo: "alterar_dados", parametros, resumo, detalhes, aviso: operacao === "remover" ? "A remoção não pode ser desfeita." : undefined },
+      acao: { tipo: "alterar_dados", parametros, resumo, detalhes, aviso: operacao === "remover" ? "A remoção não pode ser desfeita." : avisoExtra },
     };
   } catch (e) {
     return { paraModelo: json({ erro: e instanceof Error ? e.message : "Pedido inválido." }) };
@@ -287,7 +298,7 @@ export async function executarAlteracao(
   if (operacao === "atualizar") {
     const dados = limparDados(tabela, p.dados);
     if (tabela === "documentos" && "data_validade" in dados) dados.validade_automatica = false;
-    if (tabela === "catalogo_itens" || tabela === "proposta_configuracao") dados.updated_at = new Date().toISOString();
+    if (tabela === "catalogo_itens" || tabela === "proposta_configuracao" || tabela === "empresa") dados.updated_at = new Date().toISOString();
     let q = supabase.from(tabela).update(dados, { count: "exact" });
     q = regra.chave === "user_id" ? q.eq("user_id", await resolverEmpresaUserId(supabase, userId)) : q.eq("id", String(p.id));
     const { error, count } = await q;

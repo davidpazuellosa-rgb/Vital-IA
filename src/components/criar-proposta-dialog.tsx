@@ -98,8 +98,10 @@ export function CriarPropostaDialog({
           setRascunhoCarregado(true);
         } else {
           setAnalise(await analisarEditalLicitacao(licitacaoId));
-          setItensSalvos([]);
-          setRascunhoCarregado(false);
+          // Pode haver itens já preenchidos sem análise (ex.: pela Vita): aproveita-os.
+          const depois = await obterPropostaLicitacao(licitacaoId).catch(() => null);
+          setItensSalvos(depois?.itens ?? []);
+          setRascunhoCarregado(Boolean(depois?.itens.length));
         }
         setTemProposta(true);
         toast.success(temPropostaInicial ? "Rascunho carregado" : "Proposta pronta", { id });

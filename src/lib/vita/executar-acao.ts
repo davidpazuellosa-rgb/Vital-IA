@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UnifiedLicitacao } from "@/lib/licitacoes/types";
 import { executarAlteracao } from "./banco";
+import { executarNotaFiscal, executarProposta } from "./rascunhos";
 
 /** Executa uma ação JÁ APROVADA pelo usuário, com a sessão dele. Devolve um texto de resultado. */
 export async function executarAcaoAprovada(
@@ -51,6 +52,10 @@ export async function executarAcaoAprovada(
       revalidatePath("/minhas-licitacoes");
       return count ? `Licitação ${String(parametros.numero)} removida de Minhas Licitações.` : "A licitação já não estava salva.";
     }
+    case "rascunho_nota_fiscal":
+      return await executarNotaFiscal(parametros);
+    case "preencher_proposta":
+      return await executarProposta(supabase, parametros);
     case "alterar_dados": {
       const r = await executarAlteracao(supabase, userId, parametros);
       if (r.pagina) revalidatePath(r.pagina);
