@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { ArrowLeft, Package, ExternalLink, Wallet, CalendarClock, Activity, Building2, MapPin, Gavel } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,11 @@ export default async function LicitacaoPncpPerfil({
 }) {
   const { n } = await searchParams;
   if (!n) notFound();
+
+  // Já está salva? Abre o perfil completo (com proposta, envio e etapa) em vez desta prévia.
+  const supabase = await createClient();
+  const { data: salva } = await supabase.from("saved_licitacoes").select("id").eq("numero_controle_pncp", n).limit(1).maybeSingle();
+  if (salva?.id) redirect(`/licitacao/${salva.id}`);
 
   const [lic, itens] = await Promise.all([buscarCompraPncp(n), buscarItensPncp(n).catch(() => [])]);
   if (!lic) {

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { avaliarValidade, nomeTipo, tipoSemValidade } from "@/lib/documentos/types";
 import { formatarMoeda } from "@/lib/format";
 import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
+import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { lerAnexo } from "./anexos";
 import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } from "./banco";
@@ -338,6 +339,7 @@ function resumoLicitacao(l: UnifiedLicitacao, salvas: Map<string, string>) {
     link_origem: l.linkOrigem,
     ja_salva: salvas.has(l.numeroControlePNCP),
     link_sistema: linkSistema(l.numeroControlePNCP, salvas.get(l.numeroControlePNCP)),
+    link_pncp: linkPncp(l.numeroControlePNCP),
   };
 }
 
@@ -393,7 +395,7 @@ async function detalhar(args: Args, ctx: ContextoFerramenta): Promise<ResultadoF
   const salvas = await numerosSalvos(ctx, [numero]);
   return {
     paraModelo: json({
-      licitacao: lic ? resumoLicitacao(lic, salvas) : { numero_controle_pncp: numero, link_sistema: linkSistema(numero, salvas.get(numero)) },
+      licitacao: lic ? resumoLicitacao(lic, salvas) : { numero_controle_pncp: numero, link_sistema: linkSistema(numero, salvas.get(numero)), link_pncp: linkPncp(numero) },
       descricao_completa: lic?.descricao?.slice(0, 1500) ?? null,
       total_itens: itens.length,
       itens: itens.slice(0, 40).map((i) => ({
@@ -442,6 +444,7 @@ async function listarSalvas(args: Args, ctx: ContextoFerramenta): Promise<Result
         encerramento_propostas: dataHoraBr(l.data_encerramento_proposta),
         proposta: porLic.get(String(l.id)) === "enviada" ? "enviada" : porLic.has(String(l.id)) ? "rascunho" : "não iniciada",
         link_sistema: linkSistema(String(l.numero_controle_pncp), String(l.id)),
+        link_pncp: linkPncp(String(l.numero_controle_pncp)),
       })),
     }),
   };

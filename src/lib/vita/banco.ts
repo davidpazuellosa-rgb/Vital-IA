@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { margemReal, normalizarItem } from "@/lib/catalogo/types";
+import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { ETAPAS_LICITACAO } from "@/lib/licitacoes/types";
 import type { AcaoProposta, DetalheAcao } from "./ferramentas";
@@ -173,7 +174,7 @@ export async function consultarDados(args: Record<string, unknown>, supabase: Su
   if (error) return json({ erro: error.message });
   let linhas = (data ?? []).map((l) => encurtar(l as unknown as Record<string, unknown>));
   if (tabela === "saved_licitacoes") {
-    linhas = linhas.map((l) => (l.id ? { ...l, link_sistema: `/licitacao/${String(l.id)}` } : l));
+    linhas = linhas.map((l) => (l.id ? { ...l, link_sistema: `/licitacao/${String(l.id)}`, link_pncp: linkPncp(String(l.numero_controle_pncp ?? "")) } : l));
   }
   if (tabela === "catalogo_itens") {
     // Mesma conta da tela do Catálogo: margem sobre o custo.

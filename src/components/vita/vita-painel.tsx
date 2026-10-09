@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Copy, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ACEITOS, MAX_ANEXOS, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
 import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
 import { cn } from "@/lib/utils";
+import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
 
 type Ferramenta = { id?: string; nome: string; rotulo: string; estado: "rodando" | "ok" };
@@ -101,7 +102,9 @@ async function copiarTexto(texto: string): Promise<boolean> {
 function BotaoCopiar({ texto, rotulo, className }: { texto: string; rotulo: string; className?: string }) {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
-    if (await copiarTexto(texto)) {
+    // Copia com os links de licitação e os caminhos internos já absolutos (funcionam fora do sistema).
+    const completo = comLinksDeLicitacao(texto).replace(/\]\(\//g, `](${window.location.origin}/`);
+    if (await copiarTexto(completo)) {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 1800);
     } else {
@@ -904,6 +907,8 @@ const linkInterno = (href?: string): href is string => Boolean(href && href.star
 
 /** compacto = painel lateral: tudo 2px menor que no modo expandido. */
 function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: boolean; onNavegar?: () => void }) {
+  // Toda licitação citada ganha [Perfil] e [PNCP], mesmo que o modelo não tenha colocado.
+  const conteudo = useMemo(() => comLinksDeLicitacao(texto), [texto]);
   return (
     <div className={cn("leading-relaxed text-foreground [&>*+*]:mt-2", compacto ? "text-[12px]" : "text-sm")}>
       <ReactMarkdown
@@ -919,6 +924,16 @@ function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: bo
                 {children}
                 <ArrowUpRight className="size-3" />
               </Link>
+            ) : (href as string | undefined)?.startsWith("https://pncp.gov.br/") ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-md border bg-background px-1.5 py-0.5 text-[1em] font-medium text-muted-foreground no-underline transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                {children}
+                <ExternalLink className="size-3" />
+              </a>
             ) : (
               <a href={href} target="_blank" rel="noreferrer" className="font-medium text-primary underline-offset-2 hover:underline">{children}</a>
             ),
@@ -938,7 +953,7 @@ function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: bo
           td: ({ children }) => <td className="border-t px-2 py-1.5 align-top">{children}</td>,
         }}
       >
-        {texto}
+        {conteudo}
       </ReactMarkdown>
     </div>
   );
