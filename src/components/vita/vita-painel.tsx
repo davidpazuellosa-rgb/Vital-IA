@@ -120,13 +120,12 @@ function BotaoCopiar({ texto, rotulo, className }: { texto: string; rotulo: stri
       title={copiado ? "Copiado!" : rotulo}
       aria-label={rotulo}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100",
+        "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100",
         copiado ? "opacity-100 text-primary" : "opacity-0 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100",
         className,
       )}
     >
       {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-      {copiado ? "Copiado" : "Copiar"}
     </button>
   );
 }
