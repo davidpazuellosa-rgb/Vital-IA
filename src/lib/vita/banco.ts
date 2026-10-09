@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizarItem } from "@/lib/catalogo/types";
+import { margemReal, normalizarItem } from "@/lib/catalogo/types";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { ETAPAS_LICITACAO } from "@/lib/licitacoes/types";
 import type { AcaoProposta, DetalheAcao } from "./ferramentas";
@@ -169,7 +169,15 @@ export async function consultarDados(args: Record<string, unknown>, supabase: Su
   const limite = Math.min(100, Math.max(1, Number(args.limite) || 30));
   const { data, error, count } = await q.limit(limite);
   if (error) return json({ erro: error.message });
-  return json({ tabela, total: count ?? data?.length ?? 0, mostrando: data?.length ?? 0, linhas: (data ?? []).map((l) => encurtar(l as unknown as Record<string, unknown>)) });
+  let linhas = (data ?? []).map((l) => encurtar(l as unknown as Record<string, unknown>));
+  if (tabela === "catalogo_itens") {
+    // Mesma conta da tela do Catálogo: margem sobre o custo.
+    linhas = linhas.map((l) => {
+      const m = margemReal(l.custo as number | null, l.preco_referencia as number | null);
+      return { ...l, margem_real_sobre_custo: m == null ? null : Math.round(m * 10) / 10 };
+    });
+  }
+  return json({ tabela, total: count ?? data?.length ?? 0, mostrando: linhas.length, linhas });
 }
 
 /* ------------------------------- alterações (com aprovação) ------------------------------- */
@@ -184,7 +192,8 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
   if (invalidas.length) throw new Error(`Colunas não permitidas em ${tabela}: ${invalidas.join(", ")}. Permitidas: ${regra.escrita?.join(", ")}.`);
   let dados = { ...(bruto as Record<string, unknown>) };
   if (tabela === "catalogo_itens") {
-    const n = normalizarItem(dados);
+    // Numa alteração parcial o nome pode não vir; só exige nome quando ele é enviado (ou no cadastro).
+    const n = normalizarItem("nome" in dados ? dados : { ...dados, nome: "-" });
     dados = Object.fromEntries(Object.keys(dados).map((k) => [k, n[k as keyof typeof n]]));
   }
   if (tabela === "saved_licitacoes" && "etapa" in dados && !ETAPAS_LICITACAO.some((e) => e.slug === dados.etapa)) {

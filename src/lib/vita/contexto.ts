@@ -72,6 +72,7 @@ export async function instrucoesVita(supabase: SupabaseClient, pagina: string): 
     "- Fora do seu alcance (só o usuário, na tela): dados da empresa, notas fiscais e numeração de NF-e, tokens/chaves de Telegram e e-mail, propostas e documentos novos (arquivos).",
     "- ler_documento lê o conteúdo de arquivos do acervo e dos clientes; consultar_cnaes traz CNAE principal e secundários da Receita.",
     "- Para comparar um edital com o catálogo: detalhar_licitacao (itens) + consultar_dados em catalogo_itens; aponte correspondências, custo, preço de referência e se a margem mínima é atendida frente ao valor estimado.",
+    "- Margem no catálogo = (preço − custo) / custo, a mesma conta da tela; use o campo margem_real_sobre_custo que vem na consulta. Para um preço de edital, calcule do mesmo jeito.",
     "",
     "Tabelas:",
     descreverEsquema(),

@@ -12,6 +12,9 @@ type EstadoVita = {
   largura: number;
   /** false até ler o estado salvo — evita animar o painel ao carregar a página. */
   pronto: boolean;
+  /** Tela cheia: ocupa a página até a barra lateral, com a lista de conversas à esquerda. */
+  expandido: boolean;
+  alternarExpandido: () => void;
   alternar: () => void;
   abrir: () => void;
   fechar: () => void;
@@ -30,12 +33,14 @@ export function VitaProvider({ children }: { children: React.ReactNode }) {
   const [aberto, setAberto] = useState(false);
   const [largura, setLargura] = useState(LARGURA_PADRAO);
   const [pronto, setPronto] = useState(false);
+  const [expandido, setExpandido] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
-      const salvo = JSON.parse(localStorage.getItem(CHAVE) ?? "{}") as { aberto?: boolean; largura?: number };
+      const salvo = JSON.parse(localStorage.getItem(CHAVE) ?? "{}") as { aberto?: boolean; largura?: number; expandido?: boolean };
       if (typeof salvo.aberto === "boolean") setAberto(salvo.aberto);
+      if (salvo.aberto && salvo.expandido === true) setExpandido(true);
       if (typeof salvo.largura === "number") setLargura(Math.min(LARGURA_MAX, Math.max(LARGURA_MIN, salvo.largura)));
     } catch { /* armazenamento indisponível */ }
     const t = requestAnimationFrame(() => setPronto(true));
@@ -45,12 +50,14 @@ export function VitaProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!pronto) return;
-    try { localStorage.setItem(CHAVE, JSON.stringify({ aberto, largura })); } catch { /* ignora */ }
-  }, [aberto, largura, pronto]);
+    try { localStorage.setItem(CHAVE, JSON.stringify({ aberto, largura, expandido })); } catch { /* ignora */ }
+  }, [aberto, largura, expandido, pronto]);
 
-  const alternar = useCallback(() => setAberto((v) => !v), []);
+  // Fechar sempre volta ao modo painel (na próxima abertura ela abre lateral).
+  const alternar = useCallback(() => setAberto((v) => { if (v) setExpandido(false); return !v; }), []);
   const abrir = useCallback(() => setAberto(true), []);
-  const fechar = useCallback(() => setAberto(false), []);
+  const fechar = useCallback(() => { setAberto(false); setExpandido(false); }, []);
+  const alternarExpandido = useCallback(() => setExpandido((v) => !v), []);
   const definirLargura = useCallback((px: number) => setLargura(Math.min(LARGURA_MAX, Math.max(LARGURA_MIN, Math.round(px)))), []);
 
   // Atalho ⌘J / Ctrl+J
@@ -58,16 +65,16 @@ export function VitaProvider({ children }: { children: React.ReactNode }) {
     const tecla = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
-        setAberto((v) => !v);
+        alternar();
       }
     };
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
-  }, []);
+  }, [alternar]);
 
   const valor = useMemo(
-    () => ({ aberto, largura, pronto, alternar, abrir, fechar, definirLargura }),
-    [aberto, largura, pronto, alternar, abrir, fechar, definirLargura],
+    () => ({ aberto, largura, pronto, expandido, alternarExpandido, alternar, abrir, fechar, definirLargura }),
+    [aberto, largura, pronto, expandido, alternarExpandido, alternar, abrir, fechar, definirLargura],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

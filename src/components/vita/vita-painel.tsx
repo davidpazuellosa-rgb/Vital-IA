@@ -8,10 +8,11 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useSidebar } from "@/components/ui/sidebar";
 import { obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { ACEITOS, MAX_ANEXOS, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
@@ -78,8 +79,22 @@ const novoId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? 
 const CONVERSA_KEY = "vitalia:vita:conversa";
 
 export function VitaPainel() {
-  const { aberto, largura, pronto, fechar, definirLargura } = useVita();
+  const { aberto, largura, pronto, expandido, alternarExpandido, fechar, definirLargura } = useVita();
+  const { state: estadoSidebar, setOpen: abrirSidebar } = useSidebar();
   const [arrastando, setArrastando] = useState(false);
+  const tela = aberto && expandido;
+
+  // Expandida: recolhe a barra lateral (só ícones) e devolve como estava ao sair do modo expandido.
+  const sidebarAntes = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (tela && sidebarAntes.current === null) {
+      sidebarAntes.current = estadoSidebar === "expanded";
+      abrirSidebar(false);
+    } else if (!tela && sidebarAntes.current !== null) {
+      if (sidebarAntes.current) abrirSidebar(true);
+      sidebarAntes.current = null;
+    }
+  }, [tela, estadoSidebar, abrirSidebar]);
 
   // Redimensionar arrastando a borda esquerda
   const iniciarArraste = useCallback((e: React.PointerEvent) => {
@@ -95,48 +110,58 @@ export function VitaPainel() {
     window.addEventListener("pointerup", soltar);
   }, [definirLargura]);
 
+  // Largura visível do painel: a escolhida, ou (expandida) a página inteira menos a barra lateral.
+  const larguraPainel = tela
+    ? `calc(100vw - var(${estadoSidebar === "collapsed" ? "--sidebar-width-icon" : "--sidebar-width"}))`
+    : `${largura}px`;
+  const animar = pronto && !arrastando;
+  const curva = "duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+
   return (
     <aside
       aria-label="Vita, assistente de IA"
       aria-hidden={!aberto}
       inert={!aberto}
-      style={{ "--vita-w": `${aberto ? largura : 0}px`, "--vita-largura": `${largura}px` } as React.CSSProperties}
+      style={{ "--vita-w": `${aberto ? largura : 0}px`, "--vita-painel-w": larguraPainel } as React.CSSProperties}
       className={cn(
-        "z-40 shrink-0 overflow-hidden bg-background",
-        // Desktop: ocupa espaço na linha e empurra a página (anima a largura).
-        "md:sticky md:top-0 md:h-svh md:w-(--vita-w) md:border-l",
+        "z-40 shrink-0 bg-background",
+        // Desktop: ocupa espaço na linha e empurra a página (anima a largura). Expandida, o painel
+        // cresce para a esquerda por cima da página, até a barra lateral.
+        "md:sticky md:top-0 md:h-svh md:w-(--vita-w)",
         // Celular: tela cheia, desliza da direita.
-        "max-md:fixed max-md:inset-0 max-md:w-full",
+        "max-md:fixed max-md:inset-0 max-md:w-full max-md:overflow-hidden",
         aberto ? "max-md:translate-x-0" : "max-md:translate-x-full",
-        pronto && !arrastando && "transition-[width,translate] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-        !aberto && "md:border-l-0",
+        animar && `transition-[width,translate] ${curva}`,
       )}
     >
-      {/* Alça para redimensionar */}
-      <div
-        onPointerDown={iniciarArraste}
-        role="separator"
-        aria-orientation="vertical"
-        aria-valuemin={LARGURA_MIN}
-        aria-valuemax={LARGURA_MAX}
-        aria-valuenow={largura}
-        title="Arraste para ajustar a largura"
-        className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 md:block"
-      />
       <div
         className={cn(
-          "flex h-full w-full flex-col md:w-(--vita-largura)",
-          pronto && "transition-[opacity,translate] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          aberto ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0",
+          "flex h-full w-full flex-col bg-background md:absolute md:inset-y-0 md:right-0 md:w-(--vita-painel-w) md:border-l",
+          animar && `transition-[opacity,translate,width,box-shadow] ${curva}`,
+          aberto ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-6 opacity-0",
+          tela && "md:shadow-[-12px_0_32px_-16px_rgb(0_0_0/0.18)]",
         )}
       >
-        <Conversa aberto={aberto} onFechar={fechar} />
+        {/* Alça para redimensionar (só no modo painel) */}
+        {!tela && (
+          <div
+            onPointerDown={iniciarArraste}
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuemin={LARGURA_MIN}
+            aria-valuemax={LARGURA_MAX}
+            aria-valuenow={largura}
+            title="Arraste para ajustar a largura"
+            className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 md:block"
+          />
+        )}
+        <Conversa aberto={aberto} expandido={tela} onExpandir={alternarExpandido} onFechar={fechar} />
       </div>
     </aside>
   );
 }
 
-function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
+function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean; expandido: boolean; onExpandir: () => void; onFechar: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [conversaId, setConversaId] = useState<string | null>(null);
@@ -354,6 +379,8 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
     }
   }
 
+  const tituloAtual = mensagens.find((m) => m.papel === "user" && m.conteudo)?.conteudo.slice(0, 90) ?? "Nova conversa";
+
   async function decidir(id: string, decisao: "aprovar" | "recusar") {
     setAcoes((a) => ({ ...a, [id]: { ...a[id], resultado: "…" } }));
     try {
@@ -374,7 +401,17 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0">
+      {expandido && (
+        <ColunaConversas
+          atual={conversaId}
+          versao={`${conversaId}-${enviando}`}
+          onAbrir={abrirConversa}
+          onNova={novaConversa}
+          onApagada={(id) => { if (id === conversaId) novaConversa(); }}
+        />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
       {arrastandoArquivo && createPortal(
         <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-background/60 p-4 backdrop-blur-[2px] animate-in fade-in-0 duration-150">
           <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-background px-10 py-8 text-center shadow-xl">
@@ -388,17 +425,33 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
         document.body,
       )}
       {/* Cabeçalho */}
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
-          <Sparkles className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <p className="text-sm font-semibold">Vita</p>
-          <p className="truncate text-[11px] text-muted-foreground">Assistente de licitações</p>
-        </div>
-        <Historico atual={conversaId} onAbrir={abrirConversa} onApagada={(id) => { if (id === conversaId) novaConversa(); }} />
-        <Button variant="ghost" size="icon" className="size-8" onClick={novaConversa} title="Nova conversa" aria-label="Nova conversa">
-          <MessageSquarePlus className="size-4" />
+      <header className={cn("flex h-14 shrink-0 items-center gap-2 px-3", !expandido && "border-b")}>
+        {expandido ? (
+          <p className="min-w-0 flex-1 truncate pl-1 text-sm font-medium text-muted-foreground">{tituloAtual}</p>
+        ) : (
+          <>
+            <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
+              <Sparkles className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="text-sm font-semibold">Vita</p>
+              <p className="truncate text-[11px] text-muted-foreground">Assistente de licitações</p>
+            </div>
+            <Historico atual={conversaId} onAbrir={abrirConversa} onApagada={(id) => { if (id === conversaId) novaConversa(); }} />
+            <Button variant="ghost" size="icon" className="size-8" onClick={novaConversa} title="Nova conversa" aria-label="Nova conversa">
+              <MessageSquarePlus className="size-4" />
+            </Button>
+          </>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 max-md:hidden"
+          onClick={onExpandir}
+          title={expandido ? "Voltar ao painel" : "Expandir"}
+          aria-label={expandido ? "Voltar ao painel lateral" : "Expandir a Vita"}
+        >
+          {expandido ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
         </Button>
         <Button variant="ghost" size="icon" className="size-8" onClick={onFechar} title="Fechar (⌘J)" aria-label="Fechar a Vita">
           <X className="size-4" />
@@ -406,11 +459,12 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
       </header>
 
       {/* Mensagens */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div className={cn("min-h-0 flex-1 overflow-y-auto py-4", expandido ? "px-6" : "px-3")}>
+        <div className={cn(expandido && "mx-auto w-full max-w-3xl")}>
         {carregando ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Abrindo conversa…</p>
         ) : mensagens.length === 0 ? (
-          <BoasVindas onEscolher={(s) => void enviar(s)} />
+          <BoasVindas expandido={expandido} onEscolher={(s) => void enviar(s)} />
         ) : (
           <div className="flex flex-col gap-4">
             {mensagens.map((m) =>
@@ -463,12 +517,13 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
             <div ref={fim} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Campo de mensagem */}
       <form
         onSubmit={(e) => { e.preventDefault(); void enviar(); }}
-        className="shrink-0 border-t p-3"
+        className={cn("shrink-0", expandido ? "mx-auto w-full max-w-3xl px-6 pb-3 pt-2" : "border-t p-3")}
       >
         <div className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-2 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
           {anexos.length > 0 && (
@@ -548,11 +603,37 @@ function Conversa({ aberto, onFechar }: { aberto: boolean; onFechar: () => void 
           <ShieldCheck className="size-3" /> A Vita só altera algo depois da sua aprovação.
         </p>
       </form>
+      </div>
     </div>
   );
 }
 
-function BoasVindas({ onEscolher }: { onEscolher: (s: string) => void }) {
+function BoasVindas({ expandido, onEscolher }: { expandido: boolean; onEscolher: (s: string) => void }) {
+  if (expandido) {
+    return (
+      <div className="flex flex-col gap-8 pt-[10vh]">
+        <div className="flex flex-col gap-4">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-lg shadow-primary/30">
+            <Sparkles className="size-6" />
+          </div>
+          <h2 className="text-3xl font-semibold tracking-tight">Como posso ajudar?</h2>
+        </div>
+        <div className="rounded-2xl border p-2">
+          <p className="flex items-center gap-2 px-3 pb-1 pt-2 text-sm font-medium"><Sparkles className="size-4 text-primary" /> Sugestões</p>
+          {SUGESTOES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onEscolher(s)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground"
+            >
+              <CornerDownRight className="size-4 shrink-0 text-primary" /> {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-4 pt-6">
       <div className="flex flex-col items-center gap-2 text-center">
@@ -622,30 +703,69 @@ function CartaoAcao({ acao, onDecidir }: { acao: AcaoVita; onDecidir: (id: strin
   );
 }
 
-function Historico({ atual, onAbrir, onApagada }: { atual: string | null; onAbrir: (id: string) => void; onApagada: (id: string) => void }) {
-  const [aberto, setAberto] = useState(false);
-  const [busca, setBusca] = useState("");
+/** Lista de conversas (com busca no título e no texto). Recarrega quando `versao` muda. */
+function useConversas(ativo: boolean, busca: string, versao?: string) {
   const [lista, setLista] = useState<ResumoConversa[] | null>(null);
-
   useEffect(() => {
-    if (!aberto) return;
-    let ativo = true;
+    if (!ativo) return;
+    let vivo = true;
     const t = setTimeout(() => {
-      listarConversas(busca).then((r) => { if (ativo) setLista(r); }).catch(() => { if (ativo) setLista([]); });
+      listarConversas(busca).then((r) => { if (vivo) setLista(r); }).catch(() => { if (vivo) setLista([]); });
     }, busca ? 300 : 0);
-    return () => { ativo = false; clearTimeout(t); };
-  }, [aberto, busca]);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [ativo, busca, versao]);
 
-  async function apagar(id: string) {
-    if (!window.confirm("Apagar esta conversa? Não dá para desfazer.")) return;
+  async function apagar(id: string): Promise<boolean> {
+    if (!window.confirm("Apagar esta conversa? Não dá para desfazer.")) return false;
     try {
       await apagarConversa(id);
       setLista((l) => (l ?? []).filter((c) => c.id !== id));
-      onApagada(id);
+      return true;
     } catch {
       toast.error("Não foi possível apagar");
+      return false;
     }
   }
+  return { lista, apagar };
+}
+
+function ItensConversas({ lista, busca, atual, onAbrir, onApagar, comIcone }: {
+  lista: ResumoConversa[] | null; busca: string; atual: string | null;
+  onAbrir: (id: string) => void; onApagar: (id: string) => void; comIcone?: boolean;
+}) {
+  if (lista === null) return <li className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> Carregando…</li>;
+  if (lista.length === 0) return <li className="px-2 py-3 text-center text-sm text-muted-foreground">{busca ? "Nada encontrado" : "Nenhuma conversa ainda"}</li>;
+  return lista.map((c) => (
+    <li key={c.id} className="group flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onAbrir(c.id)}
+        className={cn("flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent", c.id === atual && "bg-accent")}
+      >
+        {comIcone && <MessageSquare className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{c.titulo}</span>
+          <span className="block text-[11px] text-muted-foreground">
+            {new Date(c.atualizadaEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onApagar(c.id)}
+        className="rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+        aria-label="Apagar conversa"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </li>
+  ));
+}
+
+function Historico({ atual, onAbrir, onApagada }: { atual: string | null; onAbrir: (id: string) => void; onApagada: (id: string) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const { lista, apagar } = useConversas(aberto, busca);
 
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
@@ -666,37 +786,59 @@ function Historico({ atual, onAbrir, onApagada }: { atual: string | null; onAbri
           />
         </div>
         <ul className="max-h-80 overflow-auto p-1">
-          {lista === null ? (
-            <li className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> Carregando…</li>
-          ) : lista.length === 0 ? (
-            <li className="px-2 py-3 text-center text-sm text-muted-foreground">{busca ? "Nada encontrado" : "Nenhuma conversa ainda"}</li>
-          ) : (
-            lista.map((c) => (
-              <li key={c.id} className="group flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => { onAbrir(c.id); setAberto(false); }}
-                  className={cn("min-w-0 flex-1 rounded px-2 py-1.5 text-left text-sm hover:bg-accent", c.id === atual && "bg-accent")}
-                >
-                  <span className="block truncate">{c.titulo}</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {new Date(c.atualizadaEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void apagar(c.id)}
-                  className="rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label="Apagar conversa"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </li>
-            ))
-          )}
+          <ItensConversas
+            lista={lista}
+            busca={busca}
+            atual={atual}
+            onAbrir={(id) => { onAbrir(id); setAberto(false); }}
+            onApagar={(id) => void apagar(id).then((ok) => ok && onApagada(id))}
+          />
         </ul>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Coluna de conversas do modo expandido (à esquerda do chat). */
+function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
+  atual: string | null; versao: string; onAbrir: (id: string) => void; onNova: () => void; onApagada: (id: string) => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const { lista, apagar } = useConversas(true, busca, versao);
+  return (
+    <div className="hidden w-64 shrink-0 flex-col border-r bg-muted/30 md:flex animate-in fade-in-0 slide-in-from-left-2 duration-300">
+      <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
+          <Sparkles className="size-3.5" />
+        </div>
+        <span className="font-semibold">Vita</span>
+      </div>
+      <div className="flex flex-col gap-1 px-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Pesquisar…"
+            className="h-9 w-full rounded-full border bg-background pl-8 pr-3 text-sm outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/40 placeholder:text-muted-foreground"
+          />
+        </div>
+        <button type="button" onClick={onNova} className="mt-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent">
+          <SquarePen className="size-4 text-muted-foreground" /> Nova conversa
+        </button>
+      </div>
+      <p className="px-5 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{busca ? "Resultados" : "Recentes"}</p>
+      <ul className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        <ItensConversas
+          lista={lista}
+          busca={busca}
+          atual={atual}
+          comIcone
+          onAbrir={onAbrir}
+          onApagar={(id) => void apagar(id).then((ok) => ok && onApagada(id))}
+        />
+      </ul>
+    </div>
   );
 }
 
