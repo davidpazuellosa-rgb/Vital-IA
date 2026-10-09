@@ -71,7 +71,7 @@ export const PLATAFORMAS: PlatformInfo[] = [
     nome: "Compras Manaus",
     descricao: "Licitações de órgãos do município de Manaus, publicadas via PNCP",
   },
-  // Sistemas de origem indexados pela rotina scripts/indexar-origem.mjs (ver origens.json).
+  // Sistemas de origem (ver origens.json): busca ao vivo no PNCP, filtrada pelo endereço de origem.
   ...origens.map((o) => ({ id: o.id as PlatformId, nome: o.nome, descricao: o.descricao })),
 ];
 
@@ -152,6 +152,8 @@ export interface ResultadoBusca {
   totalRegistros: number;
   /** true quando alguma consulta ao PNCP falhou/expirou (resultado parcial). */
   incompleto?: boolean;
+  /** Orientação para a pessoa (ex.: "escolha um estado para buscar nesta plataforma"). */
+  aviso?: string;
 }
 
 export interface LicitacaoItem {

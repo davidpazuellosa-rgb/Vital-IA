@@ -2,31 +2,41 @@
   {
     "id": "licitar-digital",
     "nome": "Licitar Digital",
-    "descricao": "Licitações que acontecem no sistema Licitar Digital (índice próprio, atualizado 2x ao dia)",
-    "hosts": ["licitardigital.com.br"]
+    "descricao": "Licitações que acontecem no sistema Licitar Digital (busca ao vivo no PNCP, filtrada pela origem)",
+    "hosts": [
+      "licitardigital.com.br"
+    ]
   },
   {
     "id": "bll-compras",
     "nome": "BLL Compras",
-    "descricao": "Licitações que acontecem no sistema BLL Compras (índice próprio, atualizado 2x ao dia)",
-    "hosts": ["bllcompras.com"]
+    "descricao": "Licitações que acontecem no sistema BLL Compras (busca ao vivo no PNCP, filtrada pela origem)",
+    "hosts": [
+      "bllcompras.com"
+    ]
   },
   {
     "id": "licitanet",
     "nome": "Licitanet",
-    "descricao": "Licitações que acontecem no sistema Licitanet (índice próprio, atualizado 2x ao dia)",
-    "hosts": ["licitanet.com.br"]
+    "descricao": "Licitações que acontecem no sistema Licitanet (busca ao vivo no PNCP, filtrada pela origem)",
+    "hosts": [
+      "licitanet.com.br"
+    ]
   },
   {
     "id": "portal-compras-publicas",
     "nome": "Portal de Compras Públicas",
-    "descricao": "Licitações que acontecem no Portal de Compras Públicas (índice próprio, atualizado 2x ao dia)",
-    "hosts": ["portaldecompraspublicas.com.br"]
+    "descricao": "Licitações que acontecem no sistema Portal de Compras Públicas (busca ao vivo no PNCP, filtrada pela origem)",
+    "hosts": [
+      "portaldecompraspublicas.com.br"
+    ]
   },
   {
     "id": "bnc-compras",
     "nome": "BNC Compras",
-    "descricao": "Licitações que acontecem no sistema BNC Compras (índice próprio, atualizado 2x ao dia)",
-    "hosts": ["bnccompras.com"]
+    "descricao": "Licitações que acontecem no sistema BNC Compras (busca ao vivo no PNCP, filtrada pela origem)",
+    "hosts": [
+      "bnccompras.com"
+    ]
   }
 ]

@@ -439,6 +439,73 @@ async function buscarPncpPorTexto(filtro: UniversalFilter, paginacao: Paginacao)
   };
 }
 
+const MAX_PAGINAS_VARREDURA_UF = 40; // 2.000 licitações por combinação UF/modalidade
+
+/** Uma página da consulta de propostas, com novas tentativas (o PNCP derruba conexões em rajada). */
+async function paginaPropostaComTentativas(params: URLSearchParams): Promise<PncpResponse | null> {
+  for (let tentativa = 0; tentativa < 4; tentativa++) {
+    if (tentativa > 0) await new Promise((r) => setTimeout(r, 1_500 * tentativa));
+    try {
+      return await buscarPagina(PROPOSTA_URL, params);
+    } catch {
+      // tenta de novo
+    }
+  }
+  return null;
+}
+
+/**
+ * Varre AO VIVO as licitações abertas de cada UF escolhida (3 páginas por vez) e devolve as que
+ * passam em `predicado`. Serve para filtros que o PNCP não oferece (ex.: sistema de origem) quando
+ * não há texto para a busca textual. Nada é guardado: cada busca consulta o PNCP de novo.
+ * `limitado` = a UF tem mais licitações do que o teto da varredura (resultado pode estar incompleto).
+ */
+export async function varrerAbertasPorUf(
+  filtro: UniversalFilter,
+  predicado: (item: UnifiedLicitacao) => boolean,
+): Promise<{ itens: UnifiedLicitacao[]; incompleto: boolean; limitado: boolean }> {
+  const modalidades: (number | undefined)[] = filtro.modalidades?.length ? filtro.modalidades : [undefined];
+  const itens: UnifiedLicitacao[] = [];
+  const vistos = new Set<string>();
+  let incompleto = false;
+  let limitado = false;
+
+  for (const uf of filtro.ufs ?? []) {
+    for (const modalidade of modalidades) {
+      const base = new URLSearchParams({ dataFinal: horizonteEncerramento(), uf, tamanhoPagina: "50" });
+      if (modalidade != null) base.set("codigoModalidadeContratacao", String(modalidade));
+      const primeira = await paginaPropostaComTentativas(new URLSearchParams({ ...Object.fromEntries(base), pagina: "1" }));
+      if (!primeira) { incompleto = true; continue; }
+      const total = Math.min(primeira.totalPaginas ?? 1, MAX_PAGINAS_VARREDURA_UF);
+      if ((primeira.totalPaginas ?? 1) > MAX_PAGINAS_VARREDURA_UF) limitado = true;
+
+      const coletar = (resposta: PncpResponse | null) => {
+        if (!resposta) { incompleto = true; return; }
+        for (const bruto of resposta.data ?? []) {
+          if (vistos.has(bruto.numeroControlePNCP)) continue;
+          const item = mapItem(bruto);
+          if (!predicado(item)) continue;
+          if (filtro.valorMin != null && (item.valorEstimado ?? 0) < filtro.valorMin) continue;
+          if (filtro.valorMax != null && (item.valorEstimado ?? Infinity) > filtro.valorMax) continue;
+          vistos.add(item.numeroControlePNCP);
+          itens.push(item);
+        }
+      };
+      coletar(primeira);
+      for (let inicio = 2; inicio <= total; inicio += 3) {
+        const lote = await Promise.all(
+          Array.from({ length: Math.min(3, total - inicio + 1) }, (_, i) =>
+            paginaPropostaComTentativas(new URLSearchParams({ ...Object.fromEntries(base), pagina: String(inicio + i) })),
+          ),
+        );
+        lote.forEach(coletar);
+      }
+    }
+  }
+  itens.sort((a, b) => (b.dataPublicacao ?? "").localeCompare(a.dataPublicacao ?? ""));
+  return { itens, incompleto, limitado };
+}
+
 const TAMANHO_COLETA_FILTRO_LOCAL = 50;
 const LIMITE_PAGINAS_COLETA = 25;
 // Com palavra-chave os resultados já vêm filtrados por relevância: poucas

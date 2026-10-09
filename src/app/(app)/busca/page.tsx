@@ -59,6 +59,7 @@ export default function BuscaPage() {
   const [totalRegistros, setTotalRegistros] = useState(0);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [buscou, setBuscou] = useState(false);
   const [salvas, setSalvas] = useState<Set<string>>(new Set());
   const [, salvarTransition] = useTransition();
@@ -114,6 +115,7 @@ export default function BuscaPage() {
   async function buscar(paginaAlvo = 1) {
     setCarregando(true);
     setErro(null);
+    setAviso(null);
     setBuscou(true);
     setPagina(paginaAlvo);
 
@@ -140,6 +142,7 @@ export default function BuscaPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Erro ao buscar");
       setResultados(json.resultados);
+      setAviso(json.aviso ?? null);
       setTotalPaginas(json.totalPaginas ?? 0);
       setTotalRegistros(json.totalRegistros ?? 0);
       try {
@@ -302,6 +305,9 @@ export default function BuscaPage() {
 
       {erro && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{erro}</p>
+      )}
+      {aviso && !carregando && (
+        <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">{aviso}</p>
       )}
 
       {carregando && (

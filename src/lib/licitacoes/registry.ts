@@ -11,7 +11,7 @@ import { buscarLicitacaoPorNumeroControle, parseNumeroControle } from "./provide
 import { comprasnetProvider } from "./providers/comprasnet";
 import { ecomprasAmProvider } from "./providers/ecompras-am";
 import { comprasManausProvider } from "./providers/compras-manaus";
-import { criarProviderOrigem } from "./providers/origem-indexada";
+import { criarProviderOrigem } from "./providers/origem-ao-vivo";
 import origens from "./origens.json";
 
 const PROVIDERS: Record<PlatformId, LicitacaoProvider> = {
@@ -65,5 +65,6 @@ export async function buscarLicitacoes(
     totalPaginas: resultados.reduce((m, r) => Math.max(m, r.totalPaginas), 0),
     totalRegistros: resultados.reduce((s, r) => s + r.totalRegistros, 0),
     incompleto: resultados.some((r) => r.incompleto),
+    aviso: resultados.map((r) => r.aviso).find(Boolean),
   };
 }
