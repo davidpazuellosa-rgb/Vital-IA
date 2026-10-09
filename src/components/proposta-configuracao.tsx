@@ -57,9 +57,6 @@ export function PropostaConfiguracaoForm({
               <FileCheck2 className="size-4 text-primary" />
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Propostas</h2>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Base que o agente usará para preparar propostas específicas para cada licitação.
-            </p>
           </div>
           <Badge variant="secondary" className="font-medium tabular-nums">{completos} / 4 prontos</Badge>
         </div>

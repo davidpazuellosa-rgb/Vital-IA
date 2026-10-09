@@ -20,9 +20,6 @@ export default async function ClientesPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cada cliente reúne suas propostas, notas de empenho, notas fiscais e contratos.
-          </p>
         </div>
         <AdicionarCliente />
       </div>
@@ -34,9 +31,6 @@ export default async function ClientesPage() {
               <Users className="size-6" />
             </div>
             <p className="font-medium">Nenhum cliente ainda</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Adicione um cliente para organizar os documentos das licitações vencidas.
-            </p>
           </CardContent>
         </Card>
       ) : (

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Package, Pencil, Plus, Search, Sparkles, Trash2, Wrench } from "lucide-react";
+import { Loader2, Package, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,9 +57,6 @@ export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Package className="size-6" /></div>
             <p className="font-medium">Catálogo vazio</p>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Cadastre os produtos e serviços que a empresa vende. Ou peça à <strong>Vita</strong> (⌘J): “monte meu catálogo a partir desta planilha” anexando a sua lista.
-            </p>
             <FormItem />
           </CardContent>
         </Card>
@@ -118,9 +115,6 @@ export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
           </table>
         </div>
       )}
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Sparkles className="size-3.5 text-primary" /> A Vita usa este catálogo para conversar sobre seus produtos e casar itens de editais com o que você vende.
-      </p>
     </div>
   );
 }

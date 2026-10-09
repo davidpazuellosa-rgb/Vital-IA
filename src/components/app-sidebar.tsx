@@ -57,10 +57,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
           <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground text-base font-bold shadow-sm shadow-primary/30">
             V
           </div>
-          <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold tracking-tight">Vital.IA</span>
-            <span className="text-xs text-sidebar-foreground/60">Licitações públicas</span>
-          </div>
+          <span className="font-semibold tracking-tight group-data-[collapsible=icon]:hidden">Vital.IA</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

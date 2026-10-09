@@ -10,12 +10,7 @@ export default async function CatalogoPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Catálogo de Produtos e Serviços</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            O que a empresa vende, com custo, preço de referência e margem. {itens.length > 0 && `${itens.length} item(ns).`}
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Catálogo de Produtos e Serviços</h1>
         {itens.length > 0 && <FormItem />}
       </div>
       <Catalogo itens={itens} />

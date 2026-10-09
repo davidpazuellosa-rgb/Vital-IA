@@ -73,9 +73,6 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
         <CardContent className="flex flex-col gap-3">
           <div>
             <h2 className="font-semibold">Dados do órgão (para nota fiscal)</h2>
-            <p className="text-xs text-muted-foreground">
-              Informe o CNPJ do órgão e clique em Buscar — o endereço é preenchido e reutilizado ao emitir a nota.
-            </p>
           </div>
           <DadosOrgaoCliente clienteId={c.id} cnpj={c.cnpj ?? ""} municipio={c.municipio ?? ""} uf={c.uf ?? ""} />
         </CardContent>
@@ -86,9 +83,6 @@ export default async function ClienteDetalhePage({ params }: { params: Promise<{
           <CardContent className="flex flex-col gap-3">
             <div>
               <h2 className="font-semibold">Notas Fiscais</h2>
-              <p className="text-xs text-muted-foreground">
-                NF-e autorizadas deste cliente — anexadas automaticamente ao emitir.
-              </p>
             </div>
             <div className="flex flex-col gap-2">
               {notasFiscais.map((d) => (

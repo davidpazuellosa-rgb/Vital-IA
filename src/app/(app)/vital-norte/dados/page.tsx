@@ -28,9 +28,6 @@ export default async function DadosEmpresaPage() {
     <div className="flex flex-col gap-5">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Dados da Empresa</h1>
-        <p className="text-sm text-muted-foreground">
-          Dados cadastrais da Vital Norte, reutilizados para preencher propostas e habilitações.
-        </p>
       </div>
       <EmpresaForm dados={dados} />
       <PropostaConfiguracaoForm

@@ -559,7 +559,6 @@ function MontagemProposta({
     >
       <div className="border-b px-4 py-3">
         <p className="font-semibold">Montagem da proposta</p>
-        <p className="text-xs text-muted-foreground">Selecione os itens, informe marca e preço e gere o PDF com os documentos disponíveis.</p>
       </div>
       <div className="flex flex-col gap-4 p-4">
         <div className="rounded-lg border border-dashed p-3">

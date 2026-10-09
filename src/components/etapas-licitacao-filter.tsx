@@ -40,16 +40,13 @@ export function EtapasLicitacaoFilter({ etapas }: { etapas: EtapaFiltrada[] }) {
                 aria-controls="etapa-licitacoes-panel"
                 onClick={() => setEtapaAtiva(etapa.slug)}
                 className={cn(
-                  "flex min-h-16 items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   selecionada
                     ? "border-primary/35 bg-background text-foreground shadow-sm"
                     : "border-transparent text-muted-foreground hover:border-border hover:bg-background/70 hover:text-foreground",
                 )}
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{etapa.nome}</span>
-                  <span className="mt-0.5 block truncate text-xs">{etapa.descricao}</span>
-                </span>
+                <span className="min-w-0 truncate text-sm font-semibold">{etapa.nome}</span>
                 <Badge
                   variant={selecionada ? "default" : "secondary"}
                   className="shrink-0 tabular-nums"
@@ -69,10 +66,7 @@ export function EtapasLicitacaoFilter({ etapas }: { etapas: EtapaFiltrada[] }) {
         className="overflow-hidden rounded-xl border bg-card shadow-sm"
       >
         <header className="flex items-center justify-between gap-4 border-b border-primary/15 bg-primary/8 px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="font-semibold text-primary">{etapaSelecionada.nome}</h2>
-            <p className="truncate text-sm text-primary/70">{etapaSelecionada.descricao}</p>
-          </div>
+          <h2 className="min-w-0 truncate font-semibold text-primary">{etapaSelecionada.nome}</h2>
           <span className="shrink-0 text-sm font-medium text-primary/80">
             {etapaSelecionada.quantidade} {etapaSelecionada.quantidade === 1 ? "licitação" : "licitações"}
           </span>

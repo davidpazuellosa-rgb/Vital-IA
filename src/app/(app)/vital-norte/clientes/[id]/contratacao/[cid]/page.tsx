@@ -66,7 +66,6 @@ export default async function ContratacaoPage({ params }: { params: Promise<{ id
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">{cat.nome}</h2>
-                  <p className="text-xs text-muted-foreground">{cat.descricao}</p>
                 </div>
                 <ClienteDocUpload clienteId={id} contratacaoId={ct.id} tipo={cat.slug} />
               </div>

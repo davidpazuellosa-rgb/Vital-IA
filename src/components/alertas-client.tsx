@@ -43,7 +43,6 @@ export function CanaisNotificacao({
               </div>
               <div>
                 <p className="font-semibold">Telegram</p>
-                <p className="text-sm text-muted-foreground">Token do bot, chat id e envio de teste.</p>
               </div>
             </CardContent>
           </Card>
@@ -80,7 +79,6 @@ export function CanaisNotificacao({
               </div>
               <div>
                 <p className="font-semibold">E-mail</p>
-                <p className="text-sm text-muted-foreground">Endereço, remetente e credenciais para alertas por e-mail.</p>
               </div>
             </CardContent>
           </Card>
@@ -127,7 +125,6 @@ function CanalEmBreve({
             </div>
             <div>
               <p className="font-semibold">{titulo}</p>
-              <p className="text-sm text-muted-foreground">{descricao}</p>
             </div>
           </CardContent>
         </Card>

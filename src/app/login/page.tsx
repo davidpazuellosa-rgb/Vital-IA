@@ -41,9 +41,6 @@ export default function LoginPage() {
           </div>
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">Vital.IA</h1>
-            <p className="text-sm text-muted-foreground">
-              Busca inteligente de licitações públicas
-            </p>
           </div>
         </div>
 

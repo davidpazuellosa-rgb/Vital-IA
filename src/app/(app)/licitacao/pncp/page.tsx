@@ -108,9 +108,6 @@ export default async function LicitacaoPncpPerfil({
           <Card className="shadow-sm">
             <CardContent className="flex flex-col gap-3">
               <SalvarLicitacaoButton licitacao={lic} />
-              <p className="text-xs text-muted-foreground">
-                Salve para acompanhar em Minhas Licitações e gerar a proposta.
-              </p>
             </CardContent>
           </Card>
         </div>

@@ -86,9 +86,6 @@ export default async function AlertasPage() {
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Buscas e filtros dos alertas</h2>
-          <p className="text-sm text-muted-foreground">
-            Cada alerta abaixo representa uma busca automática que será rastreada periodicamente.
-          </p>
         </div>
 
       {alertas.length === 0 ? (
@@ -98,9 +95,6 @@ export default async function AlertasPage() {
               <Bell className="size-6" />
             </div>
             <p className="font-medium">Nenhum alerta ainda</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Crie um alerta com seus filtros (palavra-chave, UF, valor) para receber novas licitações automaticamente.
-            </p>
           </CardContent>
         </Card>
       ) : (
@@ -148,9 +142,6 @@ export default async function AlertasPage() {
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Canais de notificação</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure onde o Vital.IA deve avisar quando uma nova licitação bater com seus filtros.
-          </p>
         </div>
         <CanaisNotificacao
           chatId={chatId}

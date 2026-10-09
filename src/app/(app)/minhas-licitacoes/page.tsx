@@ -102,11 +102,6 @@ export default async function MinhasLicitacoesPage() {
     <div className="flex flex-col gap-5">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Minhas Licitações</h1>
-        <p className="text-sm text-muted-foreground">
-          {total > 0
-            ? `${total} licitação(ões) salva(s).`
-            : "Suas licitações salvas aparecem aqui."}
-        </p>
       </div>
 
       {emAndamento.length > 0 && (
@@ -143,9 +138,6 @@ export default async function MinhasLicitacoesPage() {
             </div>
             <div className="space-y-1">
               <p className="font-medium">Nenhuma licitação salva ainda</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Use a página de Busca para encontrar licitações e salvá-las para acompanhar depois.
-              </p>
             </div>
             <Button asChild className="mt-2">
               <Link href="/busca">

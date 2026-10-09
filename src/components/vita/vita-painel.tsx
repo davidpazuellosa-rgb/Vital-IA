@@ -427,7 +427,6 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
               <Upload className="size-5" />
             </div>
             <p className="text-sm font-semibold">Solte para enviar à Vita</p>
-            <p className="text-xs text-muted-foreground">PDF, fotos, planilhas, Word ou texto · até {MAX_ANEXOS} arquivos</p>
           </div>
         </div>,
         document.body,
@@ -441,10 +440,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
               <Sparkles className="size-4" />
             </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <p className="text-sm font-semibold">Vita</p>
-              <p className="truncate text-[11px] text-muted-foreground">Assistente de licitações</p>
-            </div>
+            <p className="min-w-0 flex-1 text-sm font-semibold">Vita</p>
             <Historico atual={conversaId} onAbrir={abrirConversa} onApagada={(id) => { if (id === conversaId) novaConversa(); }} />
             <Button variant="ghost" size="icon" className="size-8" onClick={novaConversa} title="Nova conversa" aria-label="Nova conversa">
               <MessageSquarePlus className="size-4" />

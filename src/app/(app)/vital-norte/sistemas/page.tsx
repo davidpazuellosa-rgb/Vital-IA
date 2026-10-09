@@ -18,10 +18,6 @@ export default async function SistemasPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Sistemas de Licitação</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Portais em que a empresa tem cadastro. Cada um abre na sua própria aba: entre uma vez e o
-            navegador mantém o login — clicar em Abrir de novo volta para a mesma aba.
-          </p>
         </div>
         <FormSistema />
       </div>
@@ -33,9 +29,6 @@ export default async function SistemasPage() {
               <Globe className="size-6" />
             </div>
             <p className="font-medium">Nenhum sistema cadastrado</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Adicione os portais de licitação em que a empresa tem cadastro.
-            </p>
           </CardContent>
         </Card>
       ) : (

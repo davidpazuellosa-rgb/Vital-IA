@@ -53,10 +53,6 @@ export default async function DocumentosPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Documentos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reúna aqui as certidões e documentos de habilitação para gerar propostas. A validade
-            é verificada pela data de cada documento.
-          </p>
         </div>
         <UploadDocumento />
       </div>
@@ -79,7 +75,6 @@ export default async function DocumentosPage() {
             <Grupo
               key={grupo.slug}
               titulo={grupo.titulo}
-              descricao={grupo.descricao}
               enviados={enviadosGrupo}
               total={grupo.tipos.length}
               slug={grupo.slug}
@@ -87,9 +82,9 @@ export default async function DocumentosPage() {
               {grupo.tipos.map((tipo) => {
                 const doc = porTipo.get(tipo.slug);
                 return doc ? (
-                  <LinhaDocumento key={tipo.slug} doc={doc} url={urls.get(doc.id) ?? null} subtitulo={tipo.descricao} />
+                  <LinhaDocumento key={tipo.slug} doc={doc} url={urls.get(doc.id) ?? null} />
                 ) : (
-                  <LinhaPendente key={tipo.slug} tipo={tipo.slug} nome={tipo.nome} descricao={tipo.descricao} />
+                  <LinhaPendente key={tipo.slug} tipo={tipo.slug} nome={tipo.nome} />
                 );
               })}
             </Grupo>
@@ -98,7 +93,7 @@ export default async function DocumentosPage() {
       </section>
 
       {/* Outros documentos (avulsos) */}
-      <Grupo titulo="Outros documentos" descricao="Arquivos fora do checklist" enviados={avulsos.length} slug={TIPO_AVULSO}>
+      <Grupo titulo="Outros documentos" enviados={avulsos.length} slug={TIPO_AVULSO}>
         <div className="flex justify-end">
           <UploadDocumento variant="outline" size="sm" label="Adicionar avulso" />
         </div>
@@ -116,14 +111,12 @@ export default async function DocumentosPage() {
 
 function Grupo({
   titulo,
-  descricao,
   enviados,
   total,
   slug,
   children,
 }: {
   titulo: string;
-  descricao: string;
   enviados: number;
   total?: number;
   slug?: string;
@@ -136,7 +129,6 @@ function Grupo({
         <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 [details[open]_&]:rotate-90" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold leading-tight">{titulo}</p>
-          <p className="truncate text-xs text-muted-foreground">{descricao}</p>
         </div>
         {slug && enviados > 0 && <BaixarGrupo slug={slug} />}
         <Badge
@@ -169,7 +161,7 @@ const STATUS_STYLE: Record<StatusValidade, { badge: string; icon: typeof FileChe
   sem_data: { badge: "border-transparent bg-muted text-muted-foreground", icon: FileQuestion },
 };
 
-function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string | null; subtitulo?: string }) {
+function LinhaDocumento({ doc, url }: { doc: Documento; url: string | null }) {
   const semValidade = tipoSemValidade(doc.tipo);
   const validade = avaliarValidade(doc.data_validade);
   const style = STATUS_STYLE[validade.status];
@@ -184,7 +176,7 @@ function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string |
         <p className="truncate font-medium">{doc.nome}</p>
         <p className="truncate text-xs text-muted-foreground">
           {doc.tipo !== TIPO_AVULSO ? `${nomeTipo(doc.tipo)} · ` : ""}
-          {subtitulo ?? doc.arquivo_nome}
+          {doc.arquivo_nome}
         </p>
       </div>
       {!semValidade && (
@@ -218,7 +210,7 @@ function LinhaDocumento({ doc, url, subtitulo }: { doc: Documento; url: string |
   );
 }
 
-function LinhaPendente({ tipo, nome, descricao }: { tipo: string; nome: string; descricao: string }) {
+function LinhaPendente({ tipo, nome }: { tipo: string; nome: string }) {
   return (
     <div className="flex items-center gap-4 rounded-lg border border-dashed px-3 py-2.5">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/60">
@@ -226,7 +218,6 @@ function LinhaPendente({ tipo, nome, descricao }: { tipo: string; nome: string; 
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-muted-foreground">{nome}</p>
-        <p className="truncate text-xs text-muted-foreground/70">{descricao}</p>
       </div>
       <Badge variant="outline" className="shrink-0 gap-1 font-normal text-muted-foreground">
         <CircleHelp className="size-3.5" />

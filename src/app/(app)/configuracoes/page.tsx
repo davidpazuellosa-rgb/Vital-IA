@@ -6,25 +6,21 @@ import { Button } from "@/components/ui/button";
 const CONFIGURACOES = [
   {
     titulo: "Dados da empresa",
-    descricao: "Cadastro da Vital Norte usado em propostas, declarações e documentos.",
     href: "/vital-norte/dados",
     icon: Building2,
   },
   {
     titulo: "Documentos",
-    descricao: "Certidões e arquivos de habilitação usados na análise das propostas.",
     href: "/documentos",
     icon: FolderOpen,
   },
   {
     titulo: "Alertas",
-    descricao: "Filtros automáticos e canais de notificação, como Telegram, WhatsApp e e-mail.",
     href: "/vital-norte/alertas",
     icon: Bell,
   },
   {
     titulo: "Propostas",
-    descricao: "Padrões de representantes, validade e observações das propostas.",
     href: "/vital-norte/dados",
     icon: FileText,
   },
@@ -39,9 +35,6 @@ export default function ConfiguracoesPage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Configurações gerais</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Ajustes centrais do sistema e atalhos para as configurações operacionais.
-          </p>
         </div>
       </div>
 
@@ -54,7 +47,6 @@ export default function ConfiguracoesPage() {
               </div>
               <div className="flex-1">
                 <h2 className="font-semibold">{item.titulo}</h2>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{item.descricao}</p>
               </div>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link href={item.href}>Abrir configuração</Link>

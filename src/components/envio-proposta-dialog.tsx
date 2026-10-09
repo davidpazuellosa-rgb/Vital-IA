@@ -193,10 +193,6 @@ export function Conteudo({ pacote, licitacaoId, aoMudar }: { pacote: PacoteEnvio
           ) : (
             <Button size="sm" variant="outline" disabled><FileSignature /> Declarações para assinar</Button>
           )}
-          <p className="text-xs text-muted-foreground sm:basis-full">
-            O ZIP só inclui documentos <strong>em dia</strong> (a validade é conferida na hora) e traz um LEIAME com o que entrou, o que ficou de fora e o que ainda falta.
-            A proposta final assinada é gerada em “Abrir rascunho”.
-          </p>
           {!proposta?.analisada && <p className="text-xs text-amber-700 dark:text-amber-400 sm:basis-full"><Download className="mr-1 inline size-3" /> Abra o rascunho da proposta uma vez para o edital ser analisado.</p>}
         </div>
       </div>

@@ -825,7 +825,7 @@ function CancelarNotaDialog({ id }: { id: string }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Cancelar NF-e</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="not-sr-only">
             O cancelamento é definitivo e enviado à SEFAZ. Informe a justificativa (mínimo de 15 caracteres).
           </DialogDescription>
         </DialogHeader>

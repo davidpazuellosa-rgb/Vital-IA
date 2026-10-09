@@ -146,7 +146,9 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        // Vital.IA não mostra subtítulos: a descrição fica só para leitores de tela.
+        // Para exibir um aviso importante, passe className="not-sr-only".
+        "sr-only text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className
       )}
       {...props}

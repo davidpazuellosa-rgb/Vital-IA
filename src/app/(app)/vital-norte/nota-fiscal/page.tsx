@@ -68,9 +68,6 @@ export default async function NotaFiscalPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Nota Fiscal</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Emita NF-e de venda para os órgãos e acompanhe a autorização na SEFAZ.
-          </p>
         </div>
         <NovaNotaFiscal clientes={clientes} contratacoesPorCliente={contratacoesPorCliente} />
       </div>
@@ -82,9 +79,6 @@ export default async function NotaFiscalPage() {
               <Receipt className="size-6" />
             </div>
             <p className="font-medium">Nenhuma nota emitida ainda</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Crie uma nota fiscal para enviar à SEFAZ e baixar o DANFE e o XML.
-            </p>
           </CardContent>
         </Card>
       ) : (
