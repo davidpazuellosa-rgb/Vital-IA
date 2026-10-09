@@ -157,7 +157,7 @@ export default async function LicitacaoDetalhePage({
         </div>
 
         {/* ===== Coluna direita: ações + resumo ===== */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-20">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-[4.5rem]">
           <Card className="shadow-sm">
             <CardContent>
               <Suspense fallback={<div className="flex flex-col gap-2"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></div>}>

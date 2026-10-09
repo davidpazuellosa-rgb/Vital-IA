@@ -128,7 +128,7 @@ export default async function LicitacaoPncpPerfil({
         </div>
 
         {/* Coluna direita: ação */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-20">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-[4.5rem]">
           <Card className="shadow-sm">
             <CardContent className="flex flex-col gap-3">
               <SalvarLicitacaoButton licitacao={lic} />
