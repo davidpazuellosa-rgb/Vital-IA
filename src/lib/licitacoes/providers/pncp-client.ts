@@ -298,6 +298,9 @@ interface PncpBuscaItem {
 
 function mapItemBusca(item: PncpBuscaItem): UnifiedLicitacao {
   const objeto = item.description ?? "";
+  // A busca textual devolve "" (e não null) quando não há data/link — texto
+  // vazio numa coluna de data derrubaria o salvamento da licitação.
+  const ouNulo = (valor: string | null | undefined): string | null => (valor && valor.trim() ? valor : null);
   return {
     id: item.numero_controle_pncp,
     plataforma: "pncp",
@@ -311,10 +314,10 @@ function mapItemBusca(item: PncpBuscaItem): UnifiedLicitacao {
     modalidade: item.modalidade_licitacao_nome ?? "",
     situacao: item.situacao_nome ?? "",
     valorEstimado: item.valor_total_estimado ?? item.valor_global ?? null,
-    dataPublicacao: item.data_publicacao_pncp ?? null,
-    dataAberturaProposta: item.data_inicio_recebimento_propostas ?? item.data_inicio_vigencia ?? null,
-    dataEncerramentoProposta: item.data_fim_recebimento_propostas ?? item.data_fim_vigencia ?? null,
-    linkOrigem: item.link_sistema_origem ?? null,
+    dataPublicacao: ouNulo(item.data_publicacao_pncp),
+    dataAberturaProposta: ouNulo(item.data_inicio_recebimento_propostas) ?? ouNulo(item.data_inicio_vigencia),
+    dataEncerramentoProposta: ouNulo(item.data_fim_recebimento_propostas) ?? ouNulo(item.data_fim_vigencia),
+    linkOrigem: ouNulo(item.link_sistema_origem),
   };
 }
 

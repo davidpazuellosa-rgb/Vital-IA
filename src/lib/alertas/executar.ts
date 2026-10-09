@@ -88,7 +88,8 @@ async function salvarOportunidadesDoAlerta(
     .from("saved_licitacoes")
     .upsert(registros, { onConflict: "user_id,numero_controle_pncp,plataforma" });
 
-  if (error) throw error;
+  // Erro do PostgREST não é uma instância de Error: sem isso a mensagem real se perde.
+  if (error) throw new Error(`Falha ao salvar oportunidades: ${error.message}`);
 }
 export async function executarAlertas(): Promise<ResumoExecucao> {
   const supabase = createServiceClient();
