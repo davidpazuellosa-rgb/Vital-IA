@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
-import { LicitacaoCard } from "@/components/licitacao-card";
+import { LicitacoesLista, SeletorVisao } from "@/components/licitacoes-lista";
 import { RemoverLicitacaoButton } from "@/components/remover-licitacao-button";
 import { EtapaSelect } from "@/components/etapa-select";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
@@ -100,8 +100,9 @@ export default async function MinhasLicitacoesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="space-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Minhas Licitações</h1>
+        {total > 0 && <SeletorVisao />}
       </div>
 
       {emAndamento.length > 0 && (
@@ -161,33 +162,33 @@ export default async function MinhasLicitacoesPage() {
                     Nenhuma licitação nesta etapa.
                   </p>
                 ) : (
-                  itens.map((item) => (
-                    <LicitacaoCard
-                      key={item.id}
-                      href={`/licitacao/${item.id}`}
-                      plataformaNome={PLATAFORMA_NOME[item.plataforma] ?? item.plataforma}
-                      situacao={item.situacao}
-                      titulo={item.titulo}
-                      orgao={item.orgao}
-                      uf={item.uf}
-                      municipio={item.municipio}
-                      modalidade={item.modalidade}
-                      valorEstimado={item.valor_estimado}
-                      dataAbertura={item.data_abertura_proposta}
-                      dataEncerramento={item.data_encerramento_proposta}
-                      linkOrigem={item.link_origem}
-                      numeroControlePNCP={item.numero_controle_pncp}
-                    salvoPorAlerta={licitacoesSalvasPorAlerta.has(item.numero_controle_pncp)}
-                      action={
+                  <LicitacoesLista
+                    itens={itens.map((item) => ({
+                      id: item.id,
+                      href: `/licitacao/${item.id}`,
+                      plataformaNome: PLATAFORMA_NOME[item.plataforma] ?? item.plataforma,
+                      situacao: item.situacao,
+                      titulo: item.titulo,
+                      orgao: item.orgao,
+                      uf: item.uf,
+                      municipio: item.municipio,
+                      modalidade: item.modalidade,
+                      valorEstimado: item.valor_estimado,
+                      dataAbertura: item.data_abertura_proposta,
+                      dataEncerramento: item.data_encerramento_proposta,
+                      linkOrigem: item.link_origem,
+                      numeroControlePNCP: item.numero_controle_pncp,
+                      salvoPorAlerta: licitacoesSalvasPorAlerta.has(item.numero_controle_pncp),
+                      action: (
                         <div className="flex items-center gap-1.5">
                           <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />
                           <EnvioPropostaDialog licitacaoId={item.id} enviada={licitacoesEnviadas.has(item.id)} size="sm" compacto />
                           <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
                           <RemoverLicitacaoButton id={item.id} />
                         </div>
-                      }
-                    />
-                  ))
+                      ),
+                    }))}
+                  />
                 ),
             };
           })}

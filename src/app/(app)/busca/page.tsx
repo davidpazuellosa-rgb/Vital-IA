@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MultiSelect } from "@/components/multi-select";
 import { OrgaoCombobox } from "@/components/orgao-combobox";
-import { LicitacaoCard } from "@/components/licitacao-card";
+import { LicitacoesLista, SeletorVisao } from "@/components/licitacoes-lista";
 import { MODALIDADES, PLATAFORMAS, PlatformId, UFS, UF_NOMES, UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
 import { salvarLicitacao } from "@/lib/licitacoes/actions";
 import { cn } from "@/lib/utils";
@@ -335,33 +335,36 @@ export default function BuscaPage() {
 
       {!carregando && resultados.length > 0 && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">
-            Mostrando <span className="font-medium text-foreground">{resultados.length}</span>
-            {totalRegistros > 0 && (
-              <> de ~<span className="font-medium text-foreground">{totalRegistros}</span></>
-            )}{" "}
-            licitação(ões){totalPaginas > 1 && <> · página {pagina} de {totalPaginas}</>}
-          </p>
-          {resultados.map((item) => {
-            const chave = `${item.plataforma}-${item.numeroControlePNCP}`;
-            const jaSalva = salvas.has(chave);
-            return (
-              <LicitacaoCard
-                key={chave}
-                href={`/licitacao/pncp?n=${encodeURIComponent(item.numeroControlePNCP)}`}
-                numeroControlePNCP={item.numeroControlePNCP}
-                plataformaNome={PLATAFORMA_NOME[item.plataforma] ?? item.plataforma}
-                situacao={item.situacao}
-                titulo={item.titulo}
-                orgao={item.orgao}
-                uf={item.uf}
-                municipio={item.municipio}
-                modalidade={item.modalidade}
-                valorEstimado={item.valorEstimado}
-                dataAbertura={item.dataAberturaProposta}
-                dataEncerramento={item.dataEncerramentoProposta}
-                linkOrigem={item.linkOrigem}
-                action={
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Mostrando <span className="font-medium text-foreground">{resultados.length}</span>
+              {totalRegistros > 0 && (
+                <> de ~<span className="font-medium text-foreground">{totalRegistros}</span></>
+              )}{" "}
+              licitação(ões){totalPaginas > 1 && <> · página {pagina} de {totalPaginas}</>}
+            </p>
+            <SeletorVisao />
+          </div>
+          <LicitacoesLista
+            itens={resultados.map((item) => {
+              const chave = `${item.plataforma}-${item.numeroControlePNCP}`;
+              const jaSalva = salvas.has(chave);
+              return {
+                id: chave,
+                href: `/licitacao/pncp?n=${encodeURIComponent(item.numeroControlePNCP)}`,
+                numeroControlePNCP: item.numeroControlePNCP,
+                plataformaNome: PLATAFORMA_NOME[item.plataforma] ?? item.plataforma,
+                situacao: item.situacao,
+                titulo: item.titulo,
+                orgao: item.orgao,
+                uf: item.uf,
+                municipio: item.municipio,
+                modalidade: item.modalidade,
+                valorEstimado: item.valorEstimado,
+                dataAbertura: item.dataAberturaProposta,
+                dataEncerramento: item.dataEncerramentoProposta,
+                linkOrigem: item.linkOrigem,
+                action: (
                   <Button
                     size="sm"
                     variant={jaSalva ? "secondary" : "outline"}
@@ -371,10 +374,10 @@ export default function BuscaPage() {
                     {jaSalva ? <Check /> : <BookmarkPlus />}
                     {jaSalva ? "Salva" : "Salvar"}
                   </Button>
-                }
-              />
-            );
-          })}
+                ),
+              };
+            })}
+          />
 
           {totalPaginas > 1 && (
             <div className="flex items-center justify-center gap-3 pt-2">

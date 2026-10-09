@@ -14,7 +14,7 @@ import { formatarData, formatarMoeda } from "@/lib/format";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { cn } from "@/lib/utils";
 
-interface LicitacaoCardProps {
+export interface LicitacaoCardProps {
   plataformaNome: string;
   situacao: string;
   titulo: string;
