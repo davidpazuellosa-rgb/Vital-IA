@@ -1,0 +1,108 @@
+# Vita — a assistente de IA do Vital.IA
+
+A Vita reúne **todas as ferramentas de IA do sistema numa conversa**: analisar documentos da
+empresa, editais e itens, montar propostas, conversar sobre os **produtos e serviços** da Vital
+Norte e **executar ações no sistema — sempre com aprovação** de quem está usando.
+
+---
+
+## 1. Interface
+
+- **Botão “Vita”** no canto direito da top bar (ícone + nome). Atalho de teclado: ⌘J.
+- **Painel à direita**, ~420 px (redimensionável arrastando a borda; largura lembrada).
+- **Abre e fecha com transição fina** (~300 ms, curva suave): o painel desliza da direita e
+  **empurra o conteúdo** — a página encolhe para dar espaço, nada fica coberto. Fechar devolve
+  o espaço com a mesma animação. Respeita “reduzir movimento” do sistema operacional.
+- No celular, o painel ocupa a tela inteira.
+- **Conversa com resposta em tempo real** (texto aparecendo enquanto a Vita escreve), formatação
+  (listas, tabelas), e **cartões** para licitações, documentos, itens e propostas, com botões.
+- **Contexto da página:** aberta numa licitação, a Vita já sabe de qual licitação se trata
+  (“monte a proposta desta”), e o mesmo vale para cliente, documento ou proposta.
+
+## 2. Anexos (até 8 por mensagem)
+
+- **Tipos:** PDF (texto ou escaneado), imagens e fotos (JPG, PNG, HEIC, WEBP), planilhas
+  (XLSX, XLS, CSV), Word (DOCX) e texto. Até **20 MB por arquivo**.
+- **Como anexar:** clipe, arrastar e soltar no painel, ou colar imagem (Cmd+V).
+- **Como a Vita lê:** PDF → texto (e OCR por IA se for escaneado, como já acontece na análise
+  de edital); imagem/foto → leitura por IA com visão; planilha → tabela (linhas e colunas);
+  DOCX → texto.
+- **Onde ficam:** numa pasta temporária da conversa. **Só entram no acervo da empresa, de um
+  cliente ou de uma proposta se você aprovar** a ação de anexar (ver item 5).
+
+## 3. O que a Vita sabe (contexto)
+
+| Fonte | Para quê |
+|---|---|
+| Dados da empresa (razão social, CNAE, porte, endereço) | saber o que a Vital Norte pode vender e como se apresenta |
+| **Catálogo de produtos e serviços** *(novo)* | conversar sobre os seus produtos, preços de referência, marcas, fornecedores |
+| CNAEs (principal e secundários, pela Receita) | dizer que serviços a empresa **pode** prestar e quais oportunidades exigem outro CNAE |
+| Documentos do acervo e validades | habilitação, vencimentos, o que falta |
+| Licitações salvas, propostas, itens e preços já usados | histórico e preços praticados |
+| Clientes, contratações e notas fiscais emitidas | o que já foi vendido, para quem e por quanto |
+| PNCP ao vivo | buscar licitações, ler editais e itens |
+
+**Catálogo de produtos e serviços (nova página):** nome, descrição, categoria, unidade, marca,
+código (CATMAT/CATSER/NCM), custo, preço de referência, margem, fornecedores e observações. A Vita
+ajuda a montar o catálogo a partir das notas, propostas e conversas — cada item criado com aprovação.
+
+## 4. Ferramentas da Vita
+
+**Leitura (não alteram nada — executam direto):**
+- buscar licitações (PNCP ao vivo, com todos os filtros da Busca);
+- abrir uma licitação: itens, valores, arquivos do edital;
+- analisar edital (documentos exigidos/dispensados, declarações, condições);
+- ler e extrair dados de anexos (tabelas de preços, itens, validades de certidões);
+- consultar acervo de documentos, empresa, clientes, contratações, propostas e notas;
+- consultar o catálogo e **casar itens do edital com produtos do catálogo** (sugere marca e preço);
+- calcular preço (custo + margem + impostos) e comparar com o valor estimado.
+
+**Ações (alteram o sistema — sempre pedem aprovação):**
+- salvar licitação em Minhas Licitações e mudar etapa;
+- criar ou atualizar **rascunho de proposta** (itens, marcas, preços);
+- gerar o **PDF da proposta** e das declarações;
+- **anexar documento** ao acervo (com tipo e validade extraídos), a um cliente ou contratação;
+- criar ou editar itens do **catálogo**;
+- registrar envio de proposta; criar alerta de licitações.
+
+**Fora do alcance da Vita (decisão de segurança):** transmitir NF-e, cancelar nota, excluir
+qualquer coisa, enviar proposta na plataforma, mudar dados da empresa ou configurações, enviar
+mensagens a terceiros.
+
+## 5. Aprovação
+
+1. Quando a Vita quer fazer algo, aparece um **cartão de aprovação** na conversa: o que será
+   feito, onde, e **o que muda** (antes → depois, valores, arquivos).
+2. Botões **Aprovar**, **Editar** (ajustar antes de aprovar) e **Recusar**. Nada acontece antes do clique.
+3. Várias ações de uma vez (ex.: 12 itens de proposta) aparecem como lista: aprovar todas ou uma a uma.
+4. A ação roda **com o seu login** (mesmas permissões que você tem na tela — a Vita não tem acesso
+   especial).
+5. Tudo fica num **histórico de ações** (quem aprovou, quando, o que mudou, resultado), com
+   **desfazer** quando possível.
+6. **Proteção contra instruções escondidas:** texto de editais, PDFs e planilhas é tratado como
+   dado, nunca como ordem. Se um documento “mandar” a Vita fazer algo, ela não faz — e avisa.
+
+## 6. Como funciona por dentro
+
+- Conversa via rota do servidor com resposta em tempo real; a Vita decide quais ferramentas usar.
+- Ferramentas de leitura rodam no servidor; ferramentas de ação **não rodam**: viram um pedido
+  pendente, exibido como cartão. Ao aprovar, o servidor executa com a sessão do usuário e devolve o
+  resultado para a conversa continuar.
+- **Modelo de IA:** decidido na Fase 0 (ver decisões). Precisa suportar ferramentas (function
+  calling), visão (imagens/PDF escaneado) e resposta em tempo real.
+- **Custo controlado:** modelo rápido para conversa e leitura; modelo forte para análise de edital
+  e montagem de proposta; limite de tamanho por anexo e por conversa.
+
+## 7. Fases
+
+| Fase | Entrega | Resultado para você |
+|---|---|---|
+| **0** | Prova técnica do modelo: ferramentas + visão + tempo real; custo por conversa | escolha do modelo com números reais |
+| **1** | Botão na top bar, painel com transição que empurra a página, conversa em tempo real, contexto da empresa | já dá para conversar com a Vita |
+| **2** | Anexos (até 8): PDF, OCR, imagens, planilhas, DOCX | “leia esta tabela de preços / esta certidão” |
+| **3** | Ferramentas de leitura: licitações, editais, itens, acervo, propostas, notas | “ache pregões de alimentos no AM e me diga quais posso atender” |
+| **4** | Catálogo de produtos/serviços + CNAEs + casar edital × catálogo | “quais itens deste edital eu tenho? com que margem?” |
+| **5** | Ações com aprovação + histórico + desfazer | “monte a proposta e anexe esta certidão” → você aprova |
+| **6** | Refinos: conversas salvas e pesquisáveis, sugestões por página, atalhos | uso diário mais rápido |
+
+Cada fase é publicada e testada antes da próxima.
