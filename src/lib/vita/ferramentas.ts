@@ -151,6 +151,8 @@ const dataHoraBr = (iso: string | null | undefined) =>
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const json = (v: unknown) => JSON.stringify(v);
 const nomePlataforma = (id: string) => PLATAFORMAS.find((p) => p.id === id)?.nome ?? id;
+/** O PNCP usa 0 quando não informa o valor (ou quando é sigiloso). */
+const valorOuNaoInformado = (v: number | null | undefined) => (v && v > 0 ? formatarMoeda(v) : "Não informado");
 
 function resumoLicitacao(l: UnifiedLicitacao, salvas: Set<string>) {
   return {
@@ -159,7 +161,7 @@ function resumoLicitacao(l: UnifiedLicitacao, salvas: Set<string>) {
     orgao: l.orgao,
     local: [l.municipio, l.uf].filter(Boolean).join("/"),
     modalidade: l.modalidade,
-    valor_estimado: l.valorEstimado,
+    valor_estimado: l.valorEstimado && l.valorEstimado > 0 ? l.valorEstimado : "não informado",
     encerramento_propostas: dataHoraBr(l.dataEncerramentoProposta),
     plataforma: nomePlataforma(l.plataforma),
     link_origem: l.linkOrigem,
@@ -320,7 +322,7 @@ async function proporSalvar(args: Args, ctx: ContextoFerramenta): Promise<Result
         { rotulo: "Objeto", valor: (lic.titulo || lic.descricao).slice(0, 180) },
         { rotulo: "Órgão", valor: `${lic.orgao}${lic.uf ? ` · ${[lic.municipio, lic.uf].filter(Boolean).join("/")}` : ""}` },
         { rotulo: "Modalidade", valor: lic.modalidade || "—" },
-        { rotulo: "Valor estimado", valor: formatarMoeda(lic.valorEstimado) },
+        { rotulo: "Valor estimado", valor: valorOuNaoInformado(lic.valorEstimado) },
         { rotulo: "Propostas até", valor: dataHoraBr(lic.dataEncerramentoProposta) },
         { rotulo: "Nº PNCP", valor: numero },
       ],
