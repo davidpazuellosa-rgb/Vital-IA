@@ -12,7 +12,8 @@ type EtapaFiltrada = {
   conteudo: ReactNode;
 };
 
-export function EtapasLicitacaoFilter({ etapas }: { etapas: EtapaFiltrada[] }) {
+/** `barra` aparece logo abaixo das abas (busca, filtros, visão). */
+export function EtapasLicitacaoFilter({ etapas, barra }: { etapas: EtapaFiltrada[]; barra?: ReactNode }) {
   const etapaInicial = etapas.find((etapa) => etapa.quantidade > 0)?.slug ?? etapas[0]?.slug;
   const [etapaAtiva, setEtapaAtiva] = useState(etapaInicial);
   const etapaSelecionada = etapas.find((etapa) => etapa.slug === etapaAtiva) ?? etapas[0];
@@ -58,6 +59,8 @@ export function EtapasLicitacaoFilter({ etapas }: { etapas: EtapaFiltrada[] }) {
           })}
         </div>
       </div>
+
+      {barra}
 
       <section
         id="etapa-licitacoes-panel"
