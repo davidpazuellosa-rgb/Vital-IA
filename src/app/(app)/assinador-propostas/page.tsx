@@ -25,14 +25,8 @@ const ETAPAS = [
 export default function AssinadorPropostasPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <FileSignature className="size-6 text-primary" />
-            Assinador de Propostas
-          </h1>
-        </div>
-        <Button asChild size="lg" className="md:mt-1">
+      <div className="flex md:justify-end">
+        <Button asChild size="lg">
           <a href={ASSINADOR_URL} target="_blank" rel="noreferrer">
             <ExternalLink />
             Abrir Assinador gov.br

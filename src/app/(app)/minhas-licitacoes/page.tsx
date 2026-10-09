@@ -100,10 +100,11 @@ export default async function MinhasLicitacoesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Minhas Licitações</h1>
-        {total > 0 && <SeletorVisao />}
-      </div>
+      {total > 0 && (
+        <div className="flex justify-end">
+          <SeletorVisao />
+        </div>
+      )}
 
       {emAndamento.length > 0 && (
         <Card className="border-primary/30">

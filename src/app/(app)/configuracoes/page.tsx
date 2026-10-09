@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, Building2, FileText, FolderOpen, Settings } from "lucide-react";
+import { Bell, Building2, FileText, FolderOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -29,15 +29,6 @@ const CONFIGURACOES = [
 export default function ConfiguracoesPage() {
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Settings className="size-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Configurações gerais</h1>
-        </div>
-      </div>
-
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {CONFIGURACOES.map((item) => (
           <Card key={item.titulo} className="shadow-sm">

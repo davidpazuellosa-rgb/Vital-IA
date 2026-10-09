@@ -26,9 +26,6 @@ export default async function DadosEmpresaPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dados da Empresa</h1>
-      </div>
       <EmpresaForm dados={dados} />
       <PropostaConfiguracaoForm
         configuracao={propostaConfiguracao}
