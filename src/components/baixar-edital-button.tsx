@@ -28,7 +28,7 @@ export function BaixarEditalButton({
       // requisição de minutos na página, que era o que falhava com o PNCP lento.
       const a = document.createElement("a");
       a.href = base;
-      a.download = `edital-${numeroControle.replace(/[^\w]/g, "_")}.zip`;
+      a.download = ""; // o nome (cidade-objeto) vem do servidor
       document.body.appendChild(a);
       a.click();
       a.remove();

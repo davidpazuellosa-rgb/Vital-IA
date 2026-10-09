@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Zip, ZipPassThrough } from "fflate";
 import { createClient } from "@/lib/supabase/server";
 import { buscarArquivosPncp, type ArquivoPncp } from "@/lib/licitacoes/providers/pncp-arquivos";
+import { contentDispositionZip, nomeEdital } from "@/lib/licitacoes/nome-edital";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -167,11 +168,18 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const nomeZip = `edital-${numero.replace(/[^\w]/g, "_")}.zip`;
+  // Nome: "Cidade-objeto resumido" (dados da licitação salva); sem ela, o nº de controle.
+  const { data: salva } = await supabase
+    .from("saved_licitacoes")
+    .select("municipio, uf, titulo, orgao")
+    .eq("numero_controle_pncp", numero)
+    .limit(1)
+    .maybeSingle();
+  const nomeZip = nomeEdital(salva ?? {}, numero);
   return new Response(corpo, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${nomeZip}"`,
+      "Content-Disposition": contentDispositionZip(nomeZip),
       "Cache-Control": "no-store",
       "X-Accel-Buffering": "no",
     },
