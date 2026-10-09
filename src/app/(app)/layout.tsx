@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   return (
-    <SidebarProvider style={{ "--sidebar-width": "13rem" } as React.CSSProperties}>
+    <SidebarProvider style={{ "--sidebar-width": "16rem" } as React.CSSProperties}>
       <VitaProvider>
         <AppSidebar userEmail={user.email ?? ""} />
         <SidebarInset className="min-w-0">

@@ -52,9 +52,10 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border/60">
-        <div className="flex items-center gap-2.5 px-1.5 py-2">
-          <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground text-base font-bold shadow-sm shadow-primary/30">
+      {/* Mesma altura da barra do topo (h-14), para as linhas divisórias ficarem alinhadas. */}
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border/60 p-0">
+        <div className="flex items-center gap-2.5 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 text-primary-foreground text-base font-bold shadow-sm shadow-primary/30">
             V
           </div>
           <span className="font-semibold tracking-tight group-data-[collapsible=icon]:hidden">Vital.IA</span>
