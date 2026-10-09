@@ -12,13 +12,13 @@ type ItemBusca = { orgao_nome?: string | null; orgao_cnpj?: string | null; uf?: 
 
 async function paginaBusca(q: string, pagina: number): Promise<ItemBusca[]> {
   const params = new URLSearchParams({ q, tipos_documento: "edital", ordenacao: "relevancia", pagina: String(pagina), tam_pagina: "50" });
-  for (let tentativa = 0; tentativa < 3; tentativa++) {
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
     if (tentativa > 0) await new Promise((r) => setTimeout(r, 1_200 * tentativa));
     try {
       const res = await fetch(`https://pncp.gov.br/api/search/?${params.toString()}`, {
         headers: { Accept: "application/json" },
         cache: "no-store",
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(12_000),
       });
       if (res.ok) return ((await res.json()) as { items?: ItemBusca[] }).items ?? [];
     } catch {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   if (texto.length < 3) return NextResponse.json({ orgaos: [] });
 
   const tokens = tokensOrgao(texto);
-  const itens = [...(await paginaBusca(tokens.join(" "), 1)), ...(await paginaBusca(tokens.join(" "), 2))];
+  const itens = await paginaBusca(tokens.join(" "), 1);
 
   const porOrgao = new Map<string, { nome: string; uf: string; municipio: string; qtd: number }>();
   for (const i of itens) {
