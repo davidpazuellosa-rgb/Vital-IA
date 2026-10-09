@@ -23,9 +23,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MultiToggle } from "@/components/multi-toggle";
+import { MultiSelect } from "@/components/multi-select";
+import { OrgaoCombobox } from "@/components/orgao-combobox";
 import { LicitacaoCard } from "@/components/licitacao-card";
-import { MODALIDADES, PLATAFORMAS, PlatformId, UFS, UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
+import { MODALIDADES, PLATAFORMAS, PlatformId, UFS, UF_NOMES, UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
 import { salvarLicitacao } from "@/lib/licitacoes/actions";
 import { cn } from "@/lib/utils";
 
@@ -237,18 +238,16 @@ export default function BuscaPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Órgão</Label>
-                  <Input
-                    placeholder="ex: prefeitura, secretaria..."
-                    value={orgao}
-                    onChange={(e) => setOrgao(e.target.value)}
-                  />
+                  <OrgaoCombobox value={orgao} onChange={setOrgao} />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Plataformas</Label>
-                  <MultiToggle
+                  <MultiSelect
                     options={PLATAFORMAS.map((p) => ({ value: p.id, label: p.nome }))}
                     selected={plataformas}
                     onChange={setPlataformas}
+                    placeholder="PNCP (padrão)"
+                    plural="plataformas"
                   />
                 </div>
               </div>
@@ -272,22 +271,29 @@ export default function BuscaPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label>UF</Label>
-                <MultiToggle
-                  options={UFS.map((uf) => ({ value: uf, label: uf }))}
-                  selected={ufs}
-                  onChange={setUfs}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label>Modalidade</Label>
-                <MultiToggle
-                  options={MODALIDADES.map((m) => ({ value: String(m.id), label: m.nome }))}
-                  selected={modalidades}
-                  onChange={setModalidades}
-                />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label>Estado (UF)</Label>
+                  <MultiSelect
+                    options={UFS.map((uf) => ({ value: uf, label: `${uf} · ${UF_NOMES[uf] ?? uf}` }))}
+                    selected={ufs}
+                    onChange={setUfs}
+                    placeholder="Todos os estados"
+                    plural="estados"
+                    searchable
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Modalidade</Label>
+                  <MultiSelect
+                    options={MODALIDADES.map((m) => ({ value: String(m.id), label: m.nome }))}
+                    selected={modalidades}
+                    onChange={setModalidades}
+                    placeholder="Todas as modalidades"
+                    plural="modalidades"
+                    searchable
+                  />
+                </div>
               </div>
             </div>
           )}

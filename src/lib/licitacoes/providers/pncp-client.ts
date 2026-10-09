@@ -209,7 +209,7 @@ export async function buscarPncp(
   // A API de consulta não pesquisa texto: filtrar a palavra-chave localmente só
   // enxergava a página atual (20 de ~34 mil abertas). Com palavra-chave, usa a
   // busca textual do PNCP, que pesquisa a base inteira e ordena por relevância.
-  if (filtro.keyword?.trim()) return buscarPncpPorTexto(filtro, paginacao);
+  if (filtro.keyword?.trim() || filtro.orgao?.trim()) return buscarPncpPorTexto(filtro, paginacao);
 
   const apenasAberto = filtro.apenasAberto ?? true;
 
@@ -275,6 +275,16 @@ function semAcento(texto: string): string {
   return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
+// O nome oficial do órgão no PNCP varia ("MUNICIPIO DE X" × "Prefeitura Municipal de X").
+// Palavras genéricas são ignoradas na comparação; o que sobra (ex.: "luisburgo") identifica o órgão.
+const PALAVRAS_GENERICAS_ORGAO = new Set(["de", "da", "do", "das", "dos", "e", "prefeitura", "municipal", "municipio"]);
+
+export function tokensOrgao(texto: string): string[] {
+  const todos = semAcento(texto).split(/[^a-z0-9]+/).filter(Boolean);
+  const uteis = todos.filter((t) => !PALAVRAS_GENERICAS_ORGAO.has(t));
+  return uteis.length > 0 ? uteis : todos;
+}
+
 const BUSCA_TEXTO_URL = "https://pncp.gov.br/api/search/";
 
 interface PncpBuscaItem {
@@ -327,21 +337,11 @@ function mapItemBusca(item: PncpBuscaItem): UnifiedLicitacao {
  * aspas buscam a frase exata. O endpoint derruba conexões com frequência
  * (rate-limit), então tenta algumas vezes com espera crescente.
  */
-async function buscarPncpPorTexto(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca> {
-  const apenasAberto = filtro.apenasAberto ?? true;
-  const params = new URLSearchParams({
-    q: filtro.keyword!.trim(),
-    tipos_documento: "edital",
-    ordenacao: "relevancia",
-    pagina: String(paginacao.pagina),
-    tam_pagina: String(paginacao.tamanhoPagina),
-  });
-  if (apenasAberto) params.set("status", "recebendo_proposta");
-  if (filtro.ufs?.length) params.set("ufs", filtro.ufs.join("|"));
-  if (filtro.modalidades?.length) params.set("modalidades", filtro.modalidades.join("|"));
+type RespostaBusca = { items?: PncpBuscaItem[]; total?: number };
 
-  let resposta: { items?: PncpBuscaItem[]; total?: number } | null = null;
-  for (let tentativa = 0; tentativa < 4 && !resposta; tentativa++) {
+/** Uma página da busca textual, com novas tentativas (o endpoint derruba conexões em rajada). */
+async function buscarPaginaTexto(params: URLSearchParams): Promise<RespostaBusca | null> {
+  for (let tentativa = 0; tentativa < 4; tentativa++) {
     if (tentativa > 0) await new Promise((r) => setTimeout(r, 1_500 * tentativa));
     try {
       const res = await fetch(`${BUSCA_TEXTO_URL}?${params.toString()}`, {
@@ -349,31 +349,94 @@ async function buscarPncpPorTexto(filtro: UniversalFilter, paginacao: Paginacao)
         cache: "no-store",
         signal: AbortSignal.timeout(20_000),
       });
-      if (res.ok) resposta = await res.json();
+      if (res.ok) return (await res.json()) as RespostaBusca;
     } catch {
       // conexão derrubada/timeout → tenta de novo
     }
   }
-  if (!resposta) return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
+  return null;
+}
 
-  // Filtros que a busca textual não aplica: órgão, valor e, fora do modo
-  // "em aberto", o período de publicação (aplicados na página recebida).
-  const orgaoFiltro = filtro.orgao?.trim() ? semAcento(filtro.orgao) : "";
-  const itens = (resposta.items ?? [])
-    .map(mapItemBusca)
-    .filter((item) => {
-      if (orgaoFiltro && !semAcento(item.orgao).includes(orgaoFiltro)) return false;
-      if (filtro.valorMin != null && (item.valorEstimado ?? 0) < filtro.valorMin) return false;
-      if (filtro.valorMax != null && (item.valorEstimado ?? Infinity) > filtro.valorMax) return false;
-      if (!apenasAberto && item.dataPublicacao) {
-        const dia = item.dataPublicacao.slice(0, 10);
-        if (dia < filtro.dataInicial || dia > filtro.dataFinal) return false;
-      }
-      return true;
-    });
+const MAX_PAGINAS_COM_ORGAO = 5;
 
-  const totalRegistros = resposta.total ?? itens.length;
-  return { itens, totalRegistros, totalPaginas: Math.ceil(totalRegistros / paginacao.tamanhoPagina) };
+/**
+ * Busca por palavra-chave e/ou órgão na base inteira do PNCP (a mesma busca do portal),
+ * ordenada por relevância. Ignora acentos ("eletronico" acha "eletrônico"); aspas buscam a
+ * frase exata. Quando há órgão, ele entra na consulta e o resultado é filtrado pelo nome do
+ * órgão — como a filtragem é local, coleta até 5 páginas para encher a página pedida.
+ */
+async function buscarPncpPorTexto(filtro: UniversalFilter, paginacao: Paginacao): Promise<ResultadoBusca> {
+  const apenasAberto = filtro.apenasAberto ?? true;
+  const tokens = filtro.orgao?.trim() ? tokensOrgao(filtro.orgao) : [];
+  const consulta = [filtro.keyword?.trim(), ...tokens].filter(Boolean).join(" ");
+  const comOrgao = tokens.length > 0;
+  const tamanhoApi = comOrgao ? 50 : paginacao.tamanhoPagina;
+
+  const base = new URLSearchParams({
+    q: consulta,
+    tipos_documento: "edital",
+    ordenacao: "relevancia",
+    tam_pagina: String(tamanhoApi),
+  });
+  if (apenasAberto) base.set("status", "recebendo_proposta");
+  if (filtro.ufs?.length) base.set("ufs", filtro.ufs.join("|"));
+  if (filtro.modalidades?.length) base.set("modalidades", filtro.modalidades.join("|"));
+
+  const passa = (item: UnifiedLicitacao): boolean => {
+    if (comOrgao) {
+      const nome = semAcento(item.orgao);
+      if (!tokens.every((t) => nome.includes(t))) return false;
+    }
+    if (filtro.valorMin != null && (item.valorEstimado ?? 0) < filtro.valorMin) return false;
+    if (filtro.valorMax != null && (item.valorEstimado ?? Infinity) > filtro.valorMax) return false;
+    if (!apenasAberto && item.dataPublicacao) {
+      const dia = item.dataPublicacao.slice(0, 10);
+      if (dia < filtro.dataInicial || dia > filtro.dataFinal) return false;
+    }
+    return true;
+  };
+
+  // Sem órgão: a página da API é a página exibida.
+  if (!comOrgao) {
+    base.set("pagina", String(paginacao.pagina));
+    const resposta = await buscarPaginaTexto(base);
+    if (!resposta) return { itens: [], totalPaginas: 0, totalRegistros: 0, incompleto: true };
+    const itens = (resposta.items ?? []).map(mapItemBusca).filter(passa);
+    const total = resposta.total ?? itens.length;
+    return { itens, totalRegistros: total, totalPaginas: Math.ceil(total / paginacao.tamanhoPagina) };
+  }
+
+  // Com órgão: coleta páginas até ter o suficiente para a página pedida.
+  const alvo = paginacao.pagina * paginacao.tamanhoPagina;
+  const coletados: UnifiedLicitacao[] = [];
+  const vistos = new Set<string>();
+  let totalApi = 0;
+  let paginaApi = 1;
+  let incompleto = false;
+  let esgotou = false;
+  while (coletados.length < alvo + 1 && paginaApi <= MAX_PAGINAS_COM_ORGAO) {
+    const params = new URLSearchParams(base);
+    params.set("pagina", String(paginaApi));
+    const resposta = await buscarPaginaTexto(params);
+    if (!resposta) { incompleto = true; break; }
+    totalApi = resposta.total ?? totalApi;
+    const lote = resposta.items ?? [];
+    for (const item of lote.map(mapItemBusca)) {
+      if (vistos.has(item.numeroControlePNCP) || !passa(item)) continue;
+      vistos.add(item.numeroControlePNCP);
+      coletados.push(item);
+    }
+    if (lote.length < tamanhoApi || paginaApi * tamanhoApi >= totalApi) { esgotou = true; break; }
+    paginaApi += 1;
+  }
+  const inicio = (paginacao.pagina - 1) * paginacao.tamanhoPagina;
+  const totalRegistros = esgotou ? coletados.length : Math.max(coletados.length, alvo + 1);
+  return {
+    itens: coletados.slice(inicio, inicio + paginacao.tamanhoPagina),
+    totalRegistros,
+    totalPaginas: Math.ceil(totalRegistros / paginacao.tamanhoPagina),
+    incompleto,
+  };
 }
 
 const TAMANHO_COLETA_FILTRO_LOCAL = 50;

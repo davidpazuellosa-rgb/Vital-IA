@@ -10,12 +10,14 @@ import { buscarLicitacaoPorNumeroControle, parseNumeroControle } from "./provide
 import { comprasnetProvider } from "./providers/comprasnet";
 import { ecomprasAmProvider } from "./providers/ecompras-am";
 import { comprasManausProvider } from "./providers/compras-manaus";
+import { licitarDigitalProvider } from "./providers/licitar-digital";
 
 const PROVIDERS: Record<PlatformId, LicitacaoProvider> = {
   pncp: pncpProvider,
   comprasnet: comprasnetProvider,
   "ecompras-am": ecomprasAmProvider,
   "compras-manaus": comprasManausProvider,
+  "licitar-digital": licitarDigitalProvider,
 };
 
 export async function buscarLicitacoes(

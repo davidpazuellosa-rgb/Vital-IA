@@ -1,4 +1,6 @@
-export type PlatformId = "pncp" | "comprasnet" | "ecompras-am" | "compras-manaus";
+import origens from "./origens.json";
+
+export type PlatformId = "pncp" | "comprasnet" | "ecompras-am" | "compras-manaus" | "licitar-digital";
 
 export interface PlatformInfo {
   id: PlatformId;
@@ -66,7 +68,18 @@ export const PLATAFORMAS: PlatformInfo[] = [
     nome: "Compras Manaus",
     descricao: "Licitações de órgãos do município de Manaus, publicadas via PNCP",
   },
+  // Sistemas de origem indexados pela rotina scripts/indexar-origem.mjs (ver origens.json).
+  ...origens.map((o) => ({ id: o.id as PlatformId, nome: o.nome, descricao: o.descricao })),
 ];
+
+/** Nomes dos estados, para o dropdown de UF ("AM · Amazonas"). */
+export const UF_NOMES: Record<string, string> = {
+  AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia", CE: "Ceará", DF: "Distrito Federal",
+  ES: "Espírito Santo", GO: "Goiás", MA: "Maranhão", MT: "Mato Grosso", MS: "Mato Grosso do Sul",
+  MG: "Minas Gerais", PA: "Pará", PB: "Paraíba", PR: "Paraná", PE: "Pernambuco", PI: "Piauí",
+  RJ: "Rio de Janeiro", RN: "Rio Grande do Norte", RS: "Rio Grande do Sul", RO: "Rondônia",
+  RR: "Roraima", SC: "Santa Catarina", SP: "São Paulo", SE: "Sergipe", TO: "Tocantins",
+};
 
 export const MODALIDADES = [
   { id: 1, nome: "Leilão - Eletrônico" },

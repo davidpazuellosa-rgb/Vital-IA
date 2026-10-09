@@ -1,0 +1,8 @@
+[
+  {
+    "id": "licitar-digital",
+    "nome": "Licitar Digital",
+    "descricao": "Pregões que acontecem no sistema Licitar Digital (índice próprio, atualizado 2x ao dia)",
+    "hosts": ["licitardigital.com.br"]
+  }
+]
