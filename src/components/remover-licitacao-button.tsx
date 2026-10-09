@@ -22,7 +22,7 @@ export function RemoverLicitacaoButton({ id }: { id: string }) {
   }
 
   return (
-    <Button size="sm" variant="ghost" disabled={pending} onClick={remover}>
+    <Button size="sm" variant="ghost" disabled={pending} onClick={remover} title="Remover licitação" aria-label="Remover licitação">
       {pending ? <Loader2 className="animate-spin" /> : <Trash2 />}
     </Button>
   );

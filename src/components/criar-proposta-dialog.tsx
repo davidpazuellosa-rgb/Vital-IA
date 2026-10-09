@@ -123,6 +123,7 @@ export function CriarPropostaDialog({
         onClick={iniciar}
         disabled={pendente}
         aria-label={temProposta ? "Abrir rascunho da proposta" : "Criar proposta"}
+        title={temProposta ? "Abrir rascunho da proposta" : "Criar proposta"}
       >
         {pendente ? <Loader2 className="animate-spin" /> : <FileText />}
         {!compacto && (temProposta ? "Abrir rascunho" : "Criar proposta")}

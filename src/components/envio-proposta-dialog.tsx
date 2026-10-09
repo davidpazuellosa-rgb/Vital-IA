@@ -76,6 +76,7 @@ export function EnvioPropostaDialog({
         size={size}
         onClick={() => { setAberto(true); void carregar(); }}
         aria-label={jaEnviada ? "Ver envio da proposta" : "Enviar proposta"}
+        title={jaEnviada ? "Ver envio da proposta" : "Enviar proposta"}
       >
         {jaEnviada ? <CheckCircle2 className="text-primary" /> : <Send />}
         {!compacto && (jaEnviada ? "Enviada" : "Enviar proposta")}

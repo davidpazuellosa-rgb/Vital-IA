@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { ExternalLink, LayoutGrid, Table2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Bell, ExternalLink, LayoutGrid, Table2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LicitacaoCard, type LicitacaoCardProps } from "@/components/licitacao-card";
-import { formatarData, formatarMoeda } from "@/lib/format";
+import { formatarMoeda } from "@/lib/format";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { cn } from "@/lib/utils";
 
@@ -86,56 +85,75 @@ export function LicitacoesLista({ itens }: { itens: ItemLista[] }) {
   );
 }
 
+/** Data curta (dd/mm/aa) para a tabela ficar enxuta. */
+const dataCurta = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+
+/** Botões de ação em tamanho de tabela: ícones sem rótulo (os botões têm título) e etapa mais estreita. */
+const ACOES_COMPACTAS = cn(
+  "flex items-center justify-end gap-1",
+  "[&_button]:!h-7 [&_button:not([data-slot=select-trigger])]:!px-2 [&_button:not([data-slot=select-trigger])>span]:hidden",
+  "[&_[data-slot=select-trigger]]:!h-7 [&_[data-slot=select-trigger]]:!w-[7.75rem] [&_[data-slot=select-trigger]]:!px-2",
+);
+
 function TabelaLicitacoes({ itens }: { itens: ItemLista[] }) {
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
-      <Table className="min-w-[1000px]">
+      <Table className="min-w-[840px] text-[13px]">
         <TableHeader className="bg-muted/40">
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[38%]">Licitação</TableHead>
-            <TableHead>Local</TableHead>
-            <TableHead>Modalidade</TableHead>
-            <TableHead className="text-right">Valor estimado</TableHead>
-            <TableHead>Abertura</TableHead>
-            <TableHead>Encerramento</TableHead>
-            <TableHead className="w-px" />
+            {["Licitação", "Local", "Modalidade"].map((t) => (
+              <TableHead key={t} className="h-9 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t}</TableHead>
+            ))}
+            <TableHead className="h-9 px-3 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Valor</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Abertura</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Encerra</TableHead>
+            <TableHead className="h-9 w-px px-3" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {itens.map((i) => {
-            const externo = linkPncp(i.numeroControlePNCP) ?? i.linkOrigem;
-            const titulo = i.href ? (
-              <Link href={i.href} className="font-medium leading-snug hover:text-primary hover:underline">{i.titulo}</Link>
-            ) : (
-              <span className="font-medium leading-snug">{i.titulo}</span>
-            );
+            const portal = linkPncp(i.numeroControlePNCP);
+            const externo = portal ?? i.linkOrigem;
+            const valor = i.valorEstimado != null && Number(i.valorEstimado) > 0 ? formatarMoeda(i.valorEstimado) : null;
             return (
-              <TableRow key={i.id}>
-                <TableCell className="whitespace-normal align-top">
-                  <div className="flex flex-col gap-1">
-                    {titulo}
-                    <span className="text-xs text-muted-foreground">{i.orgao}</span>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant="secondary" className="font-normal">{i.plataformaNome}</Badge>
-                      {i.situacao && <Badge variant="outline" className="font-normal">{i.situacao}</Badge>}
-                      {i.salvoPorAlerta && (
-                        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">Salvo alerta</Badge>
-                      )}
-                      {externo && (
-                        <a href={externo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                          {linkPncp(i.numeroControlePNCP) ? "PNCP" : "Origem"}
-                          <ExternalLink className="size-3" />
-                        </a>
-                      )}
-                    </div>
+              <TableRow key={i.id} className="group">
+                <TableCell className="w-full max-w-0 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {i.href ? (
+                      <Link href={i.href} title={i.titulo} className="truncate font-medium leading-tight hover:text-primary hover:underline">{i.titulo}</Link>
+                    ) : (
+                      <span title={i.titulo} className="truncate font-medium leading-tight">{i.titulo}</span>
+                    )}
+                    {i.salvoPorAlerta && <Bell className="size-3 shrink-0 text-primary" aria-label="Salva por alerta" />}
+                  </div>
+                  <p title={i.orgao} className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{i.orgao}</p>
+                </TableCell>
+                <TableCell className="px-3 py-2" title={i.situacao || undefined}>
+                  <p className="leading-tight">{`${i.municipio || "—"} / ${i.uf || "—"}`}</p>
+                  <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{i.plataformaNome.replace(/ \(.*\)$/, "")}</p>
+                </TableCell>
+                <TableCell className="max-w-[9.5rem] truncate px-3 py-2" title={i.modalidade || undefined}>{i.modalidade || "—"}</TableCell>
+                <TableCell className={cn("px-3 py-2 text-right tabular-nums", !valor && "text-muted-foreground")}>{valor ?? "—"}</TableCell>
+                <TableCell className="px-3 py-2 tabular-nums text-muted-foreground">{dataCurta(i.dataAbertura)}</TableCell>
+                <TableCell className="px-3 py-2 font-medium tabular-nums text-primary">{dataCurta(i.dataEncerramento)}</TableCell>
+                <TableCell className="px-3 py-2">
+                  <div className="flex items-center justify-end gap-1">
+                    {externo && (
+                      <a
+                        href={externo}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={portal ? "Ver no PNCP" : "Ver no sistema de origem"}
+                        aria-label={portal ? "Ver no PNCP" : "Ver no sistema de origem"}
+                        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                      >
+                        <ExternalLink className="size-3.5" />
+                      </a>
+                    )}
+                    <div className={ACOES_COMPACTAS}>{i.action}</div>
                   </div>
                 </TableCell>
-                <TableCell className="align-top whitespace-nowrap">{`${i.municipio || "—"} / ${i.uf || "—"}`}</TableCell>
-                <TableCell className="align-top whitespace-normal">{i.modalidade || "—"}</TableCell>
-                <TableCell className="text-right align-top whitespace-nowrap tabular-nums">{formatarMoeda(i.valorEstimado)}</TableCell>
-                <TableCell className="align-top whitespace-nowrap tabular-nums">{formatarData(i.dataAbertura)}</TableCell>
-                <TableCell className="align-top whitespace-nowrap font-medium tabular-nums text-primary">{formatarData(i.dataEncerramento)}</TableCell>
-                <TableCell className="align-top">{i.action}</TableCell>
               </TableRow>
             );
           })}
