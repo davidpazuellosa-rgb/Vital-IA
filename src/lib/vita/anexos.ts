@@ -32,7 +32,8 @@ function decodificarTexto(bytes: Uint8Array): string {
 }
 
 async function lerPdf(bytes: Uint8Array, nome: string): Promise<Pick<AnexoLido, "texto" | "observacao">> {
-  const pdf = await getDocumentProxy(bytes);
+  // Cópia: o pdf.js transfere (esvazia) o buffer que recebe — o original ainda é usado no OCR.
+  const pdf = await getDocumentProxy(bytes.slice());
   const { text, totalPages } = await extractText(pdf, { mergePages: false });
   const texto = text.map((p, i) => `[Página ${i + 1}]\n${p}`).join("\n\n").trim();
   const util = text.join("").replace(/\s+/g, "").length;

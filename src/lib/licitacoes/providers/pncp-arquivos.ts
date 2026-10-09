@@ -64,9 +64,14 @@ export async function lerArquivoEdital(
     }
 
     const buffer = new Uint8Array(await resposta.arrayBuffer());
-    const pdf = await getDocumentProxy(buffer);
+    // Cópia: o pdf.js transfere (esvazia) o buffer que recebe — o original ainda é usado no OCR.
+    const pdf = await getDocumentProxy(buffer.slice());
     const { text, totalPages } = await extractText(pdf, { mergePages: false });
-    let texto = text.map((pagina, indice) => `[Página ${indice + 1}]\n${pagina}`).join("\n\n").trim();
+    // Decide pelo conteúdo real das páginas: o marcador "[Página N]" sozinho não é texto
+    // (antes disso, PDF escaneado parecia "lido" e o OCR nunca era chamado).
+    const conteudoUtil = text.join("").replace(/\s+/g, "").length;
+    const temTexto = conteudoUtil >= 40 * Math.max(1, totalPages);
+    let texto = temTexto ? text.map((pagina, indice) => `[Página ${indice + 1}]\n${pagina}`).join("\n\n").trim() : "";
     let metodoLeitura: ArquivoEditalLido["metodoLeitura"] = texto ? "texto" : null;
     if (!texto && opcoes?.ocr) {
       try {
