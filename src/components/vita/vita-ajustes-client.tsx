@@ -295,8 +295,9 @@ const COR_TIPO: Record<TipoFerramenta, string> = {
   externa: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
   aprovacao: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
   memoria: "bg-primary/10 text-primary",
+  conversa: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
 };
-const ROTULO_TIPO: Record<TipoFerramenta, string> = { consulta: "Lê", externa: "Fonte externa", aprovacao: "Pede aprovação", memoria: "Memória" };
+const ROTULO_TIPO: Record<TipoFerramenta, string> = { consulta: "Lê", externa: "Fonte externa", aprovacao: "Pede aprovação", memoria: "Memória", conversa: "Conversa" };
 
 function PainelFerramentas({ config, setConfig }: { config: ConfigVita; setConfig: React.Dispatch<React.SetStateAction<ConfigVita>> }) {
   const [, iniciar] = useTransition();

@@ -9,6 +9,7 @@ import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } fr
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
+import { MAX_OPCOES, montarPergunta, type PerguntaVita } from "./pergunta";
 import { IDS_CATEGORIA } from "./catalogo-ferramentas";
 import {
   ETAPAS_LICITACAO, MODALIDADES, PLATAFORMAS, UFS, normalizarEtapa,
@@ -39,7 +40,7 @@ export type ContextoFerramenta = {
   conversaId?: string | null;
 };
 
-export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta };
+export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta; pergunta?: PerguntaVita };
 
 const ID_PLATAFORMAS = PLATAFORMAS.map((p) => p.id);
 const LISTA_MODALIDADES = MODALIDADES.map((m) => `${m.id}=${m.nome}`).join("; ");
@@ -291,6 +292,34 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "perguntar",
+      description:
+        "FAZ UMA PERGUNTA ao usuário em MÚLTIPLA ESCOLHA (cartão com opções clicáveis). Use SEMPRE que precisar perguntar, esclarecer, confirmar ou oferecer um próximo passo — nunca pergunte em texto solto. " +
+        "A PRIMEIRA opção é a recomendada. No máximo 5 opções (a tela acrescenta \"Outro\" sozinha; não crie). Se a pergunta for de sim ou não, use tipo \"sim_nao\". " +
+        "Depois de chamar, PARE: não escreva mais nada e aguarde a resposta. Uma pergunta por vez.",
+      parameters: {
+        type: "object",
+        properties: {
+          pergunta: { type: "string", description: "A pergunta, curta e direta." },
+          tipo: { type: "string", enum: ["escolha", "sim_nao"], description: "sim_nao para perguntas de sim ou não; escolha para as demais." },
+          opcoes: {
+            type: "array",
+            description: `Só para tipo escolha: de 2 a ${MAX_OPCOES} opções; a primeira é a recomendada.`,
+            items: {
+              type: "object",
+              properties: { rotulo: { type: "string", description: "Texto curto da opção." }, descricao: { type: "string", description: "Explicação de uma linha (opcional)." } },
+              required: ["rotulo"],
+            },
+          },
+          recomendada: { type: "string", enum: ["sim", "nao"], description: "Só para sim_nao: qual resposta você recomenda (ela aparece primeiro). Opcional." },
+        },
+        required: ["pergunta", "tipo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "memorizar",
       description:
         "Guarda na MEMÓRIA GERAL da empresa um fato ou preferência duradouro que o USUÁRIO acabou de afirmar (ex.: margem mínima padrão, estados de interesse, regras internas, como a empresa trabalha). " +
@@ -338,6 +367,7 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   ler_documento: "Lendo documento",
   consultar_cnaes: "Consultando CNAEs na Receita",
   manual_do_sistema: "Consultando o manual do sistema",
+  perguntar: "Preparando uma pergunta",
   memorizar: "Guardando na memória",
   esquecer_memoria: "Apagando da memória",
   rascunho_nota_fiscal: "Preparando rascunho da nota fiscal",
@@ -637,6 +667,11 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
+      case "perguntar": {
+        const r = montarPergunta(args);
+        if (!r.ok) return { paraModelo: json({ erro: r.erro }) };
+        return { paraModelo: json({ resultado: "Pergunta exibida ao usuário com opções clicáveis. PARE AGORA: não escreva mais nada e aguarde a resposta dele." }), pergunta: r.pergunta };
+      }
       case "memorizar": return { paraModelo: await memorizar(args, ctx, ctx.conversaId) };
       case "esquecer_memoria": return { paraModelo: await esquecer(args, ctx) };
       case "manual_do_sistema": return { paraModelo: manualDoSistema(texto(args.topico)) };

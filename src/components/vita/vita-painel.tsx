@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,6 +20,7 @@ import { ACEITOS, MAX_ANEXOS, motivoRecusa, tipoDoArquivo, type TipoAnexo } from
 import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
 import { cn } from "@/lib/utils";
 import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
+import { pergunta2texto, type PerguntaVita } from "@/lib/vita/pergunta";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
 
 type Ferramenta = { id?: string; nome: string; rotulo: string; estado: "rodando" | "ok" };
@@ -30,6 +31,7 @@ type Msg = {
   ferramentas: Ferramenta[];
   acoes: string[];
   anexos: AnexoExibido[];
+  pergunta?: PerguntaVita | null;
   erro?: string;
   transmitindo?: boolean;
 };
@@ -416,6 +418,9 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
               atualizarUltima((m) => ({ ...m, acoes: [...m.acoes, acao.id] }));
               break;
             }
+            case "pergunta":
+              atualizarUltima((m) => ({ ...m, pergunta: ev.pergunta as PerguntaVita }));
+              break;
             case "erro":
               atualizarUltima((m) => ({ ...m, erro: String(ev.mensagem) }));
               break;
@@ -572,12 +577,21 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                     </span>
                   ) : null}
                   {m.acoes.map((id) => acoes[id] && <CartaoAcao key={id} acao={acoes[id]} compacto={!expandido} onDecidir={decidir} />)}
+                  {m.pergunta && (
+                    <CartaoPergunta
+                      pergunta={m.pergunta}
+                      compacto={!expandido}
+                      resposta={mensagens.slice(mensagens.indexOf(m) + 1).find((x) => x.papel === "user")?.conteudo ?? null}
+                      bloqueado={enviando}
+                      onResponder={(texto) => void enviar(texto)}
+                    />
+                  )}
                   {m.erro && (
                     <p className="flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {m.erro}
                     </p>
                   )}
-                  {m.conteudo && !m.transmitindo && <BotaoCopiar texto={m.conteudo} rotulo="Copiar resposta completa" className="-mt-1 w-fit" />}
+                  {(m.conteudo || m.pergunta) && !m.transmitindo && <BotaoCopiar texto={m.pergunta ? `${m.conteudo}\n\n${pergunta2texto(m.pergunta)}` : m.conteudo} rotulo="Copiar resposta completa" className="-mt-1 w-fit" />}
                 </div>
               ),
             )}
@@ -721,6 +735,98 @@ function BoasVindas({ expandido, onEscolher }: { expandido: boolean; onEscolher:
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Pergunta da Vita em múltipla escolha: a recomendada primeiro, no máximo 5 opções e sempre "Outro". */
+function CartaoPergunta({ pergunta, resposta, bloqueado, compacto, onResponder }: {
+  pergunta: PerguntaVita; resposta: string | null; bloqueado: boolean; compacto?: boolean; onResponder: (texto: string) => void;
+}) {
+  const [outro, setOutro] = useState(false);
+  const [texto, setTexto] = useState("");
+  const respondida = resposta !== null;
+  const escolhida = respondida ? pergunta.opcoes.findIndex((o) => o.rotulo.trim() === resposta.trim()) : -1;
+  const respondeuOutro = respondida && escolhida < 0;
+  const desabilitado = respondida || bloqueado;
+  const tam = compacto ? "text-[12px]" : "text-sm";
+
+  function enviarOutro(e: React.FormEvent) {
+    e.preventDefault();
+    const t = texto.trim();
+    if (!t || desabilitado) return;
+    onResponder(t);
+    setOutro(false);
+    setTexto("");
+  }
+
+  return (
+    <div className={cn("overflow-hidden rounded-xl border bg-background", tam)}>
+      <p className="flex items-start gap-2 border-b bg-primary/5 px-3 py-2.5 font-medium">
+        <CircleHelp className="mt-0.5 size-4 shrink-0 text-primary" /> {pergunta.pergunta}
+      </p>
+      <ul className="flex flex-col gap-1.5 p-2">
+        {pergunta.opcoes.map((o, i) => {
+          const marcada = escolhida === i;
+          return (
+            <li key={o.rotulo}>
+              <button
+                type="button"
+                disabled={desabilitado}
+                onClick={() => onResponder(o.rotulo)}
+                className={cn(
+                  "flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors",
+                  marcada ? "border-primary bg-primary/10" : "hover:border-primary/50 hover:bg-primary/5",
+                  respondida && !marcada && "opacity-50",
+                  desabilitado && !marcada && "cursor-default hover:border-border hover:bg-transparent",
+                )}
+              >
+                <span className={cn("mt-px flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium", marcada ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                  {marcada ? <Check className="size-3" /> : i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5 font-medium">
+                    {o.rotulo}
+                    {i === 0 && pergunta.recomendada && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Recomendado</span>}
+                  </span>
+                  {o.descricao && <span className="mt-0.5 block text-[0.92em] text-muted-foreground">{o.descricao}</span>}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+        <li>
+          {respondeuOutro ? (
+            <p className="flex items-start gap-2.5 rounded-lg border border-primary bg-primary/10 px-2.5 py-2">
+              <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"><Check className="size-3" /></span>
+              <span><span className="font-medium">Outro:</span> {resposta}</span>
+            </p>
+          ) : outro && !respondida ? (
+            <form onSubmit={enviarOutro} className="flex items-center gap-1.5 rounded-lg border border-primary/50 p-1.5">
+              <input
+                autoFocus
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                disabled={desabilitado}
+                placeholder="Escreva a sua resposta…"
+                className="min-w-0 flex-1 bg-transparent px-1.5 py-1 outline-none placeholder:text-muted-foreground"
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setOutro(false); setTexto(""); }}>Cancelar</Button>
+              <Button type="submit" size="sm" disabled={!texto.trim() || desabilitado}>Enviar</Button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              disabled={desabilitado}
+              onClick={() => setOutro(true)}
+              className={cn("flex w-full items-center gap-2.5 rounded-lg border border-dashed px-2.5 py-2 text-left text-muted-foreground transition-colors", respondida ? "opacity-50" : "hover:border-primary/50 hover:text-foreground")}
+            >
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px]">{pergunta.opcoes.length + 1}</span>
+              Outro…
+            </button>
+          )}
+        </li>
+      </ul>
     </div>
   );
 }

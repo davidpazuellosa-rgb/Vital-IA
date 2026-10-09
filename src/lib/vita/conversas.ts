@@ -1,4 +1,5 @@
 "use server";
+import type { PerguntaVita } from "./pergunta";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,6 +21,7 @@ export type MensagemVita = {
   ferramentas: Array<{ nome: string; rotulo: string }>;
   acoes: string[];
   anexos: AnexoExibido[];
+  pergunta?: PerguntaVita | null;
 };
 
 async function sessao() {
@@ -58,10 +60,10 @@ export async function carregarConversa(id: string): Promise<{ mensagens: Mensage
   ]);
   return {
     mensagens: (msgs ?? []).map((m) => {
-      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[] };
+      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[]; pergunta?: PerguntaVita };
       return {
         id: m.id, papel: m.papel as MensagemVita["papel"], conteudo: m.conteudo,
-        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [],
+        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [], pergunta: dados.pergunta ?? null,
         anexos: (dados.anexos ?? []).map((a) => ({ nome: a.nome, tipo: a.tipo, observacao: a.observacao ?? null })),
       };
     }),

@@ -2,13 +2,14 @@
  * Seguro para o navegador (sem dependências do servidor). Ao criar uma ferramenta nova em
  * ferramentas.ts, acrescente-a aqui para ela aparecer na página. */
 
-export type TipoFerramenta = "consulta" | "externa" | "aprovacao" | "memoria";
+export type TipoFerramenta = "consulta" | "externa" | "aprovacao" | "memoria" | "conversa";
 
 export const TIPOS_FERRAMENTA: Record<TipoFerramenta, { titulo: string; resumo: string }> = {
   consulta: { titulo: "Consultas ao sistema", resumo: "Só leem dados do Vital.IA" },
   externa: { titulo: "Fontes externas", resumo: "Consultam sites públicos (PNCP, Receita)" },
   aprovacao: { titulo: "Alterações", resumo: "Só acontecem depois que você aprova" },
   memoria: { titulo: "Memória", resumo: "Guardam e esquecem o que você conta" },
+  conversa: { titulo: "Conversa", resumo: "Como a Vita conversa com você" },
 };
 
 export type InfoFerramenta = { nome: string; titulo: string; descricao: string; tipo: TipoFerramenta };
@@ -28,6 +29,7 @@ export const INFO_FERRAMENTAS: InfoFerramenta[] = [
   { nome: "alterar_dados", titulo: "Alterar dados", tipo: "aprovacao", descricao: "Propõe cadastrar, alterar ou remover em catálogo, clientes, contratações, alertas, empresa e outros." },
   { nome: "rascunho_nota_fiscal", titulo: "Rascunho de nota fiscal", tipo: "aprovacao", descricao: "Propõe criar ou editar rascunhos de NF-e (a emissão continua só com você)." },
   { nome: "preencher_proposta", titulo: "Preencher proposta", tipo: "aprovacao", descricao: "Propõe preencher marca, preço e itens do rascunho de uma proposta." },
+  { nome: "perguntar", titulo: "Perguntar em múltipla escolha", tipo: "conversa", descricao: "Quando precisa de uma decisão, a Vita pergunta com opções clicáveis (a recomendada primeiro, até 5, sim/não e Outro)." },
   { nome: "memorizar", titulo: "Memorizar", tipo: "memoria", descricao: "Guarda um fato ou preferência da empresa para as próximas conversas." },
   { nome: "esquecer_memoria", titulo: "Esquecer memória", tipo: "memoria", descricao: "Apaga uma memória quando você pede para esquecer." },
 ];

@@ -7,6 +7,7 @@ import { instrucoesVita } from "@/lib/vita/contexto";
 import { executarFerramenta, FERRAMENTAS, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { FERRAMENTAS_DE_MEMORIA } from "@/lib/vita/catalogo-ferramentas";
+import type { PerguntaVita } from "@/lib/vita/pergunta";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
       const protocolo: MensagemModelo[] = [];
       const ferramentasUsadas: Array<{ nome: string; rotulo: string }> = [];
       const acoesCriadas: string[] = [];
+      let perguntaFeita: PerguntaVita | null = null;
       let textoFinal = "";
       let erro: string | null = null;
 
@@ -229,10 +231,15 @@ export async function POST(request: NextRequest) {
                 enviar({ tipo: "acao", acao });
               }
             }
+            if (r.pergunta) {
+              perguntaFeita = r.pergunta;
+              enviar({ tipo: "pergunta", pergunta: r.pergunta });
+            }
             ferramentasUsadas.push({ nome: c.function.name, rotulo });
             enviar({ tipo: "ferramenta", id: c.id, nome: c.function.name, rotulo, estado: "fim" });
             protocolo.push({ role: "tool", tool_call_id: c.id, content: r.paraModelo.slice(0, LIMITE_RESULTADO) });
           }
+          if (perguntaFeita) break; // a Vita perguntou: espera a resposta do usuário
           if (textoFinal && !textoFinal.endsWith("\n")) { textoFinal += "\n\n"; enviar({ tipo: "texto", delta: "\n\n" }); }
         }
       } catch (e) {
@@ -240,13 +247,13 @@ export async function POST(request: NextRequest) {
       }
 
       if (erro) enviar({ tipo: "erro", mensagem: erro });
-      const conteudo = textoFinal.trim() || (erro ? "" : "(sem resposta)");
+      const conteudo = textoFinal.trim() || (erro ? "" : perguntaFeita ? "" : "(sem resposta)");
       const { data: salva } = await supabase
         .from("vita_mensagens")
         .insert({
           conversa_id: conversaId, user_id: user.id, papel: "assistant",
           conteudo: erro && !conteudo ? `⚠️ ${erro}` : conteudo,
-          dados: { protocolo, ferramentas: ferramentasUsadas, acoes: acoesCriadas, ...(erro ? { erro } : {}) },
+          dados: { protocolo, ferramentas: ferramentasUsadas, acoes: acoesCriadas, ...(perguntaFeita ? { pergunta: perguntaFeita } : {}), ...(erro ? { erro } : {}) },
         })
         .select("id")
         .single();
