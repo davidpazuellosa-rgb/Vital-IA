@@ -9,10 +9,10 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSidebar } from "@/components/ui/sidebar";
 import { obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +21,8 @@ import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type 
 import { cn } from "@/lib/utils";
 import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
 import { pergunta2texto, type PerguntaVita } from "@/lib/vita/pergunta";
+import { avaliarResposta } from "@/lib/vita/feedback-actions";
+import { MOTIVOS_NEGATIVOS } from "@/lib/vita/feedback";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
 
 type Ferramenta = { id?: string; nome: string; rotulo: string; estado: "rodando" | "ok" };
@@ -32,6 +34,7 @@ type Msg = {
   acoes: string[];
   anexos: AnexoExibido[];
   pergunta?: PerguntaVita | null;
+  avaliacao?: 1 | -1 | null;
   erro?: string;
   transmitindo?: boolean;
 };
@@ -127,6 +130,81 @@ function BotaoCopiar({ texto, rotulo, className }: { texto: string; rotulo: stri
     >
       {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
     </button>
+  );
+}
+
+/** 👍 / 👎 em cada resposta: a Vita aprende o que agrada. Ao dar 👎 oferece dizer o motivo (opcional). */
+function AvaliarResposta({ mensagemId, nota, onMudar }: { mensagemId: string; nota: 1 | -1 | null; onMudar: (n: 1 | -1 | null) => void }) {
+  const [motivoAberto, setMotivoAberto] = useState(false);
+  const [outro, setOutro] = useState(false);
+  const [texto, setTexto] = useState("");
+
+  async function definir(nova: 1 | -1 | 0, motivo?: string) {
+    const antes = nota;
+    onMudar(nova === 0 ? null : nova);
+    try {
+      await avaliarResposta(mensagemId, nova, motivo);
+      if (nova === 1) toast.success("Anotado: você gostou dessa resposta");
+    } catch (e) {
+      onMudar(antes);
+      toast.error("Não foi possível registrar a avaliação", { description: e instanceof Error ? e.message : undefined });
+    }
+  }
+
+  const base = "inline-flex size-7 items-center justify-center rounded-md transition-all hover:bg-muted focus-visible:opacity-100";
+  const visivel = (ativo: boolean) => (ativo ? "opacity-100" : "opacity-0 group-hover/msg:opacity-100 [@media(hover:none)]:opacity-100");
+
+  function escolherMotivo(motivo: string) {
+    setMotivoAberto(false);
+    setOutro(false);
+    setTexto("");
+    void definir(-1, motivo);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { setMotivoAberto(false); void definir(nota === 1 ? 0 : 1); }}
+        aria-pressed={nota === 1}
+        aria-label="Gostei da resposta"
+        title="Gostei"
+        className={cn(base, nota === 1 ? "text-primary" : "text-muted-foreground hover:text-foreground", visivel(nota === 1))}
+      >
+        <ThumbsUp className={cn("size-3.5", nota === 1 && "fill-primary/25")} />
+      </button>
+      <Popover open={motivoAberto} onOpenChange={(v) => { setMotivoAberto(v); if (!v) { setOutro(false); setTexto(""); } }}>
+        <PopoverAnchor asChild>
+          <button
+            type="button"
+            onClick={() => {
+              if (nota === -1) { setMotivoAberto(false); void definir(0); }
+              else { void definir(-1); setMotivoAberto(true); }
+            }}
+            aria-pressed={nota === -1}
+            aria-label="Não gostei da resposta"
+            title="Não gostei"
+            className={cn(base, nota === -1 ? "text-destructive" : "text-muted-foreground hover:text-foreground", visivel(nota === -1))}
+          >
+            <ThumbsDown className={cn("size-3.5", nota === -1 && "fill-destructive/25")} />
+          </button>
+        </PopoverAnchor>
+        <PopoverContent side="top" align="start" className="w-64 p-1.5">
+          <p className="px-2 pb-1 pt-1 text-xs font-medium text-muted-foreground">O que não ficou bom? (opcional)</p>
+          {MOTIVOS_NEGATIVOS.map((m) => (
+            <button key={m} type="button" onClick={() => escolherMotivo(m)} className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent">{m}</button>
+          ))}
+          {outro ? (
+            <form onSubmit={(e) => { e.preventDefault(); if (texto.trim()) escolherMotivo(texto.trim()); }} className="flex items-center gap-1 p-1">
+              <input autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={200} placeholder="Escreva o motivo…" className="min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring" />
+              <Button type="submit" size="sm" disabled={!texto.trim()}>OK</Button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setOutro(true)} className="flex w-full rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground">Outro…</button>
+          )}
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }
 
@@ -590,7 +668,16 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {m.erro}
                     </p>
                   )}
-                  {(m.conteudo || m.pergunta) && !m.transmitindo && <BotaoCopiar texto={m.pergunta ? `${m.conteudo}\n\n${pergunta2texto(m.pergunta)}` : m.conteudo} rotulo="Copiar resposta completa" className="-mt-1 w-fit" />}
+                  {(m.conteudo || m.pergunta) && !m.transmitindo && (
+                    <div className="-mt-1 flex w-fit items-center gap-0.5">
+                      <BotaoCopiar texto={m.pergunta ? `${m.conteudo}\n\n${pergunta2texto(m.pergunta)}` : m.conteudo} rotulo="Copiar resposta completa" />
+                      <AvaliarResposta
+                        mensagemId={m.id}
+                        nota={m.avaliacao ?? null}
+                        onMudar={(n) => setMensagens((l) => l.map((x) => (x.id === m.id ? { ...x, avaliacao: n } : x)))}
+                      />
+                    </div>
+                  )}
                 </div>
               ),
             )}

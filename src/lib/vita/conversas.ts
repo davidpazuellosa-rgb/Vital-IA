@@ -22,6 +22,8 @@ export type MensagemVita = {
   acoes: string[];
   anexos: AnexoExibido[];
   pergunta?: PerguntaVita | null;
+  /** Minha avaliação desta resposta: 1 (gostei), -1 (não gostei) ou null. */
+  avaliacao?: 1 | -1 | null;
 };
 
 async function sessao() {
@@ -54,16 +56,19 @@ export async function listarConversas(busca?: string): Promise<ResumoConversa[]>
 
 export async function carregarConversa(id: string): Promise<{ mensagens: MensagemVita[]; acoes: Record<string, AcaoVita> }> {
   const supabase = await sessao();
-  const [{ data: msgs }, { data: acoes }] = await Promise.all([
+  const { data: { user } } = await supabase.auth.getUser();
+  const [{ data: msgs }, { data: acoes }, { data: notas }] = await Promise.all([
     supabase.from("vita_mensagens").select("id, papel, conteudo, dados").eq("conversa_id", id).in("papel", ["user", "assistant"]).order("created_at"),
     supabase.from("vita_acoes").select("id, tipo, resumo, detalhes, aviso, status, resultado").eq("conversa_id", id),
+    supabase.from("vita_feedback").select("mensagem_id, nota").eq("conversa_id", id).eq("autor_id", user?.id ?? ""),
   ]);
+  const avaliacoes = new Map((notas ?? []).map((n) => [String(n.mensagem_id), n.nota as 1 | -1]));
   return {
     mensagens: (msgs ?? []).map((m) => {
       const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[]; pergunta?: PerguntaVita };
       return {
         id: m.id, papel: m.papel as MensagemVita["papel"], conteudo: m.conteudo,
-        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [], pergunta: dados.pergunta ?? null,
+        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [], pergunta: dados.pergunta ?? null, avaliacao: avaliacoes.get(String(m.id)) ?? null,
         anexos: (dados.anexos ?? []).map((a) => ({ nome: a.nome, tipo: a.tipo, observacao: a.observacao ?? null })),
       };
     }),

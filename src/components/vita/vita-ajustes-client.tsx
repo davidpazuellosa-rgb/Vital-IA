@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Brain, Loader2, Pencil, Plus, Search, Trash2, Wrench, X } from "lucide-react";
+import { Brain, Loader2, Pencil, Plus, Search, ThumbsDown, ThumbsUp, Trash2, Wrench, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,8 @@ import {
   CATEGORIAS_MEMORIA, INFO_FERRAMENTAS, TIPOS_FERRAMENTA, type InfoFerramenta, type TipoFerramenta,
 } from "@/lib/vita/catalogo-ferramentas";
 import type { ConfigVita, Memoria } from "@/lib/vita/memoria";
+import type { Avaliacao } from "@/lib/vita/feedback";
+import { removerAvaliacao } from "@/lib/vita/feedback-actions";
 import { cn } from "@/lib/utils";
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -25,22 +27,24 @@ const rotuloCategoria = (id: string) => CATEGORIAS_MEMORIA.find((c) => c.id === 
 const dataBr = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
 const msg = (e: unknown) => (e instanceof Error ? e.message : undefined);
 
-type Aba = "memorias" | "ferramentas";
+type Aba = "memorias" | "ferramentas" | "avaliacoes";
 
-export function VitaAjustesClient({ config: configInicial, memorias: memoriasIniciais }: { config: ConfigVita; memorias: Memoria[] }) {
+export function VitaAjustesClient({ config: configInicial, memorias: memoriasIniciais, avaliacoes: avaliacoesIniciais }: { config: ConfigVita; memorias: Memoria[]; avaliacoes: Avaliacao[] }) {
   const [aba, setAba] = useState<Aba>("memorias");
   const [config, setConfig] = useState(configInicial);
   const [memorias, setMemorias] = useState(memoriasIniciais);
+  const [avaliacoes, setAvaliacoes] = useState(avaliacoesIniciais);
 
   const ferramentasAtivas = INFO_FERRAMENTAS.filter((f) => !config.desativadas.includes(f.nome)).length;
   const abas: Array<{ id: Aba; rotulo: string; icone: typeof Brain; contagem: string }> = [
     { id: "memorias", rotulo: "Memórias", icone: Brain, contagem: String(memorias.length) },
     { id: "ferramentas", rotulo: "Ferramentas", icone: Wrench, contagem: `${ferramentasAtivas}/${INFO_FERRAMENTAS.length}` },
+    { id: "avaliacoes", rotulo: "Avaliações", icone: ThumbsUp, contagem: String(avaliacoes.length) },
   ];
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Vita" className="grid grid-cols-2 gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-md">
+      <div role="tablist" aria-label="Vita" className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-2xl">
         {abas.map((a) => {
           const sel = aba === a.id;
           return (
@@ -64,8 +68,10 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
 
       {aba === "memorias" ? (
         <PainelMemorias config={config} setConfig={setConfig} memorias={memorias} setMemorias={setMemorias} />
-      ) : (
+      ) : aba === "ferramentas" ? (
         <PainelFerramentas config={config} setConfig={setConfig} />
+      ) : (
+        <PainelAvaliacoes config={config} setConfig={setConfig} avaliacoes={avaliacoes} setAvaliacoes={setAvaliacoes} />
       )}
     </div>
   );
@@ -340,6 +346,82 @@ function PainelFerramentas({ config, setConfig }: { config: ConfigVita; setConfi
           </section>
         );
       })}
+    </div>
+  );
+}
+
+/* ---------------------------------------- avaliações ---------------------------------------- */
+
+function PainelAvaliacoes({
+  config, setConfig, avaliacoes, setAvaliacoes,
+}: {
+  config: ConfigVita;
+  setConfig: React.Dispatch<React.SetStateAction<ConfigVita>>;
+  avaliacoes: Avaliacao[];
+  setAvaliacoes: React.Dispatch<React.SetStateAction<Avaliacao[]>>;
+}) {
+  const [, iniciar] = useTransition();
+  const gostou = avaliacoes.filter((a) => a.nota === 1).length;
+
+  function aprender(valor: boolean) {
+    const antes = config;
+    setConfig({ ...config, aprenderFeedback: valor });
+    iniciar(async () => {
+      try { await definirMemoriaConfig({ aprenderFeedback: valor }); } catch (e) { setConfig(antes); toast.error("Não foi possível salvar", { description: msg(e) }); }
+    });
+  }
+
+  function apagar(a: Avaliacao) {
+    const antes = avaliacoes;
+    setAvaliacoes((l) => l.filter((x) => x.id !== a.id));
+    iniciar(async () => {
+      try { await removerAvaliacao(a.id); } catch (e) { setAvaliacoes(antes); toast.error("Não foi possível apagar", { description: msg(e) }); }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="shadow-sm">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <LinhaConfig titulo="Aprender com minhas avaliações" ajuda="Ligado, a Vita usa suas avaliações 👍/👎 recentes para ajustar o jeito de responder." valor={config.aprenderFeedback} aoMudar={aprender} />
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><ThumbsUp className="size-4 text-primary" /> {gostou}</span>
+            <span className="inline-flex items-center gap-1.5"><ThumbsDown className="size-4 text-destructive" /> {avaliacoes.length - gostou}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {avaliacoes.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><ThumbsUp className="size-6" /></div>
+            <p className="font-medium">Nenhuma avaliação ainda</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {avaliacoes.map((a) => (
+            <li key={a.id}>
+              <Card className="shadow-sm">
+                <CardContent className="flex items-start gap-3">
+                  <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full", a.nota === 1 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
+                    {a.nota === 1 ? <ThumbsUp className="size-4" /> : <ThumbsDown className="size-4" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-sm font-medium">{a.pedido || "(pedido não registrado)"}</p>
+                    <p className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">{a.resposta}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {a.motivo && <Badge variant="outline" className="font-normal">{a.motivo}</Badge>}
+                      <span className="text-xs text-muted-foreground">{dataBr(a.created_at)}</span>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => apagar(a)} aria-label="Apagar avaliação" title="Apagar"><Trash2 className="size-4" /></Button>
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

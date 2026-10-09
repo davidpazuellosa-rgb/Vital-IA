@@ -19,20 +19,21 @@ export type Memoria = {
   updated_at: string;
 };
 
-export type ConfigVita = { memoriaAtiva: boolean; memoriaAutomatica: boolean; desativadas: string[] };
+export type ConfigVita = { memoriaAtiva: boolean; memoriaAutomatica: boolean; aprenderFeedback: boolean; desativadas: string[] };
 
 export const MAX_MEMORIAS = 200;
 const MAX_CHARS_PROMPT = 6_000;
 const MAX_CONTEUDO = 600;
 
-export const CONFIG_PADRAO: ConfigVita = { memoriaAtiva: true, memoriaAutomatica: true, desativadas: [] };
+export const CONFIG_PADRAO: ConfigVita = { memoriaAtiva: true, memoriaAutomatica: true, aprenderFeedback: true, desativadas: [] };
 
 export async function carregarConfig(supabase: SupabaseClient): Promise<ConfigVita> {
-  const { data } = await supabase.from("vita_configuracao").select("memoria_ativa, memoria_automatica, ferramentas_desativadas").limit(1).maybeSingle();
+  const { data } = await supabase.from("vita_configuracao").select("memoria_ativa, memoria_automatica, aprender_feedback, ferramentas_desativadas").limit(1).maybeSingle();
   if (!data) return CONFIG_PADRAO;
   return {
     memoriaAtiva: data.memoria_ativa !== false,
     memoriaAutomatica: data.memoria_automatica !== false,
+    aprenderFeedback: data.aprender_feedback !== false,
     desativadas: Array.isArray(data.ferramentas_desativadas) ? (data.ferramentas_desativadas as string[]) : [],
   };
 }

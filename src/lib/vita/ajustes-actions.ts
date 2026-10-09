@@ -66,12 +66,13 @@ async function garantirConfig(supabase: Awaited<ReturnType<typeof sessao>>["supa
   return [];
 }
 
-export async function definirMemoriaConfig(campos: { memoriaAtiva?: boolean; memoriaAutomatica?: boolean }) {
+export async function definirMemoriaConfig(campos: { memoriaAtiva?: boolean; memoriaAutomatica?: boolean; aprenderFeedback?: boolean }) {
   const { supabase, empresa } = await sessao();
   await garantirConfig(supabase, empresa);
   const mudar: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (campos.memoriaAtiva !== undefined) mudar.memoria_ativa = campos.memoriaAtiva;
   if (campos.memoriaAutomatica !== undefined) mudar.memoria_automatica = campos.memoriaAutomatica;
+  if (campos.aprenderFeedback !== undefined) mudar.aprender_feedback = campos.aprenderFeedback;
   const { error } = await supabase.from("vita_configuracao").update(mudar).eq("user_id", empresa);
   if (error) throw new Error(error.message);
   revalidatePath("/vita");
