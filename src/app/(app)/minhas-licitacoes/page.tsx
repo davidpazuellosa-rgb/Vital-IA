@@ -175,6 +175,14 @@ export default async function MinhasLicitacoesPage() {
                   <RemoverLicitacaoButton id={item.id} />
                 </div>
               ),
+              // Na tabela não há o botão de proposta (ela abre pelo perfil da licitação, no título).
+              acaoTabela: (
+                <div className="flex items-center gap-1.5">
+                  <EnvioPropostaDialog licitacaoId={item.id} enviada={licitacoesEnviadas.has(item.id)} size="sm" compacto />
+                  <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
+                  <RemoverLicitacaoButton id={item.id} />
+                </div>
+              ),
             },
           }))}
         />

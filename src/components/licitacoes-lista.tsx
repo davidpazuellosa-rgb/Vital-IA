@@ -157,16 +157,18 @@ export function SeletorVisao({ className }: { className?: string }) {
   );
 }
 
-export type ItemLista = LicitacaoCardProps & { id: string };
+/** `acaoTabela`: ações da visão em tabela, quando diferem das dos cards (ex.: sem o botão de proposta). */
+export type ItemLista = LicitacaoCardProps & { id: string; acaoTabela?: ReactNode };
 
 export function LicitacoesLista({ itens }: { itens: ItemLista[] }) {
   const [visao] = useVisao();
   if (visao === "tabela") return <TabelaLicitacoes itens={itens} />;
   return (
     <>
-      {itens.map(({ id, ...props }) => (
-        <LicitacaoCard key={id} {...props} />
-      ))}
+      {itens.map(({ id, acaoTabela, ...props }) => {
+        void acaoTabela;
+        return <LicitacaoCard key={id} {...props} />;
+      })}
     </>
   );
 }
@@ -256,7 +258,7 @@ function TabelaLicitacoes({ itens }: { itens: ItemLista[] }) {
                         <ExternalLink className="size-3.5" />
                       </a>
                     )}
-                    <div className={ACOES_COMPACTAS}>{i.action}</div>
+                    <div className={ACOES_COMPACTAS}>{i.acaoTabela ?? i.action}</div>
                   </div>
                 </TableCell>
               </TableRow>
