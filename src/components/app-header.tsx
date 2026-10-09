@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Search, Bookmark, Settings } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { VitaBotao } from "@/components/vita/vita-botao";
 
 const TITLES: Record<string, { label: string; icon: typeof Search }> = {
   "/busca": { label: "Busca de Licitações", icon: Search },
@@ -24,6 +25,7 @@ export function AppHeader() {
         <Icon className="size-4 text-primary" />
         <span className="text-sm font-semibold">{current.label}</span>
       </div>
+      <VitaBotao />
     </header>
   );
 }

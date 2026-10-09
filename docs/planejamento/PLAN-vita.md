@@ -59,6 +59,7 @@ ajuda a montar o catálogo a partir das notas, propostas e conversas — cada it
 
 **Ações (alteram o sistema — sempre pedem aprovação):**
 - salvar licitação em Minhas Licitações e mudar etapa;
+- **remover licitação salva** (o cartão avisa se há rascunho de proposta, que é removido junto);
 - criar ou atualizar **rascunho de proposta** (itens, marcas, preços);
 - gerar o **PDF da proposta** e das declarações;
 - **anexar documento** ao acervo (com tipo e validade extraídos), a um cliente ou contratação;
@@ -66,7 +67,7 @@ ajuda a montar o catálogo a partir das notas, propostas e conversas — cada it
 - registrar envio de proposta; criar alerta de licitações.
 
 **Fora do alcance da Vita (decisão de segurança):** transmitir NF-e, cancelar nota, excluir
-qualquer coisa, enviar proposta na plataforma, mudar dados da empresa ou configurações, enviar
+qualquer outra coisa (documentos, clientes, propostas enviadas), enviar proposta na plataforma, mudar dados da empresa ou configurações, enviar
 mensagens a terceiros.
 
 ## 5. Aprovação
@@ -106,3 +107,14 @@ mensagens a terceiros.
 | **6** | Refinos: conversas salvas e pesquisáveis, sugestões por página, atalhos | uso diário mais rápido |
 
 Cada fase é publicada e testada antes da próxima.
+
+---
+
+## Decisões (2026-10-09)
+
+- **Modelo: DeepSeek.** Fase 0 aprovada: ferramentas (inclusive várias na mesma resposta), com e sem
+  raciocínio, Flash e Pro, streaming com ferramentas (1º pedaço em 0,34 s) e imagem junto de ferramentas.
+- **Conversas: guardar todas, com busca.**
+- **Catálogo: página própria + a Vita ajuda a preencher (com aprovação).**
+- **A Vita busca licitações sozinha, salva e remove licitações salvas** (as duas últimas com aprovação) —
+  antecipado para a Fase 1.
