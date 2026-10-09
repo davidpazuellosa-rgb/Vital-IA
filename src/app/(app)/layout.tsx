@@ -19,11 +19,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <AppSidebar userEmail={user.email ?? ""} />
         <SidebarInset className="min-w-0">
           <AppHeader />
-          <main className="flex w-full min-w-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 md:p-6 2xl:px-10">
-            {children}
-          </main>
+          {/* A Vita fica abaixo da barra do topo, ao lado do conteúdo (empurrando-o). */}
+          <div className="flex min-w-0 flex-1">
+            <main className="flex w-full min-w-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 md:p-6 2xl:px-10">
+              {children}
+            </main>
+            <VitaPainel />
+          </div>
         </SidebarInset>
-        <VitaPainel />
       </VitaProvider>
       <Toaster position="top-right" richColors closeButton />
     </SidebarProvider>

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Maximize2, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -80,9 +81,10 @@ const CONVERSA_KEY = "vitalia:vita:conversa";
 
 export function VitaPainel() {
   const { aberto, largura, pronto, expandido, alternarExpandido, fechar, definirLargura } = useVita();
-  const { state: estadoSidebar, setOpen: abrirSidebar } = useSidebar();
+  const { state: estadoSidebar, setOpen: abrirSidebar, isMobile } = useSidebar();
   const [arrastando, setArrastando] = useState(false);
-  const tela = aberto && expandido;
+  // Modo expandido só existe no computador; no celular a Vita já ocupa a tela.
+  const tela = aberto && expandido && !isMobile;
 
   // Expandida: recolhe a barra lateral (só ícones) e devolve como estava ao sair do modo expandido.
   const sidebarAntes = useRef<boolean | null>(null);
@@ -125,11 +127,11 @@ export function VitaPainel() {
       style={{ "--vita-w": `${aberto ? largura : 0}px`, "--vita-painel-w": larguraPainel } as React.CSSProperties}
       className={cn(
         "z-40 shrink-0 bg-background",
-        // Desktop: ocupa espaço na linha e empurra a página (anima a largura). Expandida, o painel
-        // cresce para a esquerda por cima da página, até a barra lateral.
-        "md:sticky md:top-0 md:h-svh md:w-(--vita-w)",
-        // Celular: tela cheia, desliza da direita.
-        "max-md:fixed max-md:inset-0 max-md:w-full max-md:overflow-hidden",
+        // Desktop: abaixo da barra do topo (h-14), ocupa espaço na linha e empurra a página (anima a
+        // largura). Expandida, o painel cresce para a esquerda por cima da página, até a barra lateral.
+        "md:sticky md:top-14 md:h-[calc(100svh-3.5rem)] md:self-start md:w-(--vita-w)",
+        // Celular: ocupa a tela abaixo da barra do topo, desliza da direita.
+        "max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-14 max-md:w-full max-md:overflow-hidden",
         aberto ? "max-md:translate-x-0" : "max-md:translate-x-full",
         animar && `transition-[width,translate] ${curva}`,
       )}
@@ -379,6 +381,12 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
     }
   }
 
+  // Link interno clicado: no modo expandido volta ao painel (para ver a página); no celular fecha.
+  function aoNavegar() {
+    if (expandido) onExpandir();
+    if (window.matchMedia("(max-width: 767px)").matches) onFechar();
+  }
+
   const tituloAtual = mensagens.find((m) => m.papel === "user" && m.conteudo)?.conteudo.slice(0, 90) ?? "Nova conversa";
 
   async function decidir(id: string, decisao: "aprovar" | "recusar") {
@@ -483,7 +491,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                     </div>
                   )}
                   {m.conteudo && (
-                    <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm whitespace-pre-wrap text-primary-foreground">{m.conteudo}</div>
+                    <div className={cn("rounded-2xl rounded-br-md bg-primary px-3.5 py-2 whitespace-pre-wrap text-primary-foreground", expandido ? "text-sm" : "text-[12px]")}>{m.conteudo}</div>
                   )}
                 </div>
               ) : (
@@ -499,13 +507,13 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                     </div>
                   )}
                   {m.conteudo ? (
-                    <Markdown texto={m.conteudo} />
+                    <Markdown texto={m.conteudo} compacto={!expandido} onNavegar={aoNavegar} />
                   ) : m.transmitindo && m.ferramentas.every((f) => f.estado === "ok") ? (
                     <span className="inline-flex gap-1 py-1" aria-label="A Vita está escrevendo">
                       {[0, 150, 300].map((d) => <span key={d} className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" style={{ animationDelay: `${d}ms` }} />)}
                     </span>
                   ) : null}
-                  {m.acoes.map((id) => acoes[id] && <CartaoAcao key={id} acao={acoes[id]} onDecidir={decidir} />)}
+                  {m.acoes.map((id) => acoes[id] && <CartaoAcao key={id} acao={acoes[id]} compacto={!expandido} onDecidir={decidir} />)}
                   {m.erro && (
                     <p className="flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {m.erro}
@@ -579,7 +587,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             onPaste={(e) => { const arquivos = Array.from(e.clipboardData.files); if (arquivos.length) { e.preventDefault(); void adicionarArquivos(arquivos); } }}
             rows={1}
             placeholder={anexos.length ? "O que fazer com os arquivos?" : "Pergunte à Vita ou anexe arquivos…"}
-            className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-0.5 text-sm outline-none [field-sizing:content] placeholder:text-muted-foreground"
+            className={cn("max-h-40 min-h-6 flex-1 resize-none bg-transparent py-0.5 outline-none [field-sizing:content] placeholder:text-muted-foreground", expandido ? "text-sm" : "text-[12px]")}
           />
           {enviando ? (
             <Button type="button" size="icon" variant="secondary" className="size-7 shrink-0 rounded-lg" onClick={() => abortar.current?.abort()} title="Parar" aria-label="Parar resposta">
@@ -648,7 +656,7 @@ function BoasVindas({ expandido, onEscolher }: { expandido: boolean; onEscolher:
             key={s}
             type="button"
             onClick={() => onEscolher(s)}
-            className="rounded-lg border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+            className="rounded-lg border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
           >
             {s}
           </button>
@@ -658,12 +666,13 @@ function BoasVindas({ expandido, onEscolher }: { expandido: boolean; onEscolher:
   );
 }
 
-function CartaoAcao({ acao, onDecidir }: { acao: AcaoVita; onDecidir: (id: string, d: "aprovar" | "recusar") => void }) {
+function CartaoAcao({ acao, compacto, onDecidir }: { acao: AcaoVita; compacto?: boolean; onDecidir: (id: string, d: "aprovar" | "recusar") => void }) {
   const decidindo = acao.status === "pendente" && acao.resultado === "…";
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border text-sm",
+        "overflow-hidden rounded-xl border",
+        compacto ? "text-[12px]" : "text-sm",
         acao.status === "pendente" && "border-primary/40 bg-primary/[0.03]",
         acao.status === "executada" && "border-primary/30",
         (acao.status === "recusada" || acao.status === "falhou") && "opacity-80",
@@ -676,7 +685,7 @@ function CartaoAcao({ acao, onDecidir }: { acao: AcaoVita; onDecidir: (id: strin
         {acao.status === "recusada" && <span className="text-xs text-muted-foreground">Recusada</span>}
         {acao.status === "falhou" && <span className="inline-flex items-center gap-1 text-xs text-destructive"><XCircle className="size-3.5" /> Falhou</span>}
       </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 py-2 text-xs">
+      <dl className={cn("grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 py-2", compacto ? "text-[11px]" : "text-xs")}>
         {acao.detalhes.map((d) => (
           <div key={d.rotulo} className="contents">
             <dt className="text-muted-foreground">{d.rotulo}</dt>
@@ -842,22 +851,38 @@ function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
   );
 }
 
-function Markdown({ texto }: { texto: string }) {
+/** Link para uma página do próprio sistema (começa com "/" e não com "//"). */
+const linkInterno = (href?: string): href is string => Boolean(href && href.startsWith("/") && !href.startsWith("//"));
+
+/** compacto = painel lateral: tudo 2px menor que no modo expandido. */
+function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: boolean; onNavegar?: () => void }) {
   return (
-    <div className="text-sm leading-relaxed text-foreground [&>*+*]:mt-2">
+    <div className={cn("leading-relaxed text-foreground [&>*+*]:mt-2", compacto ? "text-[12px]" : "text-sm")}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="font-medium text-primary underline-offset-2 hover:underline">{children}</a>,
+          a: ({ href, children }) =>
+            linkInterno(href) ? (
+              <Link
+                href={href}
+                onClick={onNavegar}
+                className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-md border border-primary/30 bg-primary/5 px-1.5 py-0.5 text-[1em] font-medium text-primary no-underline transition-colors hover:bg-primary/10"
+              >
+                {children}
+                <ArrowUpRight className="size-3" />
+              </Link>
+            ) : (
+              <a href={href} target="_blank" rel="noreferrer" className="font-medium text-primary underline-offset-2 hover:underline">{children}</a>
+            ),
           ul: ({ children }) => <ul className="list-disc space-y-1 pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
-          h1: ({ children }) => <p className="text-base font-semibold">{children}</p>,
-          h2: ({ children }) => <p className="text-sm font-semibold">{children}</p>,
-          h3: ({ children }) => <p className="text-sm font-semibold">{children}</p>,
-          code: ({ children }) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">{children}</code>,
+          h1: ({ children }) => <p className={cn("font-semibold", compacto ? "text-[14px]" : "text-base")}>{children}</p>,
+          h2: ({ children }) => <p className={cn("font-semibold", compacto ? "text-[12px]" : "text-sm")}>{children}</p>,
+          h3: ({ children }) => <p className={cn("font-semibold", compacto ? "text-[12px]" : "text-sm")}>{children}</p>,
+          code: ({ children }) => <code className={cn("rounded bg-muted px-1 py-0.5 font-mono", compacto ? "text-[10px]" : "text-[12px]")}>{children}</code>,
           table: ({ children }) => (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-xs">{children}</table>
+              <table className={cn("w-full", compacto ? "text-[10px]" : "text-xs")}>{children}</table>
             </div>
           ),
           thead: ({ children }) => <thead className="bg-muted/60 text-left">{children}</thead>,

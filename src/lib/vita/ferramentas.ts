@@ -321,8 +321,11 @@ const json = (v: unknown) => JSON.stringify(v);
 const nomePlataforma = (id: string) => PLATAFORMAS.find((p) => p.id === id)?.nome ?? id;
 /** O PNCP usa 0 quando não informa o valor (ou quando é sigiloso). */
 const valorOuNaoInformado = (v: number | null | undefined) => (v && v > 0 ? formatarMoeda(v) : "Não informado");
+/** Página da licitação no próprio sistema: a salva (com ações) ou a do PNCP (antes de salvar). */
+export const linkSistema = (numero: string, idSalva?: string | null) =>
+  idSalva ? `/licitacao/${idSalva}` : `/licitacao/pncp?n=${encodeURIComponent(numero)}`;
 
-function resumoLicitacao(l: UnifiedLicitacao, salvas: Set<string>) {
+function resumoLicitacao(l: UnifiedLicitacao, salvas: Map<string, string>) {
   return {
     numero_controle_pncp: l.numeroControlePNCP,
     objeto: (l.titulo || l.descricao).slice(0, 220),
@@ -334,13 +337,15 @@ function resumoLicitacao(l: UnifiedLicitacao, salvas: Set<string>) {
     plataforma: nomePlataforma(l.plataforma),
     link_origem: l.linkOrigem,
     ja_salva: salvas.has(l.numeroControlePNCP),
+    link_sistema: linkSistema(l.numeroControlePNCP, salvas.get(l.numeroControlePNCP)),
   };
 }
 
-async function numerosSalvos(ctx: ContextoFerramenta, numeros: string[]): Promise<Set<string>> {
-  if (!numeros.length) return new Set();
-  const { data } = await ctx.supabase.from("saved_licitacoes").select("numero_controle_pncp").in("numero_controle_pncp", numeros);
-  return new Set((data ?? []).map((r) => String(r.numero_controle_pncp)));
+/** Nº de controle → id da licitação salva (só as que estão em Minhas Licitações). */
+async function numerosSalvos(ctx: ContextoFerramenta, numeros: string[]): Promise<Map<string, string>> {
+  if (!numeros.length) return new Map();
+  const { data } = await ctx.supabase.from("saved_licitacoes").select("id, numero_controle_pncp").in("numero_controle_pncp", numeros);
+  return new Map((data ?? []).map((r) => [String(r.numero_controle_pncp), String(r.id)]));
 }
 
 type Args = Record<string, unknown>;
@@ -388,7 +393,7 @@ async function detalhar(args: Args, ctx: ContextoFerramenta): Promise<ResultadoF
   const salvas = await numerosSalvos(ctx, [numero]);
   return {
     paraModelo: json({
-      licitacao: lic ? resumoLicitacao(lic, salvas) : { numero_controle_pncp: numero },
+      licitacao: lic ? resumoLicitacao(lic, salvas) : { numero_controle_pncp: numero, link_sistema: linkSistema(numero, salvas.get(numero)) },
       descricao_completa: lic?.descricao?.slice(0, 1500) ?? null,
       total_itens: itens.length,
       itens: itens.slice(0, 40).map((i) => ({
@@ -436,6 +441,7 @@ async function listarSalvas(args: Args, ctx: ContextoFerramenta): Promise<Result
         valor_estimado: l.valor_estimado,
         encerramento_propostas: dataHoraBr(l.data_encerramento_proposta),
         proposta: porLic.get(String(l.id)) === "enviada" ? "enviada" : porLic.has(String(l.id)) ? "rascunho" : "não iniciada",
+        link_sistema: linkSistema(String(l.numero_controle_pncp), String(l.id)),
       })),
     }),
   };
