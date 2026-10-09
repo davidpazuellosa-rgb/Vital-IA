@@ -54,7 +54,7 @@ Configurações (/configuracoes) só tem atalhos para estas telas.`,
 
   sistemas: `Sistemas de Licitação (/vital-norte/sistemas): atalhos para os portais onde a empresa tem cadastro (BLL Compras, Licitar Digital, Compras.gov.br, Licitanet, e-Compras AM, Compras Manaus, Petronect…). Cada um: nome, endereço, login (copiável), observações; "Abrir" reaproveita a aba para manter o login. SENHAS NÃO SÃO GUARDADAS. Os portais não podem ser embutidos no sistema.`,
 
-  catalogo: `Catálogo (/vital-norte/catalogo): produtos e serviços que a empresa vende. Campos: tipo (produto/serviço), nome, descrição, categoria, unidade, marca, código, custo, preço de referência, margem mínima (%), fornecedores, observações, ativo. A tela mostra a margem real ((preço − custo) / preço) em vermelho quando fica abaixo da mínima.
+  catalogo: `Catálogo (/vital-norte/catalogo): produtos e serviços que a empresa vende. Campos: tipo (produto/serviço), nome, descrição, categoria, unidade, marca, código, custo, preço de referência, margem mínima (%), fornecedores, observações, ativo. A tela mostra a margem real sobre o custo ((preço − custo) / custo) em vermelho quando fica abaixo da mínima.
 A Vita pode cadastrar/alterar/remover itens (com aprovação), inclusive vários de uma vez a partir de uma planilha ou lista anexada, e comparar os itens de um edital com o catálogo para sugerir preço e marca.`,
 
   clientes: `Clientes (/vital-norte/clientes): órgãos que contrataram a empresa (normalmente criados ao marcar uma licitação como Vencida, ou manualmente: nome e órgão).

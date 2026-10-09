@@ -216,7 +216,13 @@ export async function proporAlteracao(args: Record<string, unknown>, supabase: S
       if (linhas.length === 1) {
         for (const [k, v] of Object.entries(linhas[0])) detalhes.push({ rotulo: k, valor: fmt(v) });
       } else {
-        linhas.slice(0, 15).forEach((l, i) => detalhes.push({ rotulo: `#${i + 1}`, valor: fmt(l.nome ?? l.titulo ?? Object.values(l)[0]) }));
+        linhas.slice(0, 15).forEach((l, i) => {
+          const principal = l.nome ?? l.titulo ?? Object.values(l)[0];
+          const resto = Object.entries(l)
+            .filter(([k, v]) => k !== "nome" && k !== "titulo" && v != null && v !== "" && v !== true)
+            .map(([k, v]) => `${k}: ${fmt(v)}`);
+          detalhes.push({ rotulo: `#${i + 1}`, valor: [fmt(principal), ...resto].join(" · ").slice(0, 300) });
+        });
         if (linhas.length > 15) detalhes.push({ rotulo: "…", valor: `e mais ${linhas.length - 15}` });
       }
     } else {
@@ -264,7 +270,8 @@ export async function executarAlteracao(
   if (operacao === "inserir") {
     const dono = regra.escopo === "empresa" ? await resolverEmpresaUserId(supabase, userId) : userId;
     const linhas = (p.linhas as unknown[]).map((l) => ({ ...limparDados(tabela, l), user_id: dono }));
-    const { error, count } = await supabase.from(tabela).insert(linhas, { count: "exact" });
+    // defaultToNull: false → coluna ausente numa das linhas usa o valor padrão do banco (e não NULL).
+    const { error, count } = await supabase.from(tabela).insert(linhas, { count: "exact", defaultToNull: false });
     if (error) throw new Error(error.message);
     return { texto: `${count ?? linhas.length} registro(s) cadastrado(s) em ${tabela}.`, pagina: regra.pagina };
   }
