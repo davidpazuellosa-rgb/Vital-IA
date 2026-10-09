@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UnifiedLicitacao } from "@/lib/licitacoes/types";
+import { executarAlteracao } from "./banco";
 
 /** Executa uma ação JÁ APROVADA pelo usuário, com a sessão dele. Devolve um texto de resultado. */
 export async function executarAcaoAprovada(
@@ -49,6 +50,11 @@ export async function executarAcaoAprovada(
       if (error) throw new Error(error.message);
       revalidatePath("/minhas-licitacoes");
       return count ? `Licitação ${String(parametros.numero)} removida de Minhas Licitações.` : "A licitação já não estava salva.";
+    }
+    case "alterar_dados": {
+      const r = await executarAlteracao(supabase, userId, parametros);
+      if (r.pagina) revalidatePath(r.pagina);
+      return r.texto;
     }
     default:
       throw new Error(`Ação desconhecida: ${tipo}`);

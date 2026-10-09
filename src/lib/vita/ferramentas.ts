@@ -3,6 +3,9 @@ import { avaliarValidade, nomeTipo, tipoSemValidade } from "@/lib/documentos/typ
 import { formatarMoeda } from "@/lib/format";
 import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
+import { lerAnexo } from "./anexos";
+import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } from "./banco";
+import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import {
   ETAPAS_LICITACAO, MODALIDADES, PLATAFORMAS, UFS, normalizarEtapa,
   type PlatformId, type UnifiedLicitacao, type UniversalFilter,
@@ -16,7 +19,7 @@ import {
 
 export type DetalheAcao = { rotulo: string; valor: string };
 export type AcaoProposta = {
-  tipo: "salvar_licitacao" | "remover_licitacao_salva";
+  tipo: "salvar_licitacao" | "remover_licitacao_salva" | "alterar_dados";
   parametros: Record<string, unknown>;
   resumo: string;
   detalhes: DetalheAcao[];
@@ -130,6 +133,95 @@ export const FERRAMENTAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "consultar_dados",
+      description:
+        "Consulta QUALQUER dado do sistema no banco (somente leitura, com as permissões do usuário): clientes, contratações, propostas, " +
+        "notas fiscais, alertas, catálogo de produtos/serviços, documentos, sistemas de licitação, configurações etc. " +
+        "Veja as tabelas e colunas nas instruções. Filtros: eq, neq, gt, gte, lt, lte, contem (texto, ignora maiúsculas), vazio (valor true=é nulo, false=não é nulo), em (lista).",
+      parameters: {
+        type: "object",
+        properties: {
+          tabela: { type: "string", enum: NOMES_TABELAS },
+          colunas: { type: "array", items: { type: "string" }, description: "Opcional; padrão: todas as permitidas." },
+          filtros: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                coluna: { type: "string" },
+                operador: { type: "string", enum: ["eq", "neq", "gt", "gte", "lt", "lte", "contem", "vazio", "em"] },
+                valor: { description: "Texto, número, booleano ou lista (para \"em\")." },
+              },
+              required: ["coluna", "operador"],
+            },
+          },
+          ordenar_por: { type: "string" },
+          decrescente: { type: "boolean" },
+          limite: { type: "integer", description: "1 a 100. Padrão: 30." },
+        },
+        required: ["tabela"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "alterar_dados",
+      description:
+        "PROPÕE cadastrar, alterar ou remover registros no banco. NÃO executa: o usuário vê um cartão com o antes → depois e aprova ou recusa. " +
+        `Tabelas alteráveis: ${TABELAS_ALTERAVEIS.join(", ")} (colunas e operações permitidas nas instruções). ` +
+        "Para atualizar/remover, consulte antes com consultar_dados para obter o id. Para cadastrar vários itens de uma vez, mande uma lista em dados (até 50).",
+      parameters: {
+        type: "object",
+        properties: {
+          tabela: { type: "string", enum: TABELAS_ALTERAVEIS },
+          operacao: { type: "string", enum: ["inserir", "atualizar", "remover"] },
+          id: { type: "string", description: "id da linha (atualizar/remover). Não use em proposta_configuracao." },
+          dados: { description: "Objeto coluna → valor (inserir/atualizar). Para inserir vários, uma lista de objetos." },
+          motivo: { type: "string", description: "Explicação curta exibida no cartão." },
+        },
+        required: ["tabela", "operacao"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ler_documento",
+      description:
+        "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo (tabela documentos) ou de clientes/contratações (tabela cliente_documentos). " +
+        "Obtenha o id com consultar_dados ou consultar_documentos. PDFs escaneados passam por OCR (pode demorar).",
+      parameters: {
+        type: "object",
+        properties: {
+          origem: { type: "string", enum: ["documentos", "cliente_documentos"] },
+          id: { type: "string" },
+        },
+        required: ["origem", "id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "consultar_cnaes",
+      description:
+        "Consulta na Receita Federal (via BrasilAPI) o CNAE principal e TODOS os CNAEs secundários de um CNPJ — por padrão o da própria empresa. " +
+        "Use para dizer em que ramos a empresa pode atuar e se um objeto de licitação é compatível.",
+      parameters: { type: "object", properties: { cnpj: { type: "string", description: "Opcional; padrão: CNPJ da empresa." } } },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "manual_do_sistema",
+      description: "Explica em detalhe como funciona uma parte do Vital.IA (telas, botões, regras, automações). Use quando o usuário perguntar como fazer algo no sistema.",
+      parameters: { type: "object", properties: { topico: { type: "string", enum: TOPICOS_MANUAL } }, required: ["topico"] },
+    },
+  },
 ] as const;
 
 /** Rótulos curtos exibidos enquanto a ferramenta roda. */
@@ -141,6 +233,11 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   consultar_documentos: "Conferindo documentos do acervo",
   salvar_licitacao: "Preparando para salvar",
   remover_licitacao_salva: "Preparando remoção",
+  consultar_dados: "Consultando o banco de dados",
+  alterar_dados: "Preparando alteração",
+  ler_documento: "Lendo documento",
+  consultar_cnaes: "Consultando CNAEs na Receita",
+  manual_do_sistema: "Consultando o manual do sistema",
 };
 
 /* ------------------------------------------------------------------------------------------- */
@@ -367,6 +464,45 @@ async function proporRemover(args: Args, ctx: ContextoFerramenta): Promise<Resul
   };
 }
 
+async function lerDocumento(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
+  const origem = texto(args.origem) === "cliente_documentos" ? "cliente_documentos" : "documentos";
+  const id = texto(args.id);
+  if (!id) return { paraModelo: json({ erro: "Informe o id do documento." }) };
+  const { data: doc } = await ctx.supabase.from(origem).select("nome, tipo, arquivo_path, arquivo_nome").eq("id", id).maybeSingle();
+  if (!doc?.arquivo_path) return { paraModelo: json({ erro: "Documento não encontrado (ou sem arquivo)." }) };
+  const nome = String(doc.arquivo_nome || doc.nome || "arquivo");
+  const lido = await lerAnexo(ctx.supabase, { path: String(doc.arquivo_path), nome, tamanho: 0, mime: "" });
+  if (lido.imagem) {
+    return { paraModelo: json({ documento: doc.nome, observacao: "É uma imagem; não consigo lê-la por aqui. Peça ao usuário para anexá-la na conversa." }) };
+  }
+  return { paraModelo: json({ documento: doc.nome, tipo: doc.tipo, arquivo: nome, observacao: lido.observacao ?? null, conteudo: lido.texto.slice(0, 30_000) }) };
+}
+
+async function cnaes(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
+  let cnpj = texto(args.cnpj).replace(/\D/g, "");
+  if (!cnpj) {
+    const { data } = await ctx.supabase.from("empresa").select("cnpj").limit(1).maybeSingle();
+    cnpj = String(data?.cnpj ?? "").replace(/\D/g, "");
+  }
+  if (cnpj.length !== 14) return { paraModelo: json({ erro: "CNPJ inválido ou não cadastrado em Dados da Empresa." }) };
+  const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" });
+  if (!r.ok) return { paraModelo: json({ erro: `A Receita (BrasilAPI) não respondeu (HTTP ${r.status}). Tente de novo em instantes.` }) };
+  const d = (await r.json()) as {
+    razao_social?: string; cnae_fiscal?: number; cnae_fiscal_descricao?: string; situacao_cadastral?: number | string;
+    descricao_situacao_cadastral?: string; porte?: string; opcao_pelo_simples?: boolean | null; opcao_pelo_mei?: boolean | null;
+    cnaes_secundarios?: Array<{ codigo: number; descricao: string }>;
+  };
+  const fmtCnae = (c: number) => String(c).padStart(7, "0").replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3");
+  return {
+    paraModelo: json({
+      cnpj, razao_social: d.razao_social, situacao: d.descricao_situacao_cadastral, porte: d.porte,
+      simples_nacional: d.opcao_pelo_simples ?? null, mei: d.opcao_pelo_mei ?? null,
+      cnae_principal: d.cnae_fiscal ? { codigo: fmtCnae(d.cnae_fiscal), descricao: d.cnae_fiscal_descricao } : null,
+      cnaes_secundarios: (d.cnaes_secundarios ?? []).filter((c) => c.codigo).map((c) => ({ codigo: fmtCnae(c.codigo), descricao: c.descricao })),
+    }),
+  };
+}
+
 export async function executarFerramenta(nome: string, argsTexto: string, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
   let args: Args = {};
   try {
@@ -383,6 +519,11 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_documentos": return await documentos(args, ctx);
       case "salvar_licitacao": return await proporSalvar(args, ctx);
       case "remover_licitacao_salva": return await proporRemover(args, ctx);
+      case "consultar_dados": return { paraModelo: await consultarDados(args, ctx.supabase) };
+      case "alterar_dados": return await proporAlteracao(args, ctx.supabase);
+      case "ler_documento": return await lerDocumento(args, ctx);
+      case "consultar_cnaes": return await cnaes(args, ctx);
+      case "manual_do_sistema": return { paraModelo: manualDoSistema(texto(args.topico)) };
       default: return { paraModelo: json({ erro: `Ferramenta desconhecida: ${nome}` }) };
     }
   } catch (e) {

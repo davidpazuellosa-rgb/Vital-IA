@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MODALIDADES } from "@/lib/licitacoes/types";
+import { descreverEsquema } from "./banco";
+import { manualDoSistema } from "./manual";
 
 const PAGINAS: Array<[RegExp, string]> = [
   [/^\/busca/, "Busca de Licitações"],
@@ -11,6 +13,8 @@ const PAGINAS: Array<[RegExp, string]> = [
   [/^\/vital-norte\/sistemas/, "Sistemas de Licitação"],
   [/^\/vital-norte\/dados/, "Dados da Empresa"],
   [/^\/vital-norte\/alertas/, "Alertas"],
+  [/^\/vital-norte\/catalogo/, "Catálogo de Produtos e Serviços"],
+  [/^\/configuracoes/, "Configurações"],
   [/^\/assinador-propostas/, "Assinador de Propostas"],
 ];
 
@@ -59,5 +63,21 @@ export async function instrucoesVita(supabase: SupabaseClient, pagina: string): 
     "- Valores em R$ com vírgula decimal; datas em dd/mm/aaaa.",
     `- Códigos de modalidade: ${MODALIDADES.map((m) => `${m.id}=${m.nome}`).join("; ")}.`,
     "- Se o pedido estiver fora do que você consegue fazer (ex.: enviar proposta na plataforma, emitir nota fiscal), diga isso com clareza e sugira onde fazer no sistema.",
+    "",
+    "Acesso ao banco de dados:",
+    "- consultar_dados lê qualquer tabela abaixo (com as permissões do usuário). Use à vontade para responder com dados reais; combine tabelas pelos ids (ex.: contratacoes.cliente_id → clientes.id).",
+    "- alterar_dados só CRIA UM PEDIDO com o antes → depois; o usuário aprova no cartão. Antes de atualizar/remover, consulte para achar o id certo e confirme que é a linha que o usuário quer. Nunca invente ids.",
+    "- Para cadastrar muitos itens (ex.: catálogo a partir de uma planilha anexada), mande todos num único alterar_dados com a lista em dados.",
+    "- Valores numéricos em número (ex.: 12.5), datas em aaaa-mm-dd, margem_minima em % (ex.: 20).",
+    "- Fora do seu alcance (só o usuário, na tela): dados da empresa, notas fiscais e numeração de NF-e, tokens/chaves de Telegram e e-mail, propostas e documentos novos (arquivos).",
+    "- ler_documento lê o conteúdo de arquivos do acervo e dos clientes; consultar_cnaes traz CNAE principal e secundários da Receita.",
+    "- Para comparar um edital com o catálogo: detalhar_licitacao (itens) + consultar_dados em catalogo_itens; aponte correspondências, custo, preço de referência e se a margem mínima é atendida frente ao valor estimado.",
+    "",
+    "Tabelas:",
+    descreverEsquema(),
+    "",
+    "Sobre o sistema (para detalhes de uma tela use manual_do_sistema):",
+    manualDoSistema("visao_geral"),
+    manualDoSistema("fluxo_completo"),
   ].join("\n");
 }
