@@ -46,7 +46,7 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Vita" className="grid grid-cols-2 gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-3xl sm:grid-cols-4">
+      <div role="tablist" aria-label="Vita" className="flex flex-wrap gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-3xl">
         {abas.map((a) => {
           const sel = aba === a.id;
           return (
@@ -57,11 +57,11 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
               aria-selected={sel}
               onClick={() => setAba(a.id)}
               className={cn(
-                "flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "flex min-h-11 min-w-40 flex-1 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 sel ? "border-primary/35 bg-background text-foreground shadow-sm" : "border-transparent text-muted-foreground hover:border-border hover:bg-background/70 hover:text-foreground",
               )}
             >
-              <span className="flex min-w-0 items-center gap-2 text-sm font-semibold"><a.icone className="size-4 shrink-0" />{a.rotulo}</span>
+              <span className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold"><a.icone className="size-4 shrink-0" />{a.rotulo}</span>
               <Badge variant={sel ? "default" : "secondary"} className="shrink-0 tabular-nums">{a.contagem}</Badge>
             </button>
           );
