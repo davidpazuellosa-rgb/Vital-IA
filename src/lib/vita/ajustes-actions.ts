@@ -5,6 +5,8 @@ import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { createClient } from "@/lib/supabase/server";
 import { IDS_CATEGORIA, NOMES_FERRAMENTAS } from "./catalogo-ferramentas";
 import type { Memoria } from "./memoria";
+import { MAPA, validarEntradaMapa } from "./mapa";
+import type { MapaPersonalizado } from "./mapa-servidor";
 
 /* Ações da página "Vita": memórias e ferramentas. Sempre com a sessão do usuário (RLS de empresa). */
 
@@ -88,6 +90,66 @@ export async function definirFerramenta(nome: string, ativa: boolean) {
     .from("vita_configuracao")
     .update({ ferramentas_desativadas: proximas, updated_at: new Date().toISOString() })
     .eq("user_id", empresa);
+  if (error) throw new Error(error.message);
+  revalidatePath("/vita");
+}
+
+/* --------------------------------------- mapa do sistema --------------------------------------- */
+
+const COLUNAS_MAPA = "id, area, assunto, palavras, fontes, dica, ativo";
+const comoPersonalizada = (r: Record<string, unknown>): MapaPersonalizado => ({
+  id: String(r.id), area: String(r.area), assunto: String(r.assunto), palavras: (r.palavras as string[]) ?? [],
+  fontes: (r.fontes as MapaPersonalizado["fontes"]) ?? [], dica: (r.dica as string | null) ?? null, ativo: r.ativo !== false,
+});
+
+export async function criarEntradaMapa(bruto: unknown): Promise<MapaPersonalizado> {
+  const { supabase, empresa } = await sessao();
+  const v = validarEntradaMapa(bruto);
+  if (!v.ok) throw new Error(v.erro);
+  const { count } = await supabase.from("vita_mapa").select("id", { count: "exact", head: true });
+  if ((count ?? 0) >= 60) throw new Error("Limite de 60 assuntos próprios atingido.");
+  const { data, error } = await supabase.from("vita_mapa").insert({ user_id: empresa, ...v.dados }).select(COLUNAS_MAPA).single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/vita");
+  return comoPersonalizada(data);
+}
+
+export async function atualizarEntradaMapa(id: string, bruto: unknown): Promise<MapaPersonalizado> {
+  const { supabase } = await sessao();
+  const v = validarEntradaMapa(bruto);
+  if (!v.ok) throw new Error(v.erro);
+  const { data, error } = await supabase.from("vita_mapa").update({ ...v.dados, updated_at: new Date().toISOString() }).eq("id", id).select(COLUNAS_MAPA).single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/vita");
+  return comoPersonalizada(data);
+}
+
+export async function removerEntradaMapa(id: string) {
+  const { supabase } = await sessao();
+  const { error } = await supabase.from("vita_mapa").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/vita");
+}
+
+export async function alternarEntradaMapa(id: string, ativo: boolean) {
+  const { supabase } = await sessao();
+  const { error } = await supabase.from("vita_mapa").update({ ativo, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/vita");
+}
+
+/** Liga/desliga um assunto do mapa PADRÃO (os desligados a Vita não consulta). */
+export async function alternarMapaPadrao(id: string, ativo: boolean) {
+  if (!MAPA.some((e) => e.id === id)) throw new Error("Assunto desconhecido.");
+  const { supabase, empresa } = await sessao();
+  const { data } = await supabase.from("vita_configuracao").select("mapa_desativados").eq("user_id", empresa).maybeSingle();
+  if (!data) {
+    const { error } = await supabase.from("vita_configuracao").insert({ user_id: empresa });
+    if (error) throw new Error(error.message);
+  }
+  const atuais = Array.isArray(data?.mapa_desativados) ? (data!.mapa_desativados as string[]) : [];
+  const proximos = ativo ? atuais.filter((x) => x !== id) : [...new Set([...atuais, id])];
+  const { error } = await supabase.from("vita_configuracao").update({ mapa_desativados: proximos, updated_at: new Date().toISOString() }).eq("user_id", empresa);
   if (error) throw new Error(error.message);
   revalidatePath("/vita");
 }

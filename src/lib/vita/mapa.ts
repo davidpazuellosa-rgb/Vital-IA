@@ -22,10 +22,14 @@ export type EntradaMapa = {
   /** Da fonte mais confiável para a menos. */
   fontes: FonteMapa[];
   dica?: string;
+  /** "padrao" = vem do código; "personalizado" = criado pela empresa na página Vita. */
+  origem?: "padrao" | "personalizado";
+  /** id da linha no banco (só personalizados). */
+  idBanco?: string;
 };
 
 export const AREAS_MAPA = [
-  "Empresa", "Documentos de habilitação", "Licitações", "Propostas", "Clientes e contratos", "Notas fiscais", "Catálogo", "Alertas e portais", "Vita e sistema",
+  "Empresa", "Documentos de habilitação", "Licitações", "Propostas", "Clientes e contratos", "Notas fiscais", "Catálogo", "Alertas e portais", "Vita e sistema", "Personalizado",
 ] as const;
 
 export const MAPA: EntradaMapa[] = [
@@ -185,11 +189,11 @@ export const PAGINAS_MAPA: Array<{ rota: string; nome: string; tem: string }> = 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Entradas do mapa que mais combinam com a consulta (por palavras e pelo próprio assunto). */
-export function procurarNoMapa(consulta: string, limite = 3): EntradaMapa[] {
+export function procurarNoMapa(consulta: string, limite = 3, lista: EntradaMapa[] = MAPA): EntradaMapa[] {
   const q = semAcento(consulta);
   const termos = q.split(/[^a-z0-9]+/).filter((t) => t.length > 1);
   if (!termos.length) return [];
-  const pontuadas = MAPA.map((e) => {
+  const pontuadas = lista.map((e) => {
     let pontos = 0;
     for (const p of e.palavras) {
       const palavra = semAcento(p);
@@ -203,8 +207,8 @@ export function procurarNoMapa(consulta: string, limite = 3): EntradaMapa[] {
 }
 
 /** Índice compacto (assunto → onde) para as instruções da Vita. */
-export function indiceDoMapa(): string {
-  return MAPA.map((e) => {
+export function indiceDoMapa(lista: EntradaMapa[] = MAPA): string {
+  return lista.map((e) => {
     const onde = e.fontes.map((f) =>
       f.tipo === "documento" ? `docs[${f.tipos.join("/") || "clientes"}]` :
       f.tipo === "tabela" ? `tabela ${f.tabela}` :
@@ -212,4 +216,46 @@ export function indiceDoMapa(): string {
       f.tipo === "pagina" ? `página ${f.rota}` : f.nome).join(" > ");
     return `- ${e.assunto}: ${onde}`;
   }).join("\n");
+}
+
+/* ------------------------- entradas personalizadas: validação (cliente e servidor) ------------------------- */
+
+export const TIPOS_FONTE = ["documento", "tabela", "ferramenta", "pagina", "externa"] as const;
+export type EntradaPersonalizada = { area: string; assunto: string; palavras: string[]; fontes: FonteMapa[]; dica?: string | null };
+
+const limpa = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+
+/** Valida e normaliza uma entrada criada pelo usuário (nunca confia no que veio de fora). */
+export function validarEntradaMapa(bruto: unknown): { ok: true; dados: EntradaPersonalizada } | { ok: false; erro: string } {
+  const o = (bruto ?? {}) as Record<string, unknown>;
+  const assunto = limpa(o.assunto, 120);
+  if (assunto.length < 3) return { ok: false, erro: "Escreva o assunto (ex.: \"Garantia dos produtos\")." };
+  const area = (AREAS_MAPA as readonly string[]).includes(String(o.area)) ? String(o.area) : "Personalizado";
+  const palavras = (Array.isArray(o.palavras) ? o.palavras : String(o.palavras ?? "").split(/[,;\n]+/))
+    .map((p) => semAcento(limpa(p, 40))).filter(Boolean).slice(0, 12);
+  const fontesBrutas = Array.isArray(o.fontes) ? o.fontes.slice(0, 6) : [];
+  const fontes: FonteMapa[] = [];
+  for (const f of fontesBrutas) {
+    const x = (f ?? {}) as Record<string, unknown>;
+    const tipo = String(x.tipo);
+    const nota = limpa(x.nota, 160) || undefined;
+    if (tipo === "documento") {
+      const tipos = (Array.isArray(x.tipos) ? x.tipos : String(x.tipos ?? "").split(/[,;\s]+/)).map((t) => limpa(t, 40)).filter(Boolean).slice(0, 12);
+      fontes.push({ tipo, tipos, ...(nota ? { nota } : {}) });
+    } else if (tipo === "tabela") {
+      const tabela = limpa(x.tabela, 60); if (!tabela) continue;
+      fontes.push({ tipo, tabela, ...(limpa(x.colunas, 120) ? { colunas: limpa(x.colunas, 120) } : {}), ...(nota ? { nota } : {}) });
+    } else if (tipo === "ferramenta") {
+      const nome = limpa(x.nome, 60); if (!nome) continue;
+      fontes.push({ tipo, nome, ...(nota ? { nota } : {}) });
+    } else if (tipo === "pagina") {
+      const rota = limpa(x.rota, 120); if (!rota.startsWith("/")) continue;
+      fontes.push({ tipo, rota, ...(nota ? { nota } : {}) });
+    } else if (tipo === "externa") {
+      const nome = limpa(x.nome, 80); if (!nome) continue;
+      fontes.push({ tipo, nome, ...(nota ? { nota } : {}) });
+    }
+  }
+  if (!fontes.length) return { ok: false, erro: "Informe pelo menos uma fonte (onde procurar)." };
+  return { ok: true, dados: { area, assunto, palavras, fontes, dica: limpa(o.dica, 300) || null } };
 }

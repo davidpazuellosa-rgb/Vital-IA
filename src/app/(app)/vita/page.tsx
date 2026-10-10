@@ -2,10 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { VitaAjustesClient } from "@/components/vita/vita-ajustes-client";
 import { carregarConfig, type Memoria } from "@/lib/vita/memoria";
 import type { Avaliacao } from "@/lib/vita/feedback";
+import { carregarMapaPersonalizado } from "@/lib/vita/mapa-servidor";
 
 export default async function VitaPage() {
   const supabase = await createClient();
-  const [config, { data }, { data: avaliacoes }] = await Promise.all([
+  const [config, { data }, { data: avaliacoes }, personalizadas] = await Promise.all([
     carregarConfig(supabase),
     supabase
       .from("vita_memorias")
@@ -16,6 +17,7 @@ export default async function VitaPage() {
       .select("id, nota, motivo, pedido, resposta, created_at")
       .order("created_at", { ascending: false })
       .limit(100),
+    carregarMapaPersonalizado(supabase),
   ]);
-  return <VitaAjustesClient config={config} memorias={(data ?? []) as Memoria[]} avaliacoes={(avaliacoes ?? []) as Avaliacao[]} />;
+  return <VitaAjustesClient config={config} memorias={(data ?? []) as Memoria[]} avaliacoes={(avaliacoes ?? []) as Avaliacao[]} mapaPersonalizado={personalizadas} />;
 }

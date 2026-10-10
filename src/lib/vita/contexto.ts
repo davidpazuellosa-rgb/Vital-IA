@@ -4,7 +4,7 @@ import { descreverEsquema } from "./banco";
 import { blocoDeMemoria, type ConfigVita, type Memoria } from "./memoria";
 import { blocoDeAprendizado, type Avaliacao } from "./feedback";
 import { snapshotParaTexto, type SnapshotTela } from "./tela";
-import { indiceDoMapa } from "./mapa";
+import { indiceDoMapa, type EntradaMapa } from "./mapa";
 import { manualDoSistema } from "./manual";
 
 const PAGINAS: Array<[RegExp, string]> = [
@@ -26,7 +26,7 @@ const PAGINAS: Array<[RegExp, string]> = [
 export async function instrucoesVita(
   supabase: SupabaseClient,
   pagina: string,
-  memoria: { config: ConfigVita; memorias: Memoria[]; avaliacoes?: Avaliacao[]; tela?: SnapshotTela | null } = { config: { memoriaAtiva: false, memoriaAutomatica: false, aprenderFeedback: false, desativadas: [] }, memorias: [] },
+  memoria: { config: ConfigVita; memorias: Memoria[]; avaliacoes?: Avaliacao[]; tela?: SnapshotTela | null; mapa?: EntradaMapa[] } = { config: { memoriaAtiva: false, memoriaAutomatica: false, aprenderFeedback: false, desativadas: [], mapaDesativados: [] }, memorias: [] },
 ): Promise<string> {
   const { data: empresa } = await supabase
     .from("empresa")
@@ -95,7 +95,7 @@ export async function instrucoesVita(
     "- Não sabe onde está algo? `onde_encontrar` consulta o mapa abaixo. Comece pela fonte mais confiável e, em dados importantes (CNPJ, valores, prazos), confirme numa segunda fonte.",
     "- Se não encontrar, diga o que procurou e onde, em vez de inventar; sugira enviar o documento que falta em Documentos.",
     "Mapa do sistema (assunto: onde procurar, da fonte mais confiável para a menos):",
-    indiceDoMapa(),
+    indiceDoMapa(memoria.mapa),
     "",
     "Tabelas:",
     descreverEsquema(),

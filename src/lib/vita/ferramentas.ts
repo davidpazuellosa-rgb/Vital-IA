@@ -10,6 +10,7 @@ import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
 import { buscarInformacao, ondeEncontrar, pesquisarDocumentos } from "./harness";
+import { carregarMapa } from "./mapa-servidor";
 import { MAX_OPCOES, montarPergunta, type PerguntaVita } from "./pergunta";
 import { snapshotParaTexto, type PedidoTela, type ResultadoTela } from "./tela";
 import { IDS_CATEGORIA } from "./catalogo-ferramentas";
@@ -775,7 +776,7 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
-      case "onde_encontrar": return { paraModelo: ondeEncontrar(args) };
+      case "onde_encontrar": return { paraModelo: ondeEncontrar(args, await carregarMapa(ctx.supabase)) };
       case "buscar_informacao": return { paraModelo: await buscarInformacao(args, ctx) };
       case "pesquisar_documentos": return { paraModelo: await pesquisarDocumentos(args, ctx) };
       case "ver_pagina": return await naTela({ acao: "ver" }, ctx);

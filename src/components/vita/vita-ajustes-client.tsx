@@ -20,6 +20,8 @@ import {
 import type { ConfigVita, Memoria } from "@/lib/vita/memoria";
 import type { Avaliacao } from "@/lib/vita/feedback";
 import { AREAS_MAPA, MAPA, PAGINAS_MAPA, type FonteMapa } from "@/lib/vita/mapa";
+import type { MapaPersonalizado } from "@/lib/vita/mapa-servidor";
+import { alternarEntradaMapa, alternarMapaPadrao, atualizarEntradaMapa, criarEntradaMapa, removerEntradaMapa } from "@/lib/vita/ajustes-actions";
 import { removerAvaliacao } from "@/lib/vita/feedback-actions";
 import { cn } from "@/lib/utils";
 
@@ -30,18 +32,19 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : undefined);
 
 type Aba = "memorias" | "ferramentas" | "avaliacoes" | "mapa";
 
-export function VitaAjustesClient({ config: configInicial, memorias: memoriasIniciais, avaliacoes: avaliacoesIniciais }: { config: ConfigVita; memorias: Memoria[]; avaliacoes: Avaliacao[] }) {
+export function VitaAjustesClient({ config: configInicial, memorias: memoriasIniciais, avaliacoes: avaliacoesIniciais, mapaPersonalizado: mapaInicial = [] }: { config: ConfigVita; memorias: Memoria[]; avaliacoes: Avaliacao[]; mapaPersonalizado?: MapaPersonalizado[] }) {
   const [aba, setAba] = useState<Aba>("memorias");
   const [config, setConfig] = useState(configInicial);
   const [memorias, setMemorias] = useState(memoriasIniciais);
   const [avaliacoes, setAvaliacoes] = useState(avaliacoesIniciais);
+  const [personalizadas, setPersonalizadas] = useState(mapaInicial);
 
   const ferramentasAtivas = INFO_FERRAMENTAS.filter((f) => !config.desativadas.includes(f.nome)).length;
   const abas: Array<{ id: Aba; rotulo: string; icone: typeof Brain; contagem: string }> = [
     { id: "memorias", rotulo: "Memórias", icone: Brain, contagem: String(memorias.length) },
     { id: "ferramentas", rotulo: "Ferramentas", icone: Wrench, contagem: `${ferramentasAtivas}/${INFO_FERRAMENTAS.length}` },
     { id: "avaliacoes", rotulo: "Avaliações", icone: ThumbsUp, contagem: String(avaliacoes.length) },
-    { id: "mapa", rotulo: "Mapa", icone: MapIcon, contagem: String(MAPA.length) },
+    { id: "mapa", rotulo: "Mapa", icone: MapIcon, contagem: String(MAPA.length + personalizadas.length) },
   ];
 
   return (
@@ -73,7 +76,7 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
       ) : aba === "ferramentas" ? (
         <PainelFerramentas config={config} setConfig={setConfig} />
       ) : aba === "mapa" ? (
-        <PainelMapa />
+        <PainelMapa config={config} setConfig={setConfig} personalizadas={personalizadas} setPersonalizadas={setPersonalizadas} />
       ) : (
         <PainelAvaliacoes config={config} setConfig={setConfig} avaliacoes={avaliacoes} setAvaliacoes={setAvaliacoes} />
       )}
@@ -441,6 +444,13 @@ const COR_FONTE: Record<FonteMapa["tipo"], string> = {
   pagina: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
   externa: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
 };
+const PLACEHOLDER_FONTE: Record<FonteMapa["tipo"], string> = {
+  documento: "tipos de documento, ex.: contrato_social, balanco",
+  tabela: "nome da tabela, ex.: catalogo_itens",
+  ferramenta: "nome da ferramenta, ex.: consultar_dados",
+  pagina: "caminho, ex.: /documentos",
+  externa: "nome da fonte, ex.: Receita (BrasilAPI)",
+};
 
 function textoFonte(f: FonteMapa): string {
   if (f.tipo === "documento") return f.tipos.length ? f.tipos.join(", ") : "documentos de clientes";
@@ -450,32 +460,86 @@ function textoFonte(f: FonteMapa): string {
   return f.nome;
 }
 
-/** Como a Vita procura: assunto → onde está (da fonte mais confiável para a menos). */
-function PainelMapa() {
+type Linha = { chave: string; padraoId?: string; pers?: MapaPersonalizado; area: string; assunto: string; palavras: string[]; fontes: FonteMapa[]; dica?: string; ativo: boolean };
+
+/** Como a Vita procura: assunto → onde está (da fonte mais confiável para a menos). Dá para somar assuntos próprios e desligar os padrão. */
+function PainelMapa({
+  config, setConfig, personalizadas, setPersonalizadas,
+}: {
+  config: ConfigVita;
+  setConfig: React.Dispatch<React.SetStateAction<ConfigVita>>;
+  personalizadas: MapaPersonalizado[];
+  setPersonalizadas: React.Dispatch<React.SetStateAction<MapaPersonalizado[]>>;
+}) {
   const [busca, setBusca] = useState("");
+  const [editando, setEditando] = useState<MapaPersonalizado | "novo" | null>(null);
+  const [, iniciar] = useTransition();
   const termo = semAcento(busca.trim());
-  const filtradas = MAPA.filter((e) => !termo || semAcento(`${e.assunto} ${e.palavras.join(" ")} ${e.fontes.map(textoFonte).join(" ")}`).includes(termo));
+
+  const linhas: Linha[] = [
+    ...MAPA.map((e): Linha => ({ chave: e.id, padraoId: e.id, area: e.area, assunto: e.assunto, palavras: e.palavras, fontes: e.fontes, dica: e.dica, ativo: !config.mapaDesativados.includes(e.id) })),
+    ...personalizadas.map((p): Linha => ({ chave: `p_${p.id}`, pers: p, area: p.area, assunto: p.assunto, palavras: p.palavras, fontes: p.fontes, dica: p.dica ?? undefined, ativo: p.ativo })),
+  ].filter((l) => !termo || semAcento(`${l.assunto} ${l.palavras.join(" ")} ${l.fontes.map(textoFonte).join(" ")}`).includes(termo));
+
+  function alternar(l: Linha, ativo: boolean) {
+    if (l.padraoId) {
+      const antes = config;
+      setConfig({ ...config, mapaDesativados: ativo ? config.mapaDesativados.filter((x) => x !== l.padraoId) : [...config.mapaDesativados, l.padraoId] });
+      iniciar(async () => { try { await alternarMapaPadrao(l.padraoId!, ativo); } catch (e) { setConfig(antes); toast.error("Não foi possível salvar", { description: msg(e) }); } });
+    } else if (l.pers) {
+      const p = l.pers;
+      setPersonalizadas((lista) => lista.map((x) => (x.id === p.id ? { ...x, ativo } : x)));
+      iniciar(async () => {
+        try { await alternarEntradaMapa(p.id, ativo); } catch (e) {
+          setPersonalizadas((lista) => lista.map((x) => (x.id === p.id ? { ...x, ativo: p.ativo } : x)));
+          toast.error("Não foi possível salvar", { description: msg(e) });
+        }
+      });
+    }
+  }
+
+  function apagar(p: MapaPersonalizado) {
+    if (!window.confirm("Apagar este assunto do mapa?")) return;
+    const antes = personalizadas;
+    setPersonalizadas((l) => l.filter((x) => x.id !== p.id));
+    iniciar(async () => { try { await removerEntradaMapa(p.id); toast.success("Assunto apagado"); } catch (e) { setPersonalizadas(antes); toast.error("Não foi possível apagar", { description: msg(e) }); } });
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="relative min-w-56 sm:max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar no mapa…" aria-label="Pesquisar no mapa" className="pl-9" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1 sm:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar no mapa…" aria-label="Pesquisar no mapa" className="pl-9" />
+        </div>
+        <Button className="ml-auto gap-1.5" onClick={() => setEditando("novo")}><Plus className="size-4" /> Adicionar assunto</Button>
       </div>
 
       {AREAS_MAPA.map((area) => {
-        const itens = filtradas.filter((e) => e.area === area);
+        const itens = linhas.filter((l) => l.area === area);
         if (!itens.length) return null;
         return (
           <section key={area} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold">{area}</h2>
             <Card className="shadow-sm">
               <CardContent className="flex flex-col divide-y">
-                {itens.map((e) => (
-                  <div key={e.id} className="py-3 first:pt-0 last:pb-0">
-                    <p className="text-sm font-medium">{e.assunto}</p>
+                {itens.map((l) => (
+                  <div key={l.chave} className={cn("py-3 first:pt-0 last:pb-0", !l.ativo && "opacity-55")}>
+                    <div className="flex items-start gap-2">
+                      <p className="min-w-0 flex-1 text-sm font-medium">
+                        {l.assunto}
+                        {l.pers && <Badge variant="outline" className="ml-2 border-primary/30 bg-primary/10 font-normal text-primary">Da empresa</Badge>}
+                      </p>
+                      <Switch checked={l.ativo} onCheckedChange={(v) => alternar(l, v)} aria-label={l.ativo ? "Desativar assunto" : "Ativar assunto"} title={l.ativo ? "Ativo: a Vita consulta" : "Desativado: a Vita ignora"} />
+                      {l.pers && (
+                        <>
+                          <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditando(l.pers!)} aria-label="Editar assunto" title="Editar"><Pencil className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => apagar(l.pers!)} aria-label="Apagar assunto" title="Apagar"><Trash2 className="size-4" /></Button>
+                        </>
+                      )}
+                    </div>
                     <ol className="mt-1.5 flex flex-col gap-1">
-                      {e.fontes.map((f, i) => (
+                      {l.fontes.map((f, i) => (
                         <li key={i} className="flex flex-wrap items-center gap-2 text-[13px]">
                           <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">{i + 1}</span>
                           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", COR_FONTE[f.tipo])}>{ROTULO_FONTE[f.tipo]}</span>
@@ -508,7 +572,124 @@ function PainelMapa() {
           </Card>
         </section>
       )}
-      {termo && filtradas.length === 0 && <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">Nada no mapa com esse termo.</p>}
+      {termo && linhas.length === 0 && <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">Nada no mapa com esse termo.</p>}
+
+      <Dialog open={editando !== null} onOpenChange={(v) => { if (!v) setEditando(null); }}>
+        {editando !== null && (
+          <FormMapa
+            key={editando === "novo" ? "novo" : editando.id}
+            entrada={editando === "novo" ? null : editando}
+            aoFechar={() => setEditando(null)}
+            aoSalvar={(m, nova) => setPersonalizadas((l) => (nova ? [...l, m] : l.map((x) => (x.id === m.id ? m : x))))}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+type LinhaFonte = { tipo: FonteMapa["tipo"]; valor: string; extra: string; nota: string };
+
+const paraLinha = (f: FonteMapa): LinhaFonte => ({
+  tipo: f.tipo,
+  valor: f.tipo === "documento" ? f.tipos.join(", ") : f.tipo === "tabela" ? f.tabela : f.tipo === "pagina" ? f.rota : f.nome,
+  extra: f.tipo === "tabela" ? f.colunas ?? "" : "",
+  nota: f.nota ?? "",
+});
+
+const deLinha = (l: LinhaFonte): Record<string, unknown> => ({
+  tipo: l.tipo, nota: l.nota,
+  ...(l.tipo === "documento" ? { tipos: l.valor } : l.tipo === "tabela" ? { tabela: l.valor, colunas: l.extra } : l.tipo === "pagina" ? { rota: l.valor } : { nome: l.valor }),
+});
+
+function FormMapa({ entrada, aoFechar, aoSalvar }: { entrada: MapaPersonalizado | null; aoFechar: () => void; aoSalvar: (m: MapaPersonalizado, nova: boolean) => void }) {
+  const [assunto, setAssunto] = useState(entrada?.assunto ?? "");
+  const [area, setArea] = useState(entrada?.area ?? "Personalizado");
+  const [palavras, setPalavras] = useState(entrada?.palavras.join(", ") ?? "");
+  const [dica, setDica] = useState(entrada?.dica ?? "");
+  const [fontes, setFontes] = useState<LinhaFonte[]>(entrada?.fontes.map(paraLinha) ?? [{ tipo: "documento", valor: "", extra: "", nota: "" }]);
+  const [salvando, iniciar] = useTransition();
+
+  const mudar = (i: number, campos: Partial<LinhaFonte>) => setFontes((l) => l.map((x, j) => (j === i ? { ...x, ...campos } : x)));
+
+  function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    const dados = { assunto, area, palavras, dica, fontes: fontes.filter((f) => f.valor.trim()).map(deLinha) };
+    iniciar(async () => {
+      try {
+        const salvo = entrada ? await atualizarEntradaMapa(entrada.id, dados) : await criarEntradaMapa(dados);
+        aoSalvar(salvo, !entrada);
+        toast.success(entrada ? "Assunto atualizado" : "Assunto adicionado ao mapa");
+        aoFechar();
+      } catch (err) {
+        toast.error("Não foi possível salvar", { description: msg(err) });
+      }
+    });
+  }
+
+  return (
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>{entrada ? "Editar assunto" : "Novo assunto no mapa"}</DialogTitle>
+        <DialogDescription>Ensina a Vita onde procurar um tipo de informação da empresa.</DialogDescription>
+      </DialogHeader>
+      <form onSubmit={salvar} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="mapa-assunto">Assunto</Label>
+          <Input id="mapa-assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)} required maxLength={120} autoFocus placeholder="Ex.: Garantia dos produtos que vendemos" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>Área</Label>
+            <Select value={area} onValueChange={setArea}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{AREAS_MAPA.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="mapa-palavras">Como você fala disso (separe por vírgula)</Label>
+            <Input id="mapa-palavras" value={palavras} onChange={(e) => setPalavras(e.target.value)} placeholder="garantia, prazo de garantia, assistência" />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>Onde procurar (da fonte mais confiável para a menos)</Label>
+          {fontes.map((f, i) => (
+            <div key={i} className="flex flex-col gap-1.5 rounded-lg border p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] text-muted-foreground">{i + 1}</span>
+                <Select value={f.tipo} onValueChange={(v) => mudar(i, { tipo: v as FonteMapa["tipo"] })}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>{(Object.keys(ROTULO_FONTE) as FonteMapa["tipo"][]).map((t) => <SelectItem key={t} value={t}>{ROTULO_FONTE[t]}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input value={f.valor} onChange={(e) => mudar(i, { valor: e.target.value })} placeholder={PLACEHOLDER_FONTE[f.tipo]} className="min-w-0 flex-1" aria-label="Onde" />
+                {fontes.length > 1 && (
+                  <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setFontes((l) => l.filter((_, j) => j !== i))} aria-label="Remover fonte"><X className="size-4" /></Button>
+                )}
+              </div>
+              <div className="flex gap-2 pl-7">
+                {f.tipo === "tabela" && <Input value={f.extra} onChange={(e) => mudar(i, { extra: e.target.value })} placeholder="colunas (opcional)" className="w-48" aria-label="Colunas" />}
+                <Input value={f.nota} onChange={(e) => mudar(i, { nota: e.target.value })} placeholder="observação (opcional)" className="min-w-0 flex-1" aria-label="Observação" />
+              </div>
+            </div>
+          ))}
+          {fontes.length < 6 && (
+            <Button type="button" variant="outline" size="sm" className="w-fit gap-1.5" onClick={() => setFontes((l) => [...l, { tipo: "documento", valor: "", extra: "", nota: "" }])}><Plus className="size-3.5" /> Adicionar fonte</Button>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="mapa-dica">Dica para a Vita (opcional)</Label>
+          <Input id="mapa-dica" value={dica} onChange={(e) => setDica(e.target.value)} maxLength={300} placeholder="Ex.: A garantia está sempre na última página do contrato." />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={aoFechar}>Cancelar</Button>
+          <Button type="submit" disabled={salvando || assunto.trim().length < 3 || !fontes.some((f) => f.valor.trim())}>
+            {salvando && <Loader2 className="animate-spin" />}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

@@ -7,6 +7,7 @@ import { instrucoesVita } from "@/lib/vita/contexto";
 import { executarFerramenta, FERRAMENTAS, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { carregarAvaliacoesRecentes } from "@/lib/vita/feedback";
+import { carregarMapa } from "@/lib/vita/mapa-servidor";
 import { FERRAMENTAS_DE_MEMORIA } from "@/lib/vita/catalogo-ferramentas";
 import type { PerguntaVita } from "@/lib/vita/pergunta";
 import { sanitizarSnapshot, type PedidoTela } from "@/lib/vita/tela";
@@ -158,9 +159,10 @@ export async function POST(request: NextRequest) {
   const config = await carregarConfig(supabase);
   const memorias = config.memoriaAtiva ? await carregarMemoriasAtivas(supabase) : [];
   const avaliacoes = config.aprenderFeedback ? await carregarAvaliacoesRecentes(supabase) : [];
+  const mapa = await carregarMapa(supabase, config.mapaDesativados);
   const desativadas = new Set([...config.desativadas, ...(config.memoriaAtiva ? [] : FERRAMENTAS_DE_MEMORIA)]);
   const ferramentasAtivas = FERRAMENTAS.filter((f) => !desativadas.has(f.function.name));
-  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) });
+  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, mapa, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) });
   const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
   const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas, conversaId };

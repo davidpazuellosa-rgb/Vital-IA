@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { nomeTipo } from "@/lib/documentos/types";
 import { lerAnexo } from "./anexos";
-import { AREAS_MAPA, MAPA, PAGINAS_MAPA, procurarNoMapa, type FonteMapa } from "./mapa";
+import { AREAS_MAPA, MAPA, PAGINAS_MAPA, procurarNoMapa, type EntradaMapa, type FonteMapa } from "./mapa";
+import { carregarMapa } from "./mapa-servidor";
 
 /* ---------------------------------------------------------------------------------------------
  * HARNESS DE BUSCA da Vita.
@@ -317,19 +318,19 @@ const descreverFonte = (f: FonteMapa): string =>
   f.tipo === "ferramenta" ? `ferramenta ${f.nome}${f.nota ? ` — ${f.nota}` : ""}` :
   f.tipo === "pagina" ? `página ${f.rota}${f.nota ? ` — ${f.nota}` : ""}` : `${f.nome}${f.nota ? ` — ${f.nota}` : ""}`;
 
-export function ondeEncontrar(args: Record<string, unknown>): string {
+export function ondeEncontrar(args: Record<string, unknown>, mapa: EntradaMapa[] = MAPA): string {
   const assunto = String(args.assunto ?? "").trim();
   if (!assunto) return json({ erro: "Informe o assunto (ex.: \"CNPJ\", \"validade das certidões\", \"itens de uma licitação\")." });
-  const achadas = procurarNoMapa(assunto, 3);
+  const achadas = procurarNoMapa(assunto, 3, mapa);
   const paginas = PAGINAS_MAPA.filter((p) => semAcento(`${p.nome} ${p.tem}`).split(/[^a-z0-9]+/).some((w) => w.length > 3 && semAcento(assunto).includes(w))).slice(0, 3);
   if (!achadas.length) {
     return json({
       resultado: "Não achei esse assunto no mapa. Tente pesquisar_documentos (conteúdo dos arquivos) ou consultar_dados (tabelas).",
-      assuntos_do_mapa: AREAS_MAPA.map((a) => ({ area: a, assuntos: MAPA.filter((e) => e.area === a).map((e) => e.assunto) })),
+      assuntos_do_mapa: AREAS_MAPA.map((a) => ({ area: a, assuntos: mapa.filter((e) => e.area === a).map((e) => e.assunto) })).filter((a) => a.assuntos.length),
     });
   }
   return json({
-    resultados: achadas.map((e) => ({ assunto: e.assunto, area: e.area, onde_procurar_em_ordem: e.fontes.map(descreverFonte), ...(e.dica ? { dica: e.dica } : {}) })),
+    resultados: achadas.map((e) => ({ assunto: e.assunto, area: e.area, ...(e.origem === "personalizado" ? { criado_pela_empresa: true } : {}), onde_procurar_em_ordem: e.fontes.map(descreverFonte), ...(e.dica ? { dica: e.dica } : {}) })),
     ...(paginas.length ? { paginas_relacionadas: paginas.map((p) => `${p.nome} (${p.rota}): ${p.tem}`) } : {}),
   });
 }
@@ -341,7 +342,7 @@ export async function buscarInformacao(args: Record<string, unknown>, ctx: Ctx):
   if (!assunto) return json({ erro: "Informe o assunto (ex.: \"CNPJ\", \"razão social\", \"dados cadastrais\", \"inscrição estadual\", \"sócios\")." });
   const campos = resolverCampos(assunto);
   if (!campos.length) {
-    return json({ aviso: `Não tenho um extrator para "${assunto}". Siga o mapa:`, mapa: JSON.parse(ondeEncontrar({ assunto })) });
+    return json({ aviso: `Não tenho um extrator para "${assunto}". Siga o mapa:`, mapa: JSON.parse(ondeEncontrar({ assunto }, await carregarMapa(ctx.supabase))) });
   }
 
   const { data: empresa } = await ctx.supabase.from("empresa").select("*").limit(1).maybeSingle();
