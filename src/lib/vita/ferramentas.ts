@@ -10,6 +10,7 @@ import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
 import { MAX_OPCOES, montarPergunta, type PerguntaVita } from "./pergunta";
+import { snapshotParaTexto, type PedidoTela, type ResultadoTela } from "./tela";
 import { IDS_CATEGORIA } from "./catalogo-ferramentas";
 import {
   ETAPAS_LICITACAO, MODALIDADES, PLATAFORMAS, UFS, normalizarEtapa,
@@ -38,6 +39,8 @@ export type ContextoFerramenta = {
   vistas: Record<string, UnifiedLicitacao>;
   /** Conversa atual (para registrar de onde nasceu uma memória). */
   conversaId?: string | null;
+  /** Pede uma ação ao navegador do usuário (ver/clicar/preencher/navegar na tela). */
+  pedirAoNavegador?: (pedido: PedidoTela) => Promise<ResultadoTela>;
 };
 
 export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta; pergunta?: PerguntaVita };
@@ -292,6 +295,52 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "ver_pagina",
+      description: "Lê de novo o que o usuário está vendo na tela (texto visível e controles com ids). Use depois de esperar algo carregar ou para conferir o resultado de uma ação.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "clicar_na_tela",
+      description:
+        "Clica em um elemento da tela do usuário (use o id da lista de elementos, ex.: v12). Serve para abrir abas, menus, filtros e telas. " +
+        "Cliques que ALTERAM dados mostram um cartão de aprovação ao usuário; alguns controles são bloqueados por segurança (emitir/cancelar nota, assinar, senhas e chaves). " +
+        "Prefira as ferramentas de dados (alterar_dados etc.) para criar/alterar registros. Faça um passo por vez: a ferramenta devolve a tela atualizada.",
+      parameters: {
+        type: "object",
+        properties: {
+          elemento: { type: "string", description: "id do elemento, ex.: v12." },
+          motivo: { type: "string", description: "Em uma frase, por que está clicando (aparece para o usuário)." },
+        },
+        required: ["elemento"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "preencher_campo",
+      description: "Digita um valor em um campo de texto, área de texto ou seleção da tela (use o id do elemento). Não funciona em senhas, tokens e chaves. Preencher não envia o formulário.",
+      parameters: {
+        type: "object",
+        properties: { elemento: { type: "string" }, valor: { type: "string", description: "O texto a colocar no campo." } },
+        required: ["elemento", "valor"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ir_para_pagina",
+      description: "Leva o usuário a uma página do Vital.IA (caminho interno, ex.: /minhas-licitacoes, /vital-norte/catalogo, /licitacao/<id>, /vita).",
+      parameters: { type: "object", properties: { caminho: { type: "string", description: "Caminho começando com /." } }, required: ["caminho"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "perguntar",
       description:
         "FAZ UMA PERGUNTA ao usuário em MÚLTIPLA ESCOLHA (cartão com opções clicáveis). Use SEMPRE que precisar perguntar, esclarecer, confirmar ou oferecer um próximo passo — nunca pergunte em texto solto. " +
@@ -367,6 +416,10 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   ler_documento: "Lendo documento",
   consultar_cnaes: "Consultando CNAEs na Receita",
   manual_do_sistema: "Consultando o manual do sistema",
+  ver_pagina: "Olhando a tela",
+  clicar_na_tela: "Interagindo com a tela",
+  preencher_campo: "Preenchendo um campo",
+  ir_para_pagina: "Abrindo uma página",
   perguntar: "Preparando uma pergunta",
   memorizar: "Guardando na memória",
   esquecer_memoria: "Apagando da memória",
@@ -606,6 +659,19 @@ async function proporRemover(args: Args, ctx: ContextoFerramenta): Promise<Resul
   };
 }
 
+async function naTela(pedido: PedidoTela, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
+  if (!ctx.pedirAoNavegador) return { paraModelo: json({ erro: "A tela do usuário não está disponível agora." }) };
+  const r = await ctx.pedirAoNavegador(pedido);
+  return {
+    paraModelo: json({
+      ok: r.ok,
+      resultado: r.mensagem,
+      ...(r.recusado ? { recusado_pelo_usuario: true } : {}),
+      ...(r.pagina ? { tela_atual: snapshotParaTexto(r.pagina, 3_800) } : {}),
+    }),
+  };
+}
+
 async function lerDocumento(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
   const origem = texto(args.origem) === "cliente_documentos" ? "cliente_documentos" : "documentos";
   const id = texto(args.id);
@@ -667,6 +733,10 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
+      case "ver_pagina": return await naTela({ acao: "ver" }, ctx);
+      case "clicar_na_tela": return await naTela({ acao: "clicar", elemento: texto(args.elemento), motivo: texto(args.motivo) }, ctx);
+      case "preencher_campo": return await naTela({ acao: "preencher", elemento: texto(args.elemento), valor: String(args.valor ?? "").slice(0, 2000) }, ctx);
+      case "ir_para_pagina": return await naTela({ acao: "navegar", caminho: texto(args.caminho) }, ctx);
       case "perguntar": {
         const r = montarPergunta(args);
         if (!r.ok) return { paraModelo: json({ erro: r.erro }) };

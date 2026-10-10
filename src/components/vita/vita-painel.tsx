@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, MousePointerClick, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
 import { pergunta2texto, type PerguntaVita } from "@/lib/vita/pergunta";
 import { avaliarResposta } from "@/lib/vita/feedback-actions";
+import { capturarTela, executarPedidoTela } from "@/lib/vita/tela-cliente";
+import type { PedidoTela } from "@/lib/vita/tela";
 import { MOTIVOS_NEGATIVOS } from "@/lib/vita/feedback";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
 
@@ -311,6 +313,8 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
   const empresaId = useRef<string | null>(null);
   const [anexos, setAnexos] = useState<AnexoLocal[]>([]);
   const [arrastandoArquivo, setArrastandoArquivo] = useState(false);
+  /** Clique na tela que a Vita pediu e que precisa da aprovação do usuário. */
+  const [pedidoTela, setPedidoTela] = useState<{ descricao: string; resolver: (aprovado: boolean) => void } | null>(null);
   const enviandoAnexo = anexos.some((a) => a.estado === "enviando");
   const anexosProntos = anexos.filter((a) => a.estado === "pronto");
 
@@ -415,7 +419,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
     if (id) void abrirConversa(id);
   }, [abrirConversa]);
 
-  useEffect(() => { fim.current?.scrollIntoView({ block: "end" }); }, [mensagens, acoes]);
+  useEffect(() => { fim.current?.scrollIntoView({ block: "end" }); }, [mensagens, acoes, pedidoTela]);
   useEffect(() => { if (aberto) setTimeout(() => campo.current?.focus(), 350); }, [aberto]);
 
   function novaConversa() {
@@ -457,6 +461,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conversaId, mensagem: texto, pagina: pathname,
+          tela: (() => { try { return capturarTela(); } catch { return null; } })(),
           anexos: paraEnviar.map((a) => ({ path: a.path, nome: a.nome, tamanho: a.tamanho, mime: a.mime })),
         }),
         signal: controle.signal,
@@ -498,6 +503,23 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             case "pergunta":
               atualizarUltima((m) => ({ ...m, pergunta: ev.pergunta as PerguntaVita }));
               break;
+            case "tela": {
+              // A Vita pede uma ação na tela: executa aqui (com as travas) e devolve o resultado ao servidor.
+              const idPedido = String(ev.id);
+              void (async () => {
+                const resultado = await executarPedidoTela(ev.pedido as PedidoTela, {
+                  aprovar: (descricao) => new Promise<boolean>((resolve) => setPedidoTela({ descricao, resolver: resolve })),
+                  navegar: (caminho) => router.push(caminho),
+                });
+                setPedidoTela(null);
+                await fetch(`/api/vita/tela/${idPedido}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(resultado),
+                }).catch(() => { /* o servidor desiste sozinho depois de um tempo */ });
+              })();
+              break;
+            }
             case "erro":
               atualizarUltima((m) => ({ ...m, erro: String(ev.mensagem) }));
               break;
@@ -510,6 +532,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
     } catch (e) {
       if (!controle.signal.aborted) atualizarUltima((m) => ({ ...m, erro: e instanceof Error ? e.message : "Falha ao falar com a Vita." }));
     } finally {
+      setPedidoTela((p) => { p?.resolver(false); return null; });
       atualizarUltima((m) => ({ ...m, transmitindo: false }));
       setEnviando(false);
       abortar.current = null;
@@ -680,6 +703,19 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                   )}
                 </div>
               ),
+            )}
+            {pedidoTela && (
+              <div className={cn("rounded-xl border border-amber-500/40 bg-amber-500/5 p-3", expandido ? "text-sm" : "text-[12px]")}>
+                <p className="flex items-start gap-2 font-medium">
+                  <MousePointerClick className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                  <span>A Vita quer {pedidoTela.descricao}.</span>
+                </p>
+                <p className="mt-1 pl-6 text-muted-foreground">Esse clique pode alterar algo no sistema. Quer permitir?</p>
+                <div className="mt-2.5 flex gap-2 pl-6">
+                  <Button size="sm" onClick={() => { pedidoTela.resolver(true); setPedidoTela(null); }}>Aprovar</Button>
+                  <Button size="sm" variant="outline" onClick={() => { pedidoTela.resolver(false); setPedidoTela(null); }}>Recusar</Button>
+                </div>
+              </div>
             )}
             <div ref={fim} />
           </div>

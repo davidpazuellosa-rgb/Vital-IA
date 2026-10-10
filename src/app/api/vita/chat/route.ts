@@ -9,6 +9,8 @@ import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { carregarAvaliacoesRecentes } from "@/lib/vita/feedback";
 import { FERRAMENTAS_DE_MEMORIA } from "@/lib/vita/catalogo-ferramentas";
 import type { PerguntaVita } from "@/lib/vita/pergunta";
+import { sanitizarSnapshot, type PedidoTela } from "@/lib/vita/tela";
+import { pedirAoNavegador } from "@/lib/vita/tela-ponte";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
   if (!user) return new Response("Não autenticado.", { status: 401 });
 
   const corpo = (await request.json().catch(() => ({}))) as {
-    conversaId?: string; mensagem?: string; pagina?: string; anexos?: AnexoEnviado[];
+    conversaId?: string; mensagem?: string; pagina?: string; anexos?: AnexoEnviado[]; tela?: unknown;
   };
   const anexos = Array.isArray(corpo.anexos) ? corpo.anexos : [];
   if (anexos.length > MAX_ANEXOS) return new Response(`No máximo ${MAX_ANEXOS} anexos por mensagem.`, { status: 400 });
@@ -158,10 +160,11 @@ export async function POST(request: NextRequest) {
   const avaliacoes = config.aprenderFeedback ? await carregarAvaliacoesRecentes(supabase) : [];
   const desativadas = new Set([...config.desativadas, ...(config.memoriaAtiva ? [] : FERRAMENTAS_DE_MEMORIA)]);
   const ferramentasAtivas = FERRAMENTAS.filter((f) => !desativadas.has(f.function.name));
-  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes });
+  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) });
   const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
   const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas, conversaId };
+  const idsDeTela = new Set<string>(); // chamadas cujo resultado traz a tela inteira (não vale guardar no histórico)
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -170,6 +173,7 @@ export async function POST(request: NextRequest) {
         try { controller.enqueue(enc.encode(`data: ${JSON.stringify(evento)}\n\n`)); } catch { /* cliente saiu */ }
       };
       enviar({ tipo: "conversa", id: conversaId, titulo });
+      ctx.pedirAoNavegador = (pedido: PedidoTela) => pedirAoNavegador(user.id, pedido, enviar, request.signal);
 
       // Lê os anexos (mostrando o progresso) e monta a mensagem atual para o modelo.
       const lidos: AnexoLido[] = [];
@@ -237,6 +241,7 @@ export async function POST(request: NextRequest) {
               perguntaFeita = r.pergunta;
               enviar({ tipo: "pergunta", pergunta: r.pergunta });
             }
+            if (["ver_pagina", "clicar_na_tela", "preencher_campo", "ir_para_pagina"].includes(c.function.name)) idsDeTela.add(c.id);
             ferramentasUsadas.push({ nome: c.function.name, rotulo });
             enviar({ tipo: "ferramenta", id: c.id, nome: c.function.name, rotulo, estado: "fim" });
             protocolo.push({ role: "tool", tool_call_id: c.id, content: r.paraModelo.slice(0, LIMITE_RESULTADO) });
@@ -249,6 +254,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (erro) enviar({ tipo: "erro", mensagem: erro });
+      // O histórico guarda só um resumo dos resultados que trazem a tela inteira (economiza espaço e tokens).
+      for (const m of protocolo) {
+        if (m.role === "tool" && idsDeTela.has(m.tool_call_id)) m.content = m.content.slice(0, 220) + " … (tela omitida do histórico)";
+      }
       const conteudo = textoFinal.trim() || (erro ? "" : perguntaFeita ? "" : "(sem resposta)");
       const { data: salva } = await supabase
         .from("vita_mensagens")

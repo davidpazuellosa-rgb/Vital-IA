@@ -133,3 +133,15 @@
     @apply bg-primary/20;
   }
 }
+
+/* A Vita está interagindo com este elemento da tela. */
+@keyframes vita-pulso {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent); }
+  100% { box-shadow: 0 0 0 14px color-mix(in oklab, var(--primary) 0%, transparent); }
+}
+.vita-destaque {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+  animation: vita-pulso 0.8s ease-out 2;
+}
