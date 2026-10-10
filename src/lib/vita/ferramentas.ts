@@ -9,6 +9,7 @@ import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } fr
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
+import { buscarInformacao, ondeEncontrar, pesquisarDocumentos } from "./harness";
 import { MAX_OPCOES, montarPergunta, type PerguntaVita } from "./pergunta";
 import { snapshotParaTexto, type PedidoTela, type ResultadoTela } from "./tela";
 import { IDS_CATEGORIA } from "./catalogo-ferramentas";
@@ -101,7 +102,7 @@ export const FERRAMENTAS = [
     type: "function",
     function: {
       name: "consultar_empresa",
-      description: "Dados cadastrais da empresa do usuário (razão social, CNPJ, porte, CNAE, endereço, contato).",
+      description: "Cadastro DIGITADO em Dados da Empresa (razão social, CNPJ, porte, CNAE, endereço, contato). Pode estar desatualizado: para CNPJ e demais dados da empresa use buscar_informacao, que lê os documentos oficiais e compara.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -295,6 +296,44 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "onde_encontrar",
+      description: "Consulta o MAPA DO SISTEMA: dado um assunto (ex.: \"CNPJ\", \"validade das certidões\", \"itens de licitação\", \"login do portal\"), diz em quais tabelas, documentos, páginas e ferramentas procurar, em ordem de confiança. Use quando não souber onde está uma informação.",
+      parameters: { type: "object", properties: { assunto: { type: "string" } }, required: ["assunto"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "buscar_informacao",
+      description:
+        "BUSCA DADOS DA EMPRESA NOS DOCUMENTOS: lê os arquivos certos do acervo (Cartão CNPJ, contrato social, inscrições, contas…), extrai o valor, COMPARA com o cadastro e diz o que confere, o que diverge e de qual documento veio. " +
+        "Assuntos: cnpj, razão social, nome fantasia, porte, natureza jurídica, data de abertura, CNAEs, endereço, telefone, e-mail, situação cadastral, inscrição estadual/municipal, capital social, sócios/administração, dados bancários, ou \"dados cadastrais\" (tudo do Cartão CNPJ). " +
+        "Use SEMPRE para perguntas sobre dados da empresa; nunca responda só do cadastro ou de memória.",
+      parameters: { type: "object", properties: { assunto: { type: "string", description: "Ex.: \"cnpj\", \"dados cadastrais\", \"inscrição estadual\", \"sócios\"." } }, required: ["assunto"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "pesquisar_documentos",
+      description:
+        "Pesquisa por TERMOS no CONTEÚDO dos documentos (acervo da empresa e, se pedido, documentos de clientes como edital, empenho, contrato). Lê e guarda o texto dos arquivos que precisar (PDF escaneado passa por OCR). " +
+        "Devolve os trechos onde os termos aparecem, com o documento e o id (para ler inteiro com ler_documento). Use para achar qualquer informação que esteja dentro de um documento.",
+      parameters: {
+        type: "object",
+        properties: {
+          termos: { type: "array", items: { type: "string" }, description: "Palavras ou expressões a procurar, ex.: [\"capital social\"], [\"validade\", \"garantia\"]." },
+          tipos: { type: "array", items: { type: "string" }, description: "Opcional: só estes tipos do acervo (ex.: contrato_social, cnpj, balanco)." },
+          escopo: { type: "string", enum: ["acervo", "clientes", "tudo"], description: "Padrão: acervo. clientes = documentos de clientes/contratações." },
+          limite: { type: "integer", description: "Máximo de documentos no resultado (1 a 10; padrão 6)." },
+        },
+        required: ["termos"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "ver_pagina",
       description: "Lê de novo o que o usuário está vendo na tela (texto visível e controles com ids). Use depois de esperar algo carregar ou para conferir o resultado de uma ação.",
       parameters: { type: "object", properties: {} },
@@ -416,6 +455,9 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   ler_documento: "Lendo documento",
   consultar_cnaes: "Consultando CNAEs na Receita",
   manual_do_sistema: "Consultando o manual do sistema",
+  onde_encontrar: "Consultando o mapa do sistema",
+  buscar_informacao: "Lendo os documentos da empresa",
+  pesquisar_documentos: "Pesquisando nos documentos",
   ver_pagina: "Olhando a tela",
   clicar_na_tela: "Interagindo com a tela",
   preencher_campo: "Preenchendo um campo",
@@ -733,6 +775,9 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
+      case "onde_encontrar": return { paraModelo: ondeEncontrar(args) };
+      case "buscar_informacao": return { paraModelo: await buscarInformacao(args, ctx) };
+      case "pesquisar_documentos": return { paraModelo: await pesquisarDocumentos(args, ctx) };
       case "ver_pagina": return await naTela({ acao: "ver" }, ctx);
       case "clicar_na_tela": return await naTela({ acao: "clicar", elemento: texto(args.elemento), motivo: texto(args.motivo) }, ctx);
       case "preencher_campo": return await naTela({ acao: "preencher", elemento: texto(args.elemento), valor: String(args.valor ?? "").slice(0, 2000) }, ctx);

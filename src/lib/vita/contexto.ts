@@ -4,6 +4,7 @@ import { descreverEsquema } from "./banco";
 import { blocoDeMemoria, type ConfigVita, type Memoria } from "./memoria";
 import { blocoDeAprendizado, type Avaliacao } from "./feedback";
 import { snapshotParaTexto, type SnapshotTela } from "./tela";
+import { indiceDoMapa } from "./mapa";
 import { manualDoSistema } from "./manual";
 
 const PAGINAS: Array<[RegExp, string]> = [
@@ -88,6 +89,14 @@ export async function instrucoesVita(
     ...instrucoesDeMemoria(memoria.config, memoria.memorias),
     ...instrucoesDeAprendizado(memoria.config, memoria.avaliacoes ?? []),
     ...instrucoesDeTela(memoria.config, memoria.tela ?? null),
+    "COMO PROCURAR INFORMAÇÕES (siga sempre):",
+    "- Dados da empresa (CNPJ, razão social, inscrições, endereço, porte, CNAEs, sócios, capital, banco): use `buscar_informacao`. Ela LÊ OS DOCUMENTOS (Cartão CNPJ, contrato social…), compara com o cadastro (Dados da Empresa) e mostra a fonte. NUNCA responda esses dados só de memória nem só do cadastro. Cite o documento de onde veio; se divergir do cadastro, avise e ofereça corrigir.",
+    "- Informação que pode estar DENTRO de um documento: `pesquisar_documentos` (acervo; escopo \"clientes\" para edital, empenho, contrato). Depois `ler_documento` se precisar do arquivo inteiro.",
+    "- Não sabe onde está algo? `onde_encontrar` consulta o mapa abaixo. Comece pela fonte mais confiável e, em dados importantes (CNPJ, valores, prazos), confirme numa segunda fonte.",
+    "- Se não encontrar, diga o que procurou e onde, em vez de inventar; sugira enviar o documento que falta em Documentos.",
+    "Mapa do sistema (assunto: onde procurar, da fonte mais confiável para a menos):",
+    indiceDoMapa(),
+    "",
     "Tabelas:",
     descreverEsquema(),
     "",

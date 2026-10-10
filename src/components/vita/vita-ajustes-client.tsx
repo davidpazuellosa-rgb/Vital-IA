@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Brain, Loader2, Pencil, Plus, Search, ThumbsDown, ThumbsUp, Trash2, Wrench, X } from "lucide-react";
+import { Brain, Loader2, Map as MapIcon, Pencil, Plus, Search, ThumbsDown, ThumbsUp, Trash2, Wrench, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/vita/catalogo-ferramentas";
 import type { ConfigVita, Memoria } from "@/lib/vita/memoria";
 import type { Avaliacao } from "@/lib/vita/feedback";
+import { AREAS_MAPA, MAPA, PAGINAS_MAPA, type FonteMapa } from "@/lib/vita/mapa";
 import { removerAvaliacao } from "@/lib/vita/feedback-actions";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,7 @@ const rotuloCategoria = (id: string) => CATEGORIAS_MEMORIA.find((c) => c.id === 
 const dataBr = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
 const msg = (e: unknown) => (e instanceof Error ? e.message : undefined);
 
-type Aba = "memorias" | "ferramentas" | "avaliacoes";
+type Aba = "memorias" | "ferramentas" | "avaliacoes" | "mapa";
 
 export function VitaAjustesClient({ config: configInicial, memorias: memoriasIniciais, avaliacoes: avaliacoesIniciais }: { config: ConfigVita; memorias: Memoria[]; avaliacoes: Avaliacao[] }) {
   const [aba, setAba] = useState<Aba>("memorias");
@@ -40,11 +41,12 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
     { id: "memorias", rotulo: "Memórias", icone: Brain, contagem: String(memorias.length) },
     { id: "ferramentas", rotulo: "Ferramentas", icone: Wrench, contagem: `${ferramentasAtivas}/${INFO_FERRAMENTAS.length}` },
     { id: "avaliacoes", rotulo: "Avaliações", icone: ThumbsUp, contagem: String(avaliacoes.length) },
+    { id: "mapa", rotulo: "Mapa", icone: MapIcon, contagem: String(MAPA.length) },
   ];
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Vita" className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-2xl">
+      <div role="tablist" aria-label="Vita" className="grid grid-cols-2 gap-2 rounded-xl border bg-muted/35 p-2 sm:max-w-3xl sm:grid-cols-4">
         {abas.map((a) => {
           const sel = aba === a.id;
           return (
@@ -70,6 +72,8 @@ export function VitaAjustesClient({ config: configInicial, memorias: memoriasIni
         <PainelMemorias config={config} setConfig={setConfig} memorias={memorias} setMemorias={setMemorias} />
       ) : aba === "ferramentas" ? (
         <PainelFerramentas config={config} setConfig={setConfig} />
+      ) : aba === "mapa" ? (
+        <PainelMapa />
       ) : (
         <PainelAvaliacoes config={config} setConfig={setConfig} avaliacoes={avaliacoes} setAvaliacoes={setAvaliacoes} />
       )}
@@ -423,6 +427,88 @@ function PainelAvaliacoes({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------- mapa ------------------------------------------- */
+
+const ROTULO_FONTE: Record<FonteMapa["tipo"], string> = { documento: "Documento", tabela: "Tabela", ferramenta: "Ferramenta", pagina: "Página", externa: "Fonte externa" };
+const COR_FONTE: Record<FonteMapa["tipo"], string> = {
+  documento: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  tabela: "bg-secondary text-secondary-foreground",
+  ferramenta: "bg-primary/10 text-primary",
+  pagina: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  externa: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+};
+
+function textoFonte(f: FonteMapa): string {
+  if (f.tipo === "documento") return f.tipos.length ? f.tipos.join(", ") : "documentos de clientes";
+  if (f.tipo === "tabela") return f.colunas ? `${f.tabela} (${f.colunas})` : f.tabela;
+  if (f.tipo === "ferramenta") return f.nome;
+  if (f.tipo === "pagina") return f.rota;
+  return f.nome;
+}
+
+/** Como a Vita procura: assunto → onde está (da fonte mais confiável para a menos). */
+function PainelMapa() {
+  const [busca, setBusca] = useState("");
+  const termo = semAcento(busca.trim());
+  const filtradas = MAPA.filter((e) => !termo || semAcento(`${e.assunto} ${e.palavras.join(" ")} ${e.fontes.map(textoFonte).join(" ")}`).includes(termo));
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="relative min-w-56 sm:max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar no mapa…" aria-label="Pesquisar no mapa" className="pl-9" />
+      </div>
+
+      {AREAS_MAPA.map((area) => {
+        const itens = filtradas.filter((e) => e.area === area);
+        if (!itens.length) return null;
+        return (
+          <section key={area} className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold">{area}</h2>
+            <Card className="shadow-sm">
+              <CardContent className="flex flex-col divide-y">
+                {itens.map((e) => (
+                  <div key={e.id} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-sm font-medium">{e.assunto}</p>
+                    <ol className="mt-1.5 flex flex-col gap-1">
+                      {e.fontes.map((f, i) => (
+                        <li key={i} className="flex flex-wrap items-center gap-2 text-[13px]">
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">{i + 1}</span>
+                          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", COR_FONTE[f.tipo])}>{ROTULO_FONTE[f.tipo]}</span>
+                          <span className="font-mono text-[12px]">{textoFonte(f)}</span>
+                          {f.nota && <span className="text-muted-foreground">— {f.nota}</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </section>
+        );
+      })}
+
+      {!termo && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold">Páginas do sistema</h2>
+          <Card className="shadow-sm">
+            <CardContent className="flex flex-col divide-y">
+              {PAGINAS_MAPA.map((p) => (
+                <div key={p.rota} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 first:pt-0 last:pb-0">
+                  <span className="text-sm font-medium">{p.nome}</span>
+                  <span className="font-mono text-[12px] text-muted-foreground">{p.rota}</span>
+                  <span className="text-[13px] text-muted-foreground">{p.tem}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+      {termo && filtradas.length === 0 && <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">Nada no mapa com esse termo.</p>}
     </div>
   );
 }
