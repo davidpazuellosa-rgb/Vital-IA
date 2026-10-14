@@ -7,6 +7,7 @@ import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { lerAnexo } from "./anexos";
 import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS, tabelasAlteraveisDe, tabelasVisiveis } from "./banco";
 import { EMPRESAS, ehEmpresaSlug, type EmpresaSlug } from "@/lib/empresas";
+import { empresaAlvo } from "./empresa-alvo";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
@@ -190,7 +191,7 @@ export const FERRAMENTAS = [
       name: "alterar_dados",
       description:
         "PROPÕE cadastrar, alterar ou remover registros no banco. NÃO executa: o usuário vê um cartão com o antes → depois e aprova ou recusa. " +
-        `Tabelas alteráveis: ${TABELAS_ALTERAVEIS.join(", ")} (colunas e operações permitidas nas instruções). ` +
+        `Tabelas alteráveis: ${TABELAS_ALTERAVEIS.join(", ")} (colunas e operações permitidas nas instruções). As tabelas rm_* são da empresa RM e funcionam igual às da Vital Norte: catálogo da RM = rm_catalogo_itens, dados da RM = rm_empresa, documentos da RM = rm_documentos. ` +
         "Para atualizar/remover, consulte antes com consultar_dados para obter o id. Para cadastrar vários itens de uma vez, mande uma lista em dados (até 50).",
       parameters: {
         type: "object",
@@ -278,7 +279,7 @@ export const FERRAMENTAS = [
     function: {
       name: "ler_documento",
       description:
-        "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo (tabela documentos) ou de clientes/contratações (tabela cliente_documentos). " +
+        "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo da empresa (origem \"documentos\"; da RM também é origem \"documentos\" com empresa=rm) ou de clientes/contratações da Vital Norte (origem \"cliente_documentos\"). " +
         "Obtenha o id com consultar_dados ou consultar_documentos. PDFs escaneados passam por OCR (pode demorar).",
       parameters: {
         type: "object",
@@ -451,9 +452,11 @@ export const FERRAMENTAS = [
 /** Rótulos curtos exibidos enquanto a ferramenta roda. */
 /** Ferramentas ligadas a dados que só a Vital Norte tem (documentos, nota fiscal, proposta, memória compartilhada…). */
 const SO_VITAL_NORTE = new Set([
-  "consultar_empresa", "consultar_documentos", "ler_documento", "rascunho_nota_fiscal", "preencher_proposta",
-  "onde_encontrar", "buscar_informacao", "pesquisar_documentos", "manual_do_sistema", "memorizar", "esquecer_memoria",
+  "rascunho_nota_fiscal", "preencher_proposta", "onde_encontrar", "manual_do_sistema", "memorizar", "esquecer_memoria",
 ]);
+
+/** Ferramentas que trabalham com UMA empresa: quem tem as duas precisa dizer qual (campo `empresa`). */
+const POR_EMPRESA = new Set(["consultar_empresa", "consultar_documentos", "ler_documento", "consultar_cnaes", "buscar_informacao", "pesquisar_documentos"]);
 
 /** Ferramentas oferecidas conforme as empresas do usuário: quem não tem a Vital Norte recebe uma versão enxuta. */
 export function ferramentasParaEmpresas(empresas: EmpresaSlug[]) {
@@ -465,6 +468,10 @@ export function ferramentasParaEmpresas(empresas: EmpresaSlug[]) {
     .map((f) => {
       if (f.function.name === "consultar_dados") {
         return { ...f, function: { ...f.function, parameters: { ...f.function.parameters, properties: { ...f.function.parameters.properties, tabela: { type: "string", enum: tabelasVisiveis(empresas) } } } } };
+      }
+      if (POR_EMPRESA.has(f.function.name) && empresas.length > 1) {
+        const params = f.function.parameters as { properties: Record<string, unknown>; required?: string[] };
+        return { ...f, function: { ...f.function, parameters: { ...params, properties: { ...params.properties, empresa: { type: "string", enum: empresas, description: "De qual empresa: vital-norte ou rm. OBRIGATÓRIO (o usuário tem as duas): se ele não disse, pergunte antes." } }, required: [...(params.required ?? []), "empresa"] } } };
       }
       if (f.function.name === "alterar_dados") {
         return { ...f, function: { ...f.function, parameters: { ...f.function.parameters, properties: { ...f.function.parameters.properties, tabela: { type: "string", enum: alteraveis } } } } };
@@ -638,8 +645,10 @@ async function listarSalvas(args: Args, ctx: ContextoFerramenta): Promise<Result
   };
 }
 
-async function empresa(ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
-  const { data } = await ctx.supabase.from("empresa").select("*").limit(1).maybeSingle();
+async function empresa(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
+  const alvo = empresaAlvo(args, ctx.empresas);
+  if (!alvo.ok) return { paraModelo: json({ erro: alvo.erro }) };
+  const { data } = await ctx.supabase.from(alvo.cfg.tabelaEmpresa).select("*").limit(1).maybeSingle();
   if (!data) return { paraModelo: json({ erro: "Dados da empresa ainda não cadastrados (página Dados da Empresa)." }) };
   const campos = ["razao_social", "nome_fantasia", "cnpj", "porte", "natureza_juridica", "cnae_principal", "data_abertura",
     "inscricao_estadual", "inscricao_municipal", "email", "telefone", "logradouro", "numero", "bairro", "municipio", "uf", "cep"];
@@ -647,8 +656,10 @@ async function empresa(ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
 }
 
 async function documentos(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
+  const alvo = empresaAlvo(args, ctx.empresas);
+  if (!alvo.ok) return { paraModelo: json({ erro: alvo.erro }) };
   const { data, error } = await ctx.supabase
-    .from("documentos")
+    .from(alvo.cfg.tabelaDocumentos)
     .select("tipo, nome, data_emissao, data_validade")
     .order("created_at", { ascending: false });
   if (error) return { paraModelo: json({ erro: error.message }) };
@@ -752,7 +763,14 @@ async function naTela(pedido: PedidoTela, ctx: ContextoFerramenta): Promise<Resu
 }
 
 async function lerDocumento(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
-  const origem = texto(args.origem) === "cliente_documentos" ? "cliente_documentos" : "documentos";
+  let origem: string = texto(args.origem) === "cliente_documentos" ? "cliente_documentos" : "documentos";
+  if (origem === "documentos") {
+    const alvo = empresaAlvo(args, ctx.empresas);
+    if (!alvo.ok) return { paraModelo: json({ erro: alvo.erro }) };
+    origem = alvo.cfg.tabelaDocumentos; // documentos (Vital Norte) ou rm_documentos
+  } else if (!(ctx.empresas ?? ["vital-norte"]).includes("vital-norte")) {
+    return { paraModelo: json({ erro: "Documentos de clientes não estão disponíveis." }) };
+  }
   const id = texto(args.id);
   if (!id) return { paraModelo: json({ erro: "Informe o id do documento." }) };
   const { data: doc } = await ctx.supabase.from(origem).select("nome, tipo, arquivo_path, arquivo_nome").eq("id", id).maybeSingle();
@@ -768,7 +786,9 @@ async function lerDocumento(args: Args, ctx: ContextoFerramenta): Promise<Result
 async function cnaes(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
   let cnpj = texto(args.cnpj).replace(/\D/g, "");
   if (!cnpj) {
-    const { data } = await ctx.supabase.from("empresa").select("cnpj").limit(1).maybeSingle();
+    const alvo = empresaAlvo(args, ctx.empresas);
+    if (!alvo.ok) return { paraModelo: json({ erro: alvo.erro }) };
+    const { data } = await ctx.supabase.from(alvo.cfg.tabelaEmpresa).select("cnpj").limit(1).maybeSingle();
     cnpj = String(data?.cnpj ?? "").replace(/\D/g, "");
   }
   if (cnpj.length !== 14) return { paraModelo: json({ erro: "CNPJ inválido ou não cadastrado em Dados da Empresa." }) };
@@ -802,7 +822,7 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "buscar_licitacoes": return await buscar(args, ctx);
       case "detalhar_licitacao": return await detalhar(args, ctx);
       case "listar_licitacoes_salvas": return await listarSalvas(args, ctx);
-      case "consultar_empresa": return await empresa(ctx);
+      case "consultar_empresa": return await empresa(args, ctx);
       case "consultar_documentos": return await documentos(args, ctx);
       case "salvar_licitacao": return await proporSalvar(args, ctx);
       case "remover_licitacao_salva": return await proporRemover(args, ctx);

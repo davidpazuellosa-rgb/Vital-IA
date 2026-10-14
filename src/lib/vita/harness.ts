@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { nomeTipo } from "@/lib/documentos/types";
+import { configEmpresa, type ConfigEmpresa, type EmpresaSlug } from "@/lib/empresas";
+import { empresaAlvo } from "./empresa-alvo";
 import { lerAnexo } from "./anexos";
 import { AREAS_MAPA, MAPA, PAGINAS_MAPA, procurarNoMapa, type EntradaMapa, type FonteMapa } from "./mapa";
 import { carregarMapa } from "./mapa-servidor";
@@ -15,7 +17,7 @@ import { carregarMapa } from "./mapa-servidor";
  * documentos_texto; refaz sozinho se o arquivo for trocado.
  * ------------------------------------------------------------------------------------------- */
 
-type Ctx = { supabase: SupabaseClient; userId: string };
+type Ctx = { supabase: SupabaseClient; userId: string; empresas?: EmpresaSlug[] };
 const json = (v: unknown) => JSON.stringify(v);
 
 /* ----------------------------------------- utilidades ----------------------------------------- */
@@ -47,7 +49,7 @@ const formatarCnpj = (d: string) => d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{
 
 /* ------------------------------------- índice de texto dos arquivos ------------------------------------- */
 
-type Origem = "documentos" | "cliente_documentos";
+type Origem = "documentos" | "cliente_documentos" | "rm_documentos";
 type DocFonte = { origem: Origem; id: string; nome: string; tipo: string; arquivo_path: string; arquivo_nome: string; dono: string; validade?: string | null };
 type TextoDoc = DocFonte & { texto: string; observacao: string | null };
 
@@ -100,12 +102,12 @@ async function carregarTextos(
   return { textos: textos.filter((t) => t.texto.trim()), naoLidos, lidosAgora };
 }
 
-async function docsAcervo(supabase: SupabaseClient, tipos?: string[]): Promise<DocFonte[]> {
-  let q = supabase.from("documentos").select("id, tipo, nome, arquivo_path, arquivo_nome, data_validade, user_id").order("created_at", { ascending: false });
+async function docsAcervo(supabase: SupabaseClient, tipos?: string[], cfg: ConfigEmpresa = configEmpresa()): Promise<DocFonte[]> {
+  let q = supabase.from(cfg.tabelaDocumentos).select("id, tipo, nome, arquivo_path, arquivo_nome, data_validade, user_id").order("created_at", { ascending: false });
   if (tipos?.length) q = q.in("tipo", tipos);
   const { data } = await q.limit(120);
   return (data ?? []).filter((d) => d.arquivo_path).map((d) => ({
-    origem: "documentos" as const, id: String(d.id), nome: String(d.nome), tipo: String(d.tipo), arquivo_path: String(d.arquivo_path),
+    origem: (cfg.slug === "rm" ? "rm_documentos" : "documentos") as Origem, id: String(d.id), nome: String(d.nome), tipo: String(d.tipo), arquivo_path: String(d.arquivo_path),
     arquivo_nome: String(d.arquivo_nome ?? d.nome), dono: String(d.user_id), validade: d.data_validade as string | null,
   }));
 }
@@ -340,15 +342,20 @@ export function ondeEncontrar(args: Record<string, unknown>, mapa: EntradaMapa[]
 export async function buscarInformacao(args: Record<string, unknown>, ctx: Ctx): Promise<string> {
   const assunto = String(args.assunto ?? "").trim();
   if (!assunto) return json({ erro: "Informe o assunto (ex.: \"CNPJ\", \"razão social\", \"dados cadastrais\", \"inscrição estadual\", \"sócios\")." });
+  const alvo = empresaAlvo(args, ctx.empresas);
+  if (!alvo.ok) return json({ erro: alvo.erro });
   const campos = resolverCampos(assunto);
+  if (!campos.length && alvo.slug === "rm") {
+    return json({ aviso: `Não tenho um extrator para "${assunto}". Use pesquisar_documentos (empresa rm) para procurar no conteúdo dos documentos.` });
+  }
   if (!campos.length) {
     return json({ aviso: `Não tenho um extrator para "${assunto}". Siga o mapa:`, mapa: JSON.parse(ondeEncontrar({ assunto }, await carregarMapa(ctx.supabase))) });
   }
 
-  const { data: empresa } = await ctx.supabase.from("empresa").select("*").limit(1).maybeSingle();
+  const { data: empresa } = await ctx.supabase.from(alvo.cfg.tabelaEmpresa).select("*").limit(1).maybeSingle();
   const tipos = [...new Set(campos.flatMap((c) => c.tipos))];
   const prioridade = new Map(tipos.map((t, i) => [t, i]));
-  const docs = (await docsAcervo(ctx.supabase, tipos)).sort((a, b) => (prioridade.get(a.tipo) ?? 99) - (prioridade.get(b.tipo) ?? 99));
+  const docs = (await docsAcervo(ctx.supabase, tipos, alvo.cfg)).sort((a, b) => (prioridade.get(a.tipo) ?? 99) - (prioridade.get(b.tipo) ?? 99));
   const { textos, naoLidos, lidosAgora } = await carregarTextos(ctx.supabase, docs, 8);
   const tiposPresentes = new Set(docs.map((d) => d.tipo));
 
@@ -405,12 +412,15 @@ function termosDe(v: unknown): string[] {
 export async function pesquisarDocumentos(args: Record<string, unknown>, ctx: Ctx): Promise<string> {
   const termos = termosDe(args.termos ?? args.consulta);
   if (!termos.length) return json({ erro: "Informe os termos a procurar (ex.: [\"capital social\"], [\"validade da proposta\"])." });
-  const escopo = ["clientes", "tudo"].includes(String(args.escopo)) ? String(args.escopo) : "acervo";
+  const alvo = empresaAlvo(args, ctx.empresas);
+  if (!alvo.ok) return json({ erro: alvo.erro });
+  // A RM não tem documentos de clientes: só o acervo dela.
+  const escopo = alvo.slug === "rm" ? "acervo" : ["clientes", "tudo"].includes(String(args.escopo)) ? String(args.escopo) : "acervo";
   const tipos = Array.isArray(args.tipos) ? args.tipos.map(String).slice(0, 12) : undefined;
   const limite = Math.min(10, Math.max(1, Number(args.limite) || 6));
 
   const candidatos: DocFonte[] = [];
-  if (escopo !== "clientes") candidatos.push(...(await docsAcervo(ctx.supabase, tipos)));
+  if (escopo !== "clientes") candidatos.push(...(await docsAcervo(ctx.supabase, tipos, alvo.cfg)));
   if (escopo !== "acervo") candidatos.push(...(await docsClientes(ctx.supabase)));
   if (!candidatos.length) return json({ resultado: "Não há documentos para pesquisar nesse escopo." });
 
@@ -443,7 +453,7 @@ export async function pesquisarDocumentos(args: Record<string, unknown>, ctx: Ct
       if (trechos.length >= 3) break;
     }
     return {
-      documento: t.nome, tipo: nomeTipo(t.tipo), origem: t.origem === "documentos" ? "acervo" : "cliente", id: t.id,
+      documento: t.nome, tipo: nomeTipo(t.tipo), origem: t.origem === "cliente_documentos" ? "cliente" : "acervo", ...(alvo.slug === "rm" ? { empresa: "rm" } : {}), id: t.id,
       ...(t.validade ? { validade: t.validade } : {}),
       termos_achados: porTermo.map((p, i) => (p.length ? termos[i] : null)).filter(Boolean),
       trechos,

@@ -104,7 +104,10 @@ export async function instrucoesVita(
     "Tabelas:",
     descreverEsquema(empresas),
     ...(empresas.includes("rm")
-      ? ["- Há duas empresas no sistema: Vital Norte e RM. As tabelas rm_* são da RM (só leitura para você). Cada licitação salva tem a coluna `empresa` (vital-norte ou rm); ao salvar, pergunte (perguntar) para qual empresa, a menos que o usuário já tenha dito."]
+      ? [
+          "DUAS EMPRESAS (Vital Norte e RM): cada uma tem os seus dados, totalmente separados. Catálogo, documentos e dados da empresa da RM ficam em rm_catalogo_itens, rm_documentos e rm_empresa (mesmas colunas e regras das tabelas da Vital Norte, e você também altera, com aprovação). As ferramentas consultar_empresa, consultar_documentos, ler_documento, consultar_cnaes, buscar_informacao e pesquisar_documentos têm o campo `empresa` (vital-norte ou rm). Cada licitação salva tem a coluna `empresa`.",
+          "REGRA: se o pedido envolve catálogo, documentos, dados da empresa ou salvar licitação e o usuário NÃO disse de qual empresa, PERGUNTE com `perguntar` (Vital Norte ou RM) antes de agir. Nunca grave numa empresa por suposição; se ele disse \"da RM\", use as tabelas rm_*, nunca as da Vital Norte, e vice-versa. Confira no cartão de aprovação a empresa certa.",
+        ]
       : []),
     "",
     "Sobre o sistema (para detalhes de uma tela use manual_do_sistema):",
@@ -213,8 +216,9 @@ async function instrucoesSoRm(
     "- Se a busca vier com \"aviso\" ou \"resultado_parcial\", explique (o PNCP é instável).",
     "- Valores em R$ com vírgula decimal; datas em dd/mm/aaaa.",
     `- Códigos de modalidade: ${MODALIDADES.map((m) => `${m.id}=${m.nome}`).join("; ")}.`,
-    "- consultar_dados lê as tabelas abaixo (com as permissões do usuário). Você não altera dados da RM por enquanto; para isso, indique a página certa.",
-    "- Fora do seu alcance: emitir nota fiscal, gerar/assinar/enviar proposta, tokens e chaves.",
+    "- consultar_dados lê as tabelas abaixo (com as permissões do usuário) e alterar_dados cria, com aprovação do usuário, pedidos de cadastro/alteração no catálogo (rm_catalogo_itens), nos dados da empresa (rm_empresa) e nos documentos (rm_documentos). Antes de atualizar/remover, consulte para achar o id. Valores numéricos em número, datas em aaaa-mm-dd, margem_minima em %.",
+    "- Dados da empresa RM (CNPJ, razão social, inscrições…): use `buscar_informacao`, que lê os documentos da RM e compara com o cadastro; para achar algo dentro de um documento use `pesquisar_documentos` e `ler_documento`.",
+    "- Fora do seu alcance: emitir nota fiscal, gerar/assinar/enviar proposta, tokens e chaves, enviar arquivos novos aos documentos.",
     "",
     ...instrucoesDeTela(memoria.config, memoria.tela ?? null),
     "Tabelas:",

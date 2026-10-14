@@ -118,10 +118,12 @@ export const TABELAS: Record<string, RegraTabela> = {
   },
 };
 
-/** Tabelas da RM: só leitura (a Vita ainda não altera dados da RM). */
+/** Tabelas da RM: mesmas colunas e permissões das da Vital Norte (alteração sempre com aprovação). */
 function tabelaRm(base: string, descricao: string, pagina: string): RegraTabela {
-  return { ...TABELAS[base], descricao, escrita: undefined, operacoes: undefined, dono: "rm", pagina };
+  return { ...TABELAS[base], descricao, dono: "rm", pagina };
 }
+/** Nome da tabela equivalente da Vital Norte (rm_catalogo_itens → catalogo_itens), para as regras específicas de cada uma. */
+const base = (t: string) => (t.startsWith("rm_") ? t.slice(3) : t);
 TABELAS.rm_empresa = tabelaRm("empresa", "Dados cadastrais da empresa RM (1 linha).", "/rm/dados");
 TABELAS.rm_catalogo_itens = tabelaRm("catalogo_itens", "Catálogo de produtos e serviços da empresa RM.", "/rm/catalogo");
 TABELAS.rm_documentos = tabelaRm("documentos", "Documentos da empresa RM (certidões etc.) com validade.", "/rm/documentos");
@@ -197,7 +199,7 @@ export async function consultarDados(args: Record<string, unknown>, supabase: Su
   if (tabela === "saved_licitacoes") {
     linhas = linhas.map((l) => (l.id ? { ...l, link_sistema: `/licitacao/${String(l.id)}`, link_pncp: linkPncp(String(l.numero_controle_pncp ?? "")) } : l));
   }
-  if (tabela === "catalogo_itens") {
+  if (base(tabela) === "catalogo_itens") {
     // Mesma conta da tela do Catálogo: margem sobre o custo.
     linhas = linhas.map((l) => {
       const m = margemReal(l.custo as number | null, l.preco_referencia as number | null);
@@ -219,12 +221,12 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
   const invalidas = Object.keys(bruto).filter((c) => !regra.escrita?.includes(c));
   if (invalidas.length) throw new Error(`Colunas não permitidas em ${tabela}: ${invalidas.join(", ")}. Permitidas: ${regra.escrita?.join(", ")}.`);
   let dados = { ...(bruto as Record<string, unknown>) };
-  if (tabela === "catalogo_itens") {
+  if (base(tabela) === "catalogo_itens") {
     // Numa alteração parcial o nome pode não vir; só exige nome quando ele é enviado (ou no cadastro).
     const n = normalizarItem("nome" in dados ? dados : { ...dados, nome: "-" });
     dados = Object.fromEntries(Object.keys(dados).map((k) => [k, n[k as keyof typeof n]]));
   }
-  if (tabela === "empresa") {
+  if (base(tabela) === "empresa") {
     for (const [k, v] of Object.entries(dados)) dados[k] = k === "data_abertura" ? (txtOuNulo(v)) : String(v ?? "").trim();
     if (typeof dados.uf === "string") dados.uf = dados.uf.toUpperCase().slice(0, 2);
   }
@@ -283,8 +285,8 @@ export async function proporAlteracao(args: Record<string, unknown>, supabase: S
         if (!mudancas.length) return { paraModelo: json({ resultado: "Nada muda: os valores já são esses." }) };
         for (const [k, v] of mudancas) detalhes.push({ rotulo: k, valor: `${fmt(linhaAtual[k])} → ${fmt(v)}` });
         parametros = { tabela, operacao, id, dados: Object.fromEntries(mudancas) };
-        resumo = tabela === "empresa" ? "Alterar Dados da Empresa" : `Alterar ${tabela}${linhaAtual.nome ? `: ${String(linhaAtual.nome).slice(0, 60)}` : ""}`;
-        if (tabela === "empresa" && mudancas.some(([k]) => k === "cnpj" || k === "razao_social")) {
+        resumo = base(tabela) === "empresa" ? (tabela === "rm_empresa" ? "Alterar Dados da Empresa (RM)" : "Alterar Dados da Empresa") : `Alterar ${tabela}${linhaAtual.nome ? `: ${String(linhaAtual.nome).slice(0, 60)}` : ""}`;
+        if (base(tabela) === "empresa" && mudancas.some(([k]) => k === "cnpj" || k === "razao_social")) {
           avisoExtra = "Atenção: CNPJ e razão social saem nas propostas e nas notas fiscais. Confira com o cartão CNPJ antes de aprovar.";
         }
       } else {
@@ -322,8 +324,8 @@ export async function executarAlteracao(
   }
   if (operacao === "atualizar") {
     const dados = limparDados(tabela, p.dados);
-    if (tabela === "documentos" && "data_validade" in dados) dados.validade_automatica = false;
-    if (tabela === "catalogo_itens" || tabela === "proposta_configuracao" || tabela === "empresa") dados.updated_at = new Date().toISOString();
+    if (base(tabela) === "documentos" && "data_validade" in dados) dados.validade_automatica = false;
+    if (base(tabela) === "catalogo_itens" || tabela === "proposta_configuracao" || base(tabela) === "empresa") dados.updated_at = new Date().toISOString();
     let q = supabase.from(tabela).update(dados, { count: "exact" });
     q = regra.chave === "user_id" ? q.eq("user_id", await resolverEmpresaUserId(supabase, userId)) : q.eq("id", String(p.id));
     const { error, count } = await q;
