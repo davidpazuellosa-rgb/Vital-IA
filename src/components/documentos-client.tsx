@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
+import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { comDownload } from "@/lib/format";
@@ -47,10 +48,10 @@ function sanitizarNome(nome: string): string {
 /* ---------------- Upload ---------------- */
 
 /** Baixa todos os documentos de um grupo do checklist num ZIP. */
-export function BaixarGrupo({ slug }: { slug: string }) {
+export function BaixarGrupo({ slug, empresa }: { slug: string; empresa?: EmpresaSlug }) {
   return (
     <a
-      href={`/api/documentos/exportar?grupo=${encodeURIComponent(slug)}`}
+      href={`/api/documentos/exportar?grupo=${encodeURIComponent(slug)}${empresa ? `&empresa=${empresa}` : ""}`}
       onClick={(e) => e.stopPropagation()}
       title="Baixar todos os documentos deste grupo (ZIP)"
       className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
@@ -61,6 +62,7 @@ export function BaixarGrupo({ slug }: { slug: string }) {
 }
 
 export function UploadDocumento({
+  empresa,
   tipoFixo,
   nomeSugerido,
   variant = "default",
@@ -68,6 +70,7 @@ export function UploadDocumento({
   label = "Adicionar documento",
   iconOnly = false,
 }: {
+  empresa?: EmpresaSlug;
   tipoFixo?: string;
   nomeSugerido?: string;
   variant?: "default" | "outline" | "secondary" | "ghost";
@@ -103,7 +106,7 @@ export function UploadDocumento({
         // Upload direto do navegador para o Storage (sem passar pelo Server Action)
         const empresaUserId = await obterEmpresaUserId();
         const id = crypto.randomUUID();
-        const path = `${empresaUserId}/${id}/${sanitizarNome(file.name)}`;
+        const path = `${empresaUserId}/${configEmpresa(empresa).pastaStorage}${id}/${sanitizarNome(file.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
@@ -111,6 +114,7 @@ export function UploadDocumento({
 
         // Registra metadados + extrai a data de validade no servidor
         await registrarDocumento({
+          empresa,
           id,
           tipo,
           nome: nome || file.name,
@@ -195,6 +199,7 @@ export function UploadDocumento({
 /* ---------------- Ações de um documento ---------------- */
 
 export function DocumentoAcoes({
+  empresa,
   id,
   tipo,
   nome,
@@ -203,6 +208,7 @@ export function DocumentoAcoes({
   dataValidade,
   semValidade,
 }: {
+  empresa?: EmpresaSlug;
   id: string;
   tipo: string;
   nome: string;
@@ -238,13 +244,13 @@ export function DocumentoAcoes({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sessão expirada. Faça login novamente.");
         const empresaUserId = await obterEmpresaUserId();
-        const path = `${empresaUserId}/${id}/${sanitizarNome(file.name)}`;
+        const path = `${empresaUserId}/${configEmpresa(empresa).pastaStorage}${id}/${sanitizarNome(file.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: true });
         if (upErr) throw new Error(`Falha no upload: ${upErr.message}`);
 
-        await substituirDocumento({ id, path, arquivoNome: file.name, mimeType: file.type });
+        await substituirDocumento({ empresa, id, path, arquivoNome: file.name, mimeType: file.type });
 
         form.reset();
         setSubstituindo(false);
@@ -261,7 +267,7 @@ export function DocumentoAcoes({
     const t = toast.loading("Salvando validade…");
     startTransition(async () => {
       try {
-        await atualizarValidade(id, valor || null);
+        await atualizarValidade(id, valor || null, empresa);
         setEditando(false);
         toast.success("Validade atualizada", { id: t });
       } catch (e) {
@@ -274,7 +280,7 @@ export function DocumentoAcoes({
     const t = toast.loading("Renomeando…");
     startTransition(async () => {
       try {
-        await renomearDocumento(id, novoNome);
+        await renomearDocumento(id, novoNome, empresa);
         setRenomeando(false);
         toast.success("Documento renomeado", { id: t });
       } catch (e) {
@@ -288,7 +294,7 @@ export function DocumentoAcoes({
     const t = toast.loading("Removendo documento…");
     startTransition(async () => {
       try {
-        await removerDocumento(id);
+        await removerDocumento(id, empresa);
         toast.success("Documento removido", { id: t });
       } catch (e) {
         toast.error("Não foi possível remover", { id: t, description: e instanceof Error ? e.message : undefined });

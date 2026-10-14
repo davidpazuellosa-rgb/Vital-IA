@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { createClient } from "@/lib/supabase/server";
+import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { normalizarItem } from "./types";
-
-const CAMINHO = "/vital-norte/catalogo";
 
 async function sessao() {
   const supabase = await createClient();
@@ -20,27 +19,30 @@ function camposDoForm(formData: FormData): Record<string, unknown> {
   return obj;
 }
 
-export async function criarItemCatalogo(formData: FormData) {
+export async function criarItemCatalogo(formData: FormData, empresa?: EmpresaSlug) {
+  const cfg = configEmpresa(empresa);
   const { supabase, user } = await sessao();
-  const empresa = await resolverEmpresaUserId(supabase, user.id);
-  const { error } = await supabase.from("catalogo_itens").insert({ ...normalizarItem(camposDoForm(formData)), user_id: empresa });
+  const donoEmpresa = await resolverEmpresaUserId(supabase, user.id);
+  const { error } = await supabase.from(cfg.tabelaCatalogo).insert({ ...normalizarItem(camposDoForm(formData)), user_id: donoEmpresa });
   if (error) throw new Error(error.message);
-  revalidatePath(CAMINHO);
+  revalidatePath(cfg.rotaCatalogo);
 }
 
-export async function atualizarItemCatalogo(id: string, formData: FormData) {
+export async function atualizarItemCatalogo(id: string, formData: FormData, empresa?: EmpresaSlug) {
+  const cfg = configEmpresa(empresa);
   const { supabase } = await sessao();
   const { error } = await supabase
-    .from("catalogo_itens")
+    .from(cfg.tabelaCatalogo)
     .update({ ...normalizarItem(camposDoForm(formData)), updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath(CAMINHO);
+  revalidatePath(cfg.rotaCatalogo);
 }
 
-export async function removerItemCatalogo(id: string) {
+export async function removerItemCatalogo(id: string, empresa?: EmpresaSlug) {
+  const cfg = configEmpresa(empresa);
   const { supabase } = await sessao();
-  const { error } = await supabase.from("catalogo_itens").delete().eq("id", id);
+  const { error } = await supabase.from(cfg.tabelaCatalogo).delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath(CAMINHO);
+  revalidatePath(cfg.rotaCatalogo);
 }

@@ -13,13 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatarMoeda } from "@/lib/format";
 import { atualizarItemCatalogo, criarItemCatalogo, removerItemCatalogo } from "@/lib/catalogo/actions";
+import type { EmpresaSlug } from "@/lib/empresas";
 import { margemReal, type ItemCatalogo } from "@/lib/catalogo/types";
 import { cn } from "@/lib/utils";
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const decimal = (n: number | null) => (n == null ? "" : String(n).replace(".", ","));
 
-export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
+export function Catalogo({ itens, empresa }: { itens: ItemCatalogo[]; empresa?: EmpresaSlug }) {
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState<"todos" | "produto" | "servico">("todos");
 
@@ -57,7 +58,7 @@ export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Package className="size-6" /></div>
             <p className="font-medium">Catálogo vazio</p>
-            <FormItem />
+            <FormItem empresa={empresa} />
           </CardContent>
         </Card>
       ) : visiveis.length === 0 ? (
@@ -104,8 +105,8 @@ export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end">
-                        <FormItem item={i} />
-                        <RemoverItem id={i.id} nome={i.nome} />
+                        <FormItem item={i} empresa={empresa} />
+                        <RemoverItem id={i.id} nome={i.nome} empresa={empresa} />
                       </div>
                     </td>
                   </tr>
@@ -119,7 +120,7 @@ export function Catalogo({ itens }: { itens: ItemCatalogo[] }) {
   );
 }
 
-export function FormItem({ item }: { item?: ItemCatalogo }) {
+export function FormItem({ item, empresa }: { item?: ItemCatalogo; empresa?: EmpresaSlug }) {
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
@@ -130,8 +131,8 @@ export function FormItem({ item }: { item?: ItemCatalogo }) {
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        if (item) await atualizarItemCatalogo(item.id, fd);
-        else await criarItemCatalogo(fd);
+        if (item) await atualizarItemCatalogo(item.id, fd, empresa);
+        else await criarItemCatalogo(fd, empresa);
         setAberto(false);
         toast.success(item ? "Item atualizado" : "Item cadastrado");
       } catch (err) {
@@ -201,7 +202,7 @@ function Campo({ nome, rotulo, padrao, exemplo, obrigatorio, numerico, classe }:
   );
 }
 
-function RemoverItem({ id, nome }: { id: string; nome: string }) {
+function RemoverItem({ id, nome, empresa }: { id: string; nome: string; empresa?: EmpresaSlug }) {
   const [pendente, startTransition] = useTransition();
   return (
     <Button
@@ -213,7 +214,7 @@ function RemoverItem({ id, nome }: { id: string; nome: string }) {
       onClick={() => {
         if (!window.confirm(`Remover "${nome}" do catálogo?`)) return;
         startTransition(async () => {
-          try { await removerItemCatalogo(id); toast.success("Item removido"); }
+          try { await removerItemCatalogo(id, empresa); toast.success("Item removido"); }
           catch (e) { toast.error("Não foi possível remover", { description: e instanceof Error ? e.message : undefined }); }
         });
       }}

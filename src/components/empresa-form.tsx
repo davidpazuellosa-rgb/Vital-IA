@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { salvarEmpresa, type EmpresaDados } from "@/lib/empresa/actions";
+import type { EmpresaSlug } from "@/lib/empresas";
 
 type Campo = { name: keyof EmpresaDados; label: string; type?: string; full?: boolean; placeholder?: string };
 
@@ -56,7 +57,7 @@ const SECOES: { titulo: string; campos: Campo[] }[] = [
   },
 ];
 
-export function EmpresaForm({ dados }: { dados: EmpresaDados }) {
+export function EmpresaForm({ dados, empresa }: { dados: EmpresaDados; empresa?: EmpresaSlug }) {
   const [pendente, startTransition] = useTransition();
   const [salvo, setSalvo] = useState(false);
 
@@ -67,7 +68,7 @@ export function EmpresaForm({ dados }: { dados: EmpresaDados }) {
     const t = toast.loading("Salvando dados da empresa…");
     startTransition(async () => {
       try {
-        await salvarEmpresa(fd);
+        await salvarEmpresa(fd, empresa);
         setSalvo(true);
         setTimeout(() => setSalvo(false), 2500);
         toast.success("Dados da empresa salvos", { id: t });

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { zipSync } from "fflate";
 import { createClient } from "@/lib/supabase/server";
 import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, type Documento } from "@/lib/documentos/types";
+import { configEmpresa } from "@/lib/empresas";
 
 /**
  * Exporta em um único ZIP todos os documentos de um grupo do checklist.
@@ -10,11 +11,12 @@ import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, type Documento } from "@/lib/documentos
  */
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("grupo") ?? "";
+  const cfg = configEmpresa(request.nextUrl.searchParams.get("empresa"));
   const grupo = GRUPOS_DOCUMENTOS.find((g) => g.slug === slug);
   // Grupo do checklist → seus tipos; "avulso" → documentos fora do checklist.
   const tipos = grupo ? grupo.tipos.map((t) => t.slug) : slug === TIPO_AVULSO ? [TIPO_AVULSO] : null;
   if (!tipos) return new Response("Grupo não encontrado.", { status: 400 });
-  const nomeZip = grupo ? grupo.slug : "avulsos";
+  const nomeZip = `${cfg.slug === "rm" ? "rm-" : ""}${grupo ? grupo.slug : "avulsos"}`;
 
   const supabase = await createClient();
   const {
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return new Response("Não autenticado.", { status: 401 });
 
-  const { data } = await supabase.from("documentos").select("*").in("tipo", tipos);
+  const { data } = await supabase.from(cfg.tabelaDocumentos).select("*").in("tipo", tipos);
   const documentos = (data ?? []) as Documento[];
   if (documentos.length === 0) {
     return new Response("Nenhum documento neste grupo.", { status: 404 });

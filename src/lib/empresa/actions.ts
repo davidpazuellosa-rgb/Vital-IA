@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "./escopo";
+import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 
 export type EmpresaDados = {
   razao_social: string;
@@ -32,7 +33,8 @@ const CAMPOS: (keyof EmpresaDados)[] = [
   "cep", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "dados_bancarios",
 ];
 
-export async function salvarEmpresa(formData: FormData) {
+export async function salvarEmpresa(formData: FormData, empresa?: EmpresaSlug) {
+  const cfg = configEmpresa(empresa);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
@@ -44,7 +46,7 @@ export async function salvarEmpresa(formData: FormData) {
     valores[campo] = campo === "data_abertura" ? (v || null) : v;
   }
 
-  const { error } = await supabase.from("empresa").upsert(valores, { onConflict: "user_id" });
+  const { error } = await supabase.from(cfg.tabelaEmpresa).upsert(valores, { onConflict: "user_id" });
   if (error) throw new Error(error.message);
-  revalidatePath("/vital-norte/dados");
+  revalidatePath(cfg.rotaDados);
 }

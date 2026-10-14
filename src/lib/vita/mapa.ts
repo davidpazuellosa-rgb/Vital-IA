@@ -183,6 +183,9 @@ export const PAGINAS_MAPA: Array<{ rota: string; nome: string; tem: string }> = 
   { rota: "/vital-norte/clientes", nome: "Clientes", tem: "Clientes, contratações e documentos de cada uma." },
   { rota: "/vital-norte/nota-fiscal", nome: "Nota Fiscal", tem: "Rascunhos e NF-e emitidas (homologação)." },
   { rota: "/vital-norte/alertas", nome: "Alertas", tem: "Buscas automáticas e canais de aviso." },
+  { rota: "/rm/documentos", nome: "RM · Documentos", tem: "Acervo de documentos da empresa RM (separado; a Vita ainda não lê estes dados)." },
+  { rota: "/rm/dados", nome: "RM · Dados da Empresa", tem: "Cadastro da empresa RM." },
+  { rota: "/rm/catalogo", nome: "RM · Catálogo", tem: "Produtos e serviços da empresa RM." },
   { rota: "/configuracoes", nome: "Configurações", tem: "Atalhos para as configurações." },
 ];
 

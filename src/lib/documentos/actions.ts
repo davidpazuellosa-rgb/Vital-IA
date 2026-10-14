@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
+import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { extrairDatasDoPdf } from "./extract";
 import { TIPO_AVULSO, tipoSemValidade } from "./types";
 
@@ -16,6 +17,8 @@ export async function obterEmpresaUserId(): Promise<string> {
 }
 
 export type RegistrarDocumentoInput = {
+  /** Empresa dona do documento (padrão: Vital Norte). */
+  empresa?: EmpresaSlug;
   id: string;
   tipo: string;
   nome: string;
@@ -35,9 +38,10 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  const cfg = configEmpresa(input.empresa);
 
-  // segurança: o arquivo precisa estar sob o prefixo da empresa vinculada
-  if (!input.path.startsWith(`${empresaUserId}/`)) {
+  // segurança: o arquivo precisa estar sob o prefixo da empresa vinculada (e da pasta da empresa: rm/ para a RM)
+  if (!input.path.startsWith(`${empresaUserId}/${cfg.pastaStorage}`) || input.path.includes("..")) {
     throw new Error("Caminho de arquivo inválido.");
   }
 
@@ -54,7 +58,7 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
     }
   }
 
-  const { error: insErr } = await supabase.from("documentos").insert({
+  const { error: insErr } = await supabase.from(cfg.tabelaDocumentos).insert({
     id: input.id,
     user_id: empresaUserId,
     tipo: input.tipo || TIPO_AVULSO,
@@ -71,10 +75,11 @@ export async function registrarDocumento(input: RegistrarDocumentoInput) {
     throw new Error(insErr.message);
   }
 
-  revalidatePath("/documentos");
+  revalidatePath(cfg.rotaDocumentos);
 }
 
 export type SubstituirDocumentoInput = {
+  empresa?: EmpresaSlug;
   id: string;
   path: string;
   arquivoNome: string;
@@ -91,13 +96,14 @@ export async function substituirDocumento(input: SubstituirDocumentoInput) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  const cfg = configEmpresa(input.empresa);
 
-  if (!input.path.startsWith(`${empresaUserId}/`)) {
+  if (!input.path.startsWith(`${empresaUserId}/${cfg.pastaStorage}`) || input.path.includes("..")) {
     throw new Error("Caminho de arquivo inválido.");
   }
 
   const { data: doc, error: docErr } = await supabase
-    .from("documentos")
+    .from(cfg.tabelaDocumentos)
     .select("arquivo_path, tipo")
     .eq("id", input.id)
     .eq("user_id", empresaUserId)
@@ -117,7 +123,7 @@ export async function substituirDocumento(input: SubstituirDocumentoInput) {
   }
 
   const { error: updErr } = await supabase
-    .from("documentos")
+    .from(cfg.tabelaDocumentos)
     .update({
       arquivo_path: input.path,
       arquivo_nome: input.arquivoNome,
@@ -139,17 +145,19 @@ export async function substituirDocumento(input: SubstituirDocumentoInput) {
     await supabase.storage.from(BUCKET).remove([doc.arquivo_path]);
   }
 
-  revalidatePath("/documentos");
+  revalidatePath(cfg.rotaDocumentos);
 }
 
-export async function removerDocumento(id: string) {
+export async function removerDocumento(id: string, empresa?: EmpresaSlug) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
+  const cfg = configEmpresa(empresa);
+
   const { data: doc } = await supabase
-    .from("documentos")
+    .from(cfg.tabelaDocumentos)
     .select("arquivo_path")
     .eq("id", id)
     .eq("user_id", empresaUserId)
@@ -159,12 +167,12 @@ export async function removerDocumento(id: string) {
     await supabase.storage.from(BUCKET).remove([doc.arquivo_path]);
   }
 
-  const { error } = await supabase.from("documentos").delete().eq("id", id).eq("user_id", empresaUserId);
+  const { error } = await supabase.from(cfg.tabelaDocumentos).delete().eq("id", id).eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
-  revalidatePath("/documentos");
+  revalidatePath(cfg.rotaDocumentos);
 }
 
-export async function renomearDocumento(id: string, nome: string) {
+export async function renomearDocumento(id: string, nome: string, empresa?: EmpresaSlug) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
@@ -172,27 +180,29 @@ export async function renomearDocumento(id: string, nome: string) {
 
   const limpo = nome.trim();
   if (!limpo) throw new Error("Informe um nome.");
+  const cfg = configEmpresa(empresa);
 
   const { error } = await supabase
-    .from("documentos")
+    .from(cfg.tabelaDocumentos)
     .update({ nome: limpo })
     .eq("id", id)
     .eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
-  revalidatePath("/documentos");
+  revalidatePath(cfg.rotaDocumentos);
 }
 
-export async function atualizarValidade(id: string, dataValidade: string | null) {
+export async function atualizarValidade(id: string, dataValidade: string | null, empresa?: EmpresaSlug) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
   const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
+  const cfg = configEmpresa(empresa);
   const { error } = await supabase
-    .from("documentos")
+    .from(cfg.tabelaDocumentos)
     .update({ data_validade: dataValidade || null, validade_automatica: false })
     .eq("id", id)
     .eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
-  revalidatePath("/documentos");
+  revalidatePath(cfg.rotaDocumentos);
 }

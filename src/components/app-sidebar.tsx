@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell, Settings, Receipt, Globe, Package, Sparkles } from "lucide-react";
+import { Search, Bookmark, FolderOpen, LogOut, Building2, ChevronRight, FileSignature, FileText, Users, Bell, Settings, Receipt, Globe, Package, Sparkles, Briefcase } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +37,13 @@ const VITAL_NORTE_ITEMS = [
   { href: "/vital-norte/clientes", label: "Clientes", icon: Users },
   { href: "/vital-norte/nota-fiscal", label: "Nota Fiscal", icon: Receipt },
   { href: "/vital-norte/alertas", label: "Alertas", icon: Bell },
+];
+
+/** Segunda empresa: só documentos, dados da empresa e catálogo (tabelas próprias, separadas da Vital Norte). */
+const RM_ITEMS = [
+  { href: "/rm/documentos", label: "Documentos", icon: FolderOpen },
+  { href: "/rm/dados", label: "Dados da Empresa", icon: FileText },
+  { href: "/rm/catalogo", label: "Catálogo", icon: Package },
 ];
 
 function limparEstadoBusca() {
@@ -91,6 +98,33 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
                   <CollapsibleContent>
                     <SidebarMenuSub>
                       {VITAL_NORTE_ITEMS.map((item) => (
+                        <SidebarMenuSubItem key={item.href}>
+                          <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                            <Link href={item.href} onClick={limparEstadoBusca}>
+                              <item.icon />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
+              {/* Seção recolhível RM */}
+              <Collapsible defaultOpen={pathname.startsWith("/rm")} className="group/rm">
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="RM">
+                      <Briefcase />
+                      <span>RM</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/rm:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {RM_ITEMS.map((item) => (
                         <SidebarMenuSubItem key={item.href}>
                           <SidebarMenuSubButton asChild isActive={pathname === item.href}>
                             <Link href={item.href} onClick={limparEstadoBusca}>
