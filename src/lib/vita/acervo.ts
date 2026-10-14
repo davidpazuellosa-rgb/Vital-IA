@@ -20,6 +20,8 @@ const TIPOS_VALIDOS = new Set(CHECKLIST_DOCUMENTOS.map((t) => t.slug));
 export const TIPOS_PARA_MODELO = CHECKLIST_DOCUMENTOS.map((t) => `${t.slug} (${t.nome})`).join("; ");
 
 const sanitizar = (nome: string) => nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-120);
+/** Nome de exibição limpo: sem barras nem caracteres de controle, no máximo 100 caracteres. */
+const limparNome = (v: string) => v.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
 const dataOuNulo = (v: unknown) => (typeof v === "string" && DATA.test(v.trim()) ? v.trim() : null);
 const mimeDe = (nome: string) => (/\.pdf$/i.test(nome) ? "application/pdf" : /\.(png)$/i.test(nome) ? "image/png" : /\.(jpe?g)$/i.test(nome) ? "image/jpeg" : "application/octet-stream");
 
@@ -61,13 +63,16 @@ export async function proporAnexarAoAcervo(args: Record<string, unknown>, ctx: C
     if (!a) return { paraModelo: json({ erro: `Não achei o anexo "${nomeArquivo}" nesta conversa. Anexos disponíveis: ${[...anexos.values()].map((x) => x.nome).join(", ") || "nenhum"}.` }) };
     if (a.tipo === "zip") return { paraModelo: json({ erro: `"${a.nome}" é um ZIP: peça ao usuário para anexar os arquivos soltos (ou uma pasta) para guardá-los no acervo.` }) };
     const tipo = TIPOS_VALIDOS.has(String(p.tipo)) ? String(p.tipo) : TIPO_AVULSO;
-    const nome = String(p.nome ?? "").trim() || nomeArquivo.replace(/\.[^.]+$/, "");
+    const extensao = (a.nome.match(/\.[A-Za-z0-9]{1,8}$/) ?? [""])[0];
+    const nome = limparNome(String(p.nome ?? "")) || nomeArquivo.replace(/\.[^.]+$/, "");
+    // O arquivo guardado também recebe o nome correto (ex.: scan001.pdf → "Cartão CNPJ.pdf").
+    const arquivoFinal = limparNome(String(p.nome ?? "")) ? `${nome}${extensao}` : a.nome;
     const emissao = dataOuNulo(p.data_emissao);
     const validade = dataOuNulo(p.data_validade);
-    itens.push({ path: a.path, arquivoNome: a.nome, tipo, nome, emissao, validade });
+    itens.push({ path: a.path, arquivoNome: arquivoFinal, tipo, nome, emissao, validade });
     detalhes.push({
       rotulo: `#${i + 1}`,
-      valor: [`${a.nome}`, `tipo: ${nomeTipo(tipo)}`, nome !== a.nome ? `nome: ${nome}` : "", emissao ? `emissão ${emissao}` : "", validade ? `validade ${validade}` : ""].filter(Boolean).join(" · ").slice(0, 300),
+      valor: [`${a.nome}`, `guardar como: ${arquivoFinal}`, `tipo: ${nomeTipo(tipo)}`, emissao ? `emissão ${emissao}` : "", validade ? `validade ${validade}` : ""].filter(Boolean).join(" · ").slice(0, 320),
     });
   }
   return {
