@@ -28,6 +28,8 @@ import { OrgaoCombobox } from "@/components/orgao-combobox";
 import { LicitacoesLista, SeletorVisao } from "@/components/licitacoes-lista";
 import { MODALIDADES, PLATAFORMAS, PlatformId, UFS, UF_NOMES, UnifiedLicitacao, UniversalFilter } from "@/lib/licitacoes/types";
 import { salvarLicitacao } from "@/lib/licitacoes/actions";
+import { EscolherEmpresa } from "@/components/acesso-contexto";
+import type { EmpresaSlug } from "@/lib/empresas";
 import { cn } from "@/lib/utils";
 
 const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
@@ -170,12 +172,12 @@ export default function BuscaPage() {
     }
   }
 
-  function salvar(licitacao: UnifiedLicitacao) {
+  function salvar(licitacao: UnifiedLicitacao, empresa: EmpresaSlug) {
     const chave = `${licitacao.plataforma}-${licitacao.numeroControlePNCP}`;
     const t = toast.loading("Salvando licitação…");
     salvarTransition(async () => {
       try {
-        await salvarLicitacao(licitacao);
+        await salvarLicitacao(licitacao, empresa);
         setSalvas((prev) => new Set(prev).add(chave));
         toast.success("Licitação salva", { id: t, description: "Disponível em Minhas Licitações." });
       } catch (e) {
@@ -361,15 +363,12 @@ export default function BuscaPage() {
                 dataEncerramento: item.dataEncerramentoProposta,
                 linkOrigem: item.linkOrigem,
                 action: (
-                  <Button
-                    size="sm"
-                    variant={jaSalva ? "secondary" : "outline"}
-                    disabled={jaSalva}
-                    onClick={() => salvar(item)}
-                  >
-                    {jaSalva ? <Check /> : <BookmarkPlus />}
-                    {jaSalva ? "Salva" : "Salvar"}
-                  </Button>
+                  <EscolherEmpresa onEscolher={(empresa) => salvar(item, empresa)}>
+                    <Button size="sm" variant={jaSalva ? "secondary" : "outline"} disabled={jaSalva}>
+                      {jaSalva ? <Check /> : <BookmarkPlus />}
+                      {jaSalva ? "Salva" : "Salvar"}
+                    </Button>
+                  </EscolherEmpresa>
                 ),
               };
             })}

@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 
 export interface LicitacaoCardProps {
   plataformaNome: string;
+  /** Tag da empresa (Vital Norte / RM) — só em Minhas Licitações. */
+  empresaNome?: string;
   situacao: string;
   titulo: string;
   orgao: string;
@@ -36,6 +38,7 @@ export interface LicitacaoCardProps {
 
 export function LicitacaoCard({
   plataformaNome,
+  empresaNome,
   situacao,
   titulo,
   orgao,
@@ -66,6 +69,7 @@ export function LicitacaoCard({
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
+            {empresaNome && <Badge className="font-medium">{empresaNome}</Badge>}
             <Badge variant="secondary" className="font-normal">{plataformaNome}</Badge>
             {situacao && (
               <Badge variant="outline" className="font-normal">{situacao}</Badge>

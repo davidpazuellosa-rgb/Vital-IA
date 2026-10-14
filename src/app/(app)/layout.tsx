@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
+import { AcessoProvider } from "@/components/acesso-contexto";
 import { VitaProvider } from "@/components/vita/vita-contexto";
 import { VitaPainel } from "@/components/vita/vita-painel";
 import { createClient } from "@/lib/supabase/server";
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "16rem" } as React.CSSProperties}>
+      <AcessoProvider empresas={acesso.empresas}>
       <VitaProvider>
         <AppSidebar userEmail={user.email ?? ""} empresas={acesso.empresas} />
         <SidebarInset className="min-w-0">
@@ -43,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </SidebarInset>
       </VitaProvider>
+      </AcessoProvider>
       <Toaster position="top-right" richColors closeButton />
     </SidebarProvider>
   );

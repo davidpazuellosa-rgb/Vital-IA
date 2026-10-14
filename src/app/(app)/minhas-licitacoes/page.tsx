@@ -3,6 +3,7 @@ import { Bookmark, Clock, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { EMPRESAS, type EmpresaSlug } from "@/lib/empresas";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
 import { MinhasLicitacoesClient, type ItemMinhas } from "@/components/minhas-licitacoes-client";
@@ -19,6 +20,7 @@ const PLATAFORMA_NOME: Record<string, string> = Object.fromEntries(
 
 type SavedLicitacao = {
   id: string;
+  empresa: EmpresaSlug;
   numero_controle_pncp: string;
   plataforma: string;
   situacao: string;
@@ -155,6 +157,7 @@ export default async function MinhasLicitacoesPage() {
               id: item.id,
               href: `/licitacao/${item.id}`,
               plataformaNome: PLATAFORMA_NOME[item.plataforma] ?? item.plataforma,
+              empresaNome: EMPRESAS[item.empresa]?.nome,
               situacao: item.situacao,
               titulo: item.titulo,
               orgao: item.orgao,

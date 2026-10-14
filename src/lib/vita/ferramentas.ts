@@ -5,7 +5,8 @@ import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pn
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { lerAnexo } from "./anexos";
-import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS } from "./banco";
+import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS, tabelasAlteraveisDe, tabelasVisiveis } from "./banco";
+import { EMPRESAS, ehEmpresaSlug, type EmpresaSlug } from "@/lib/empresas";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
@@ -37,6 +38,8 @@ export type AcaoProposta = {
 export type ContextoFerramenta = {
   supabase: SupabaseClient;
   userId: string;
+  /** Empresas que o usuário enxerga (define as tabelas e o destino de "salvar licitação"). */
+  empresas?: EmpresaSlug[];
   /** Licitações vistas na conversa, por nº de controle (persistido em vita_conversas.dados). */
   vistas: Record<string, UnifiedLicitacao>;
   /** Conversa atual (para registrar de onde nasceu uma memória). */
@@ -127,7 +130,10 @@ export const FERRAMENTAS = [
         "Use o nº de controle de uma licitação mostrada antes por buscar_licitacoes ou detalhar_licitacao.",
       parameters: {
         type: "object",
-        properties: { numero_controle_pncp: { type: "string" } },
+        properties: {
+          numero_controle_pncp: { type: "string" },
+          empresa: { type: "string", enum: ["vital-norte", "rm"], description: "Tag da licitação. Só informe se o usuário tiver as duas empresas (pergunte qual); senão é a única dele." },
+        },
         required: ["numero_controle_pncp"],
       },
     },
@@ -443,6 +449,30 @@ export const FERRAMENTAS = [
 ] as const;
 
 /** Rótulos curtos exibidos enquanto a ferramenta roda. */
+/** Ferramentas ligadas a dados que só a Vital Norte tem (documentos, nota fiscal, proposta, memória compartilhada…). */
+const SO_VITAL_NORTE = new Set([
+  "consultar_empresa", "consultar_documentos", "ler_documento", "rascunho_nota_fiscal", "preencher_proposta",
+  "onde_encontrar", "buscar_informacao", "pesquisar_documentos", "manual_do_sistema", "memorizar", "esquecer_memoria",
+]);
+
+/** Ferramentas oferecidas conforme as empresas do usuário: quem não tem a Vital Norte recebe uma versão enxuta. */
+export function ferramentasParaEmpresas(empresas: EmpresaSlug[]) {
+  const vn = empresas.includes("vital-norte");
+  const alteraveis = tabelasAlteraveisDe(empresas);
+  return FERRAMENTAS
+    .filter((f) => vn || !SO_VITAL_NORTE.has(f.function.name))
+    .filter((f) => f.function.name !== "alterar_dados" || alteraveis.length > 0)
+    .map((f) => {
+      if (f.function.name === "consultar_dados") {
+        return { ...f, function: { ...f.function, parameters: { ...f.function.parameters, properties: { ...f.function.parameters.properties, tabela: { type: "string", enum: tabelasVisiveis(empresas) } } } } };
+      }
+      if (f.function.name === "alterar_dados") {
+        return { ...f, function: { ...f.function, parameters: { ...f.function.parameters, properties: { ...f.function.parameters.properties, tabela: { type: "string", enum: alteraveis } } } } };
+      }
+      return f;
+    }) as unknown as typeof FERRAMENTAS;
+}
+
 export const ROTULO_FERRAMENTA: Record<string, string> = {
   buscar_licitacoes: "Buscando licitações no PNCP",
   detalhar_licitacao: "Lendo itens da licitação",
@@ -647,13 +677,19 @@ async function proporSalvar(args: Args, ctx: ContextoFerramenta): Promise<Result
   const lic = ctx.vistas[numero] ?? (await buscarCompraPncp(numero));
   if (!lic) return { paraModelo: json({ erro: "Não tenho os dados dessa licitação. Busque-a primeiro com buscar_licitacoes." }) };
   ctx.vistas[numero] = lic;
+  // Tag da licitação: a pedida, ou a única empresa do usuário.
+  const empresas = ctx.empresas ?? ["vital-norte"];
+  const pedida = ehEmpresaSlug(args.empresa) ? args.empresa : undefined;
+  const alvo = pedida && empresas.includes(pedida) ? pedida : empresas.length === 1 ? empresas[0] : undefined;
+  if (!alvo) return { paraModelo: json({ erro: "O usuário tem mais de uma empresa: pergunte (perguntar) para qual empresa salvar — Vital Norte ou RM — e chame de novo com `empresa`." }) };
   return {
     paraModelo: json({ resultado: "PENDENTE: pedido de aprovação exibido ao usuário num cartão. Ainda NÃO foi salva — não diga que foi." }),
     acao: {
       tipo: "salvar_licitacao",
-      parametros: { licitacao: lic },
-      resumo: "Salvar licitação em Minhas Licitações",
+      parametros: { licitacao: lic, empresa: alvo },
+      resumo: `Salvar licitação em Minhas Licitações (${EMPRESAS[alvo].nome})`,
       detalhes: [
+        { rotulo: "Empresa", valor: EMPRESAS[alvo].nome },
         { rotulo: "Objeto", valor: (lic.titulo || lic.descricao).slice(0, 180) },
         { rotulo: "Órgão", valor: `${lic.orgao}${lic.uf ? ` · ${[lic.municipio, lic.uf].filter(Boolean).join("/")}` : ""}` },
         { rotulo: "Modalidade", valor: lic.modalidade || "—" },
@@ -770,8 +806,8 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_documentos": return await documentos(args, ctx);
       case "salvar_licitacao": return await proporSalvar(args, ctx);
       case "remover_licitacao_salva": return await proporRemover(args, ctx);
-      case "consultar_dados": return { paraModelo: await consultarDados(args, ctx.supabase) };
-      case "alterar_dados": return await proporAlteracao(args, ctx.supabase);
+      case "consultar_dados": return { paraModelo: await consultarDados(args, ctx.supabase, ctx.empresas) };
+      case "alterar_dados": return await proporAlteracao(args, ctx.supabase, ctx.empresas);
       case "ler_documento": return await lerDocumento(args, ctx);
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);

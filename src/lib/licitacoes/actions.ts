@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { obterAcesso } from "@/lib/acesso";
+import type { EmpresaSlug } from "@/lib/empresas";
 import { normalizarEtapa, UnifiedLicitacao, type EtapaSlug } from "./types";
 import { buscarArquivosPncp } from "./providers/pncp-arquivos";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -74,13 +76,20 @@ async function anexarEditalDaLicitacao(
   }
 }
 
-export async function salvarLicitacao(licitacao: UnifiedLicitacao) {
+export async function salvarLicitacao(licitacao: UnifiedLicitacao, empresa?: EmpresaSlug) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
+  // A licitação nasce com a tag da empresa: a escolhida, ou a única que a pessoa tem.
+  const acesso = await obterAcesso();
+  const alvo = empresa ?? (acesso?.empresas.length === 1 ? acesso.empresas[0] : undefined);
+  if (!alvo) throw new Error("Escolha a empresa da licitação.");
+  if (!acesso?.empresas.includes(alvo)) throw new Error("Você não tem acesso a esta empresa.");
+
   const { error } = await supabase.from("saved_licitacoes").insert({
     user_id: user.id,
+    empresa: alvo,
     numero_controle_pncp: licitacao.numeroControlePNCP,
     plataforma: licitacao.plataforma,
     titulo: licitacao.titulo,
@@ -147,11 +156,19 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
 
   const { data: licitacao, error: licitacaoError } = await supabase
     .from("saved_licitacoes")
-    .select("id, numero_controle_pncp, plataforma, titulo, descricao, orgao, uf, municipio, modalidade, situacao, valor_estimado, data_abertura_proposta, data_encerramento_proposta, link_origem")
+    .select("id, empresa, numero_controle_pncp, plataforma, titulo, descricao, orgao, uf, municipio, modalidade, situacao, valor_estimado, data_abertura_proposta, data_encerramento_proposta, link_origem")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
   if (licitacaoError || !licitacao) throw new Error("Licitação não encontrada.");
+
+  // Só a Vital Norte tem Clientes: nas outras empresas a licitação apenas vai para "Vencida".
+  if (licitacao.empresa !== "vital-norte") {
+    const { error: e } = await supabase.from("saved_licitacoes").update({ etapa: "vencida" satisfies EtapaSlug }).eq("id", id).eq("user_id", user.id);
+    if (e) throw new Error(e.message);
+    revalidatePath("/minhas-licitacoes");
+    return "/minhas-licitacoes";
+  }
 
   const nomeCliente = String(licitacao.orgao || licitacao.titulo || "Cliente da licitação").trim();
   const { data: clienteExistente } = await supabase

@@ -3,6 +3,7 @@ import { margemReal, normalizarItem } from "@/lib/catalogo/types";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { ETAPAS_LICITACAO } from "@/lib/licitacoes/types";
+import type { EmpresaSlug } from "@/lib/empresas";
 import type { AcaoProposta, DetalheAcao } from "./ferramentas";
 
 /* ---------------------------------------------------------------------------------------------
@@ -26,6 +27,8 @@ type RegraTabela = {
   /** Coluna-chave usada em atualizar/remover. */
   chave?: "id" | "user_id";
   pagina?: string;
+  /** A quem pertence a tabela: uma empresa ou "geral" (licitações salvas e propostas, filtradas por tag). Padrão: vital-norte. */
+  dono?: EmpresaSlug | "geral";
 };
 
 export const TABELAS: Record<string, RegraTabela> = {
@@ -64,13 +67,14 @@ export const TABELAS: Record<string, RegraTabela> = {
   },
   saved_licitacoes: {
     descricao: "Minhas Licitações (licitações salvas) e a etapa de cada uma.",
-    leitura: ["id", "numero_controle_pncp", "plataforma", "titulo", "orgao", "uf", "municipio", "modalidade", "situacao", "valor_estimado", "data_publicacao", "data_abertura_proposta", "data_encerramento_proposta", "link_origem", "observacoes", "etapa", "created_at"],
+    leitura: ["id", "empresa", "numero_controle_pncp", "plataforma", "titulo", "orgao", "uf", "municipio", "modalidade", "situacao", "valor_estimado", "data_publicacao", "data_abertura_proposta", "data_encerramento_proposta", "link_origem", "observacoes", "etapa", "created_at"],
     escrita: ["etapa", "observacoes"],
     operacoes: ["atualizar"],
-    escopo: "usuario", chave: "id", pagina: "/minhas-licitacoes",
+    escopo: "usuario", chave: "id", pagina: "/minhas-licitacoes", dono: "geral",
   },
   propostas: {
     descricao: "Propostas (rascunho, gerada ou enviada) de cada licitação salva (licitacao_id → saved_licitacoes.id). Para preencher marca/preço use preencher_proposta.",
+    dono: "geral",
     leitura: ["id", "licitacao_id", "status", "validade_dias", "prazo_entrega", "condicoes_pagamento", "observacoes", "itens", "edital_analisado_em", "plataforma_envio", "enviada_em", "protocolo_envio", "valor_enviado", "updated_at"],
     escopo: "usuario",
   },
@@ -114,12 +118,29 @@ export const TABELAS: Record<string, RegraTabela> = {
   },
 };
 
+/** Tabelas da RM: só leitura (a Vita ainda não altera dados da RM). */
+function tabelaRm(base: string, descricao: string, pagina: string): RegraTabela {
+  return { ...TABELAS[base], descricao, escrita: undefined, operacoes: undefined, dono: "rm", pagina };
+}
+TABELAS.rm_empresa = tabelaRm("empresa", "Dados cadastrais da empresa RM (1 linha).", "/rm/dados");
+TABELAS.rm_catalogo_itens = tabelaRm("catalogo_itens", "Catálogo de produtos e serviços da empresa RM.", "/rm/catalogo");
+TABELAS.rm_documentos = tabelaRm("documentos", "Documentos da empresa RM (certidões etc.) com validade.", "/rm/documentos");
+
 export const NOMES_TABELAS = Object.keys(TABELAS);
 export const TABELAS_ALTERAVEIS = NOMES_TABELAS.filter((t) => TABELAS[t].operacoes?.length);
 
+const TODAS_EMPRESAS: EmpresaSlug[] = ["vital-norte", "rm"];
+/** A tabela é visível para quem tem estas empresas? */
+export const tabelaVisivel = (tabela: string, empresas: EmpresaSlug[]) => {
+  const dono = TABELAS[tabela]?.dono ?? "vital-norte";
+  return dono === "geral" || empresas.includes(dono);
+};
+export const tabelasVisiveis = (empresas: EmpresaSlug[]) => NOMES_TABELAS.filter((t) => tabelaVisivel(t, empresas));
+export const tabelasAlteraveisDe = (empresas: EmpresaSlug[]) => TABELAS_ALTERAVEIS.filter((t) => tabelaVisivel(t, empresas));
+
 /** Resumo do esquema para as instruções da Vita. */
-export function descreverEsquema(): string {
-  return NOMES_TABELAS.map((t) => {
+export function descreverEsquema(empresas: EmpresaSlug[] = TODAS_EMPRESAS): string {
+  return tabelasVisiveis(empresas).map((t) => {
     const r = TABELAS[t];
     const alt = r.operacoes?.length ? ` | pode ${r.operacoes.join("/")} (com aprovação): ${r.escrita?.join(", ")}` : " | só leitura";
     return `- ${t}: ${r.descricao} Colunas: ${r.leitura.join(", ")}${alt}`;
@@ -143,10 +164,10 @@ function encurtar(linha: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** consultar_dados: SELECT estruturado (sem SQL livre), com a sessão do usuário. */
-export async function consultarDados(args: Record<string, unknown>, supabase: SupabaseClient): Promise<string> {
+export async function consultarDados(args: Record<string, unknown>, supabase: SupabaseClient, empresas: EmpresaSlug[] = TODAS_EMPRESAS): Promise<string> {
   const tabela = String(args.tabela ?? "");
   const regra = TABELAS[tabela];
-  if (!regra) return json({ erro: `Tabela não disponível. Use: ${NOMES_TABELAS.join(", ")}` });
+  if (!regra || !tabelaVisivel(tabela, empresas)) return json({ erro: `Tabela não disponível. Use: ${tabelasVisiveis(empresas).join(", ")}` });
   const pedidas = Array.isArray(args.colunas) ? args.colunas.map(String).filter((c) => regra.leitura.includes(c)) : [];
   const colunas = pedidas.length ? pedidas : regra.leitura;
   let q = supabase.from(tabela).select(colunas.join(","), { count: "exact" });
@@ -214,11 +235,11 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
 }
 
 /** alterar_dados: valida e monta o cartão de aprovação (não altera nada). */
-export async function proporAlteracao(args: Record<string, unknown>, supabase: SupabaseClient): Promise<{ paraModelo: string; acao?: AcaoProposta }> {
+export async function proporAlteracao(args: Record<string, unknown>, supabase: SupabaseClient, empresas: EmpresaSlug[] = TODAS_EMPRESAS): Promise<{ paraModelo: string; acao?: AcaoProposta }> {
   const tabela = String(args.tabela ?? "");
   const operacao = String(args.operacao ?? "") as Operacao;
   const regra = TABELAS[tabela];
-  if (!regra?.operacoes?.length) return { paraModelo: json({ erro: `A Vita não altera "${tabela}". Tabelas alteráveis: ${TABELAS_ALTERAVEIS.join(", ")}.` }) };
+  if (!regra?.operacoes?.length || !tabelaVisivel(tabela, empresas)) return { paraModelo: json({ erro: `A Vita não altera "${tabela}". Tabelas alteráveis: ${tabelasAlteraveisDe(empresas).join(", ")}.` }) };
   if (!regra.operacoes.includes(operacao)) return { paraModelo: json({ erro: `Em ${tabela} só é possível: ${regra.operacoes.join(", ")}.` }) };
   const motivo = String(args.motivo ?? "").trim();
 

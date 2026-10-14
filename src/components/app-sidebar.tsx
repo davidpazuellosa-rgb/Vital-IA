@@ -58,7 +58,8 @@ function limparEstadoBusca() {
 export function AppSidebar({ userEmail, empresas }: { userEmail: string; empresas: EmpresaSlug[] }) {
   const temVitalNorte = empresas.includes("vital-norte");
   const temRm = empresas.includes("rm");
-  const navItens = NAV_ITEMS.filter((i) => temVitalNorte || i.href !== "/assinador-propostas");
+  // Sem a Vital Norte: some o Assinador e a página de ajustes da Vita (memórias e mapa são da Vital Norte).
+  const navItens = NAV_ITEMS.filter((i) => temVitalNorte || (i.href !== "/assinador-propostas" && i.href !== "/vita"));
   const pathname = usePathname();
   const iniciais = (userEmail.slice(0, 2) || "U").toUpperCase();
 

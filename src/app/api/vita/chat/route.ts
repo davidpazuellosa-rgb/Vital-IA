@@ -4,7 +4,8 @@ import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { createClient } from "@/lib/supabase/server";
 import { blocoAnexos, lerAnexo, MAX_ANEXOS, MAX_BYTES_ANEXO, type AnexoEnviado, type AnexoLido } from "@/lib/vita/anexos";
 import { instrucoesVita } from "@/lib/vita/contexto";
-import { executarFerramenta, FERRAMENTAS, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
+import { obterAcesso } from "@/lib/acesso";
+import { executarFerramenta, ferramentasParaEmpresas, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { carregarAvaliacoesRecentes } from "@/lib/vita/feedback";
 import { carregarMapa } from "@/lib/vita/mapa-servidor";
@@ -156,16 +157,20 @@ export async function POST(request: NextRequest) {
     }
   }
   // Memória geral e ferramentas ligadas/desligadas (página "Vita").
+  // Quem não tem a Vital Norte não recebe memórias, avaliações nem mapa (são da empresa toda) — nada da Vital Norte vaza.
+  const acesso = await obterAcesso();
+  const empresas = acesso?.empresas ?? [];
+  const temVitalNorte = empresas.includes("vital-norte");
   const config = await carregarConfig(supabase);
-  const memorias = config.memoriaAtiva ? await carregarMemoriasAtivas(supabase) : [];
-  const avaliacoes = config.aprenderFeedback ? await carregarAvaliacoesRecentes(supabase) : [];
-  const mapa = await carregarMapa(supabase, config.mapaDesativados);
+  const memorias = config.memoriaAtiva && temVitalNorte ? await carregarMemoriasAtivas(supabase) : [];
+  const avaliacoes = config.aprenderFeedback && temVitalNorte ? await carregarAvaliacoesRecentes(supabase) : [];
+  const mapa = temVitalNorte ? await carregarMapa(supabase, config.mapaDesativados) : [];
   const desativadas = new Set([...config.desativadas, ...(config.memoriaAtiva ? [] : FERRAMENTAS_DE_MEMORIA)]);
-  const ferramentasAtivas = FERRAMENTAS.filter((f) => !desativadas.has(f.function.name));
-  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, mapa, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) });
+  const ferramentasAtivas = ferramentasParaEmpresas(empresas).filter((f) => !desativadas.has(f.function.name));
+  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, mapa, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) }, empresas);
   const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
-  const ctx: ContextoFerramenta = { supabase, userId: user.id, vistas, conversaId };
+  const ctx: ContextoFerramenta = { supabase, userId: user.id, empresas, vistas, conversaId };
   const idsDeTela = new Set<string>(); // chamadas cujo resultado traz a tela inteira (não vale guardar no histórico)
   const enc = new TextEncoder();
 

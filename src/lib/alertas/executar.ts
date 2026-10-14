@@ -68,6 +68,7 @@ async function salvarOportunidadesDoAlerta(
 
   const registros = licitacoes.map((licitacao) => ({
       user_id: userId,
+      empresa: "vital-norte", // alertas são da Vital Norte
       numero_controle_pncp: licitacao.numeroControlePNCP,
       plataforma: licitacao.plataforma,
       titulo: licitacao.titulo,
@@ -86,7 +87,7 @@ async function salvarOportunidadesDoAlerta(
 
   const { error } = await supabase
     .from("saved_licitacoes")
-    .upsert(registros, { onConflict: "user_id,numero_controle_pncp,plataforma" });
+    .upsert(registros, { onConflict: "user_id,empresa,numero_controle_pncp,plataforma" });
 
   // Erro do PostgREST não é uma instância de Error: sem isso a mensagem real se perde.
   if (error) throw new Error(`Falha ao salvar oportunidades: ${error.message}`);

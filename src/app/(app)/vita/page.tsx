@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { exigirEmpresa } from "@/lib/acesso";
 import { VitaAjustesClient } from "@/components/vita/vita-ajustes-client";
 import { carregarConfig, type Memoria } from "@/lib/vita/memoria";
 import type { Avaliacao } from "@/lib/vita/feedback";
 import { carregarMapaPersonalizado } from "@/lib/vita/mapa-servidor";
 
 export default async function VitaPage() {
+  await exigirEmpresa("vital-norte"); // memórias, avaliações e mapa são da Vital Norte
   const supabase = await createClient();
   const [config, { data }, { data: avaliacoes }, personalizadas] = await Promise.all([
     carregarConfig(supabase),

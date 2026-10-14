@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { Bell, Columns3, ExternalLink, LayoutGrid, Table2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -225,6 +226,7 @@ function TabelaLicitacoes({ itens }: { itens: ItemLista[] }) {
               <TableRow key={i.id} className="group">
                 <TableCell className="w-full min-w-56 max-w-0 px-3 py-2">
                   <div className="flex min-w-0 items-center gap-1.5">
+                    {i.empresaNome && <Badge className="h-4 shrink-0 px-1.5 text-[10px] font-medium">{i.empresaNome}</Badge>}
                     {i.href ? (
                       <Link href={i.href} title={i.titulo} className="truncate font-medium leading-tight hover:text-primary hover:underline">{i.titulo}</Link>
                     ) : (

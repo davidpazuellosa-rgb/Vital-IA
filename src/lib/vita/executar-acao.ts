@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { ehEmpresaSlug } from "@/lib/empresas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UnifiedLicitacao } from "@/lib/licitacoes/types";
 import { executarAlteracao } from "./banco";
@@ -15,8 +16,10 @@ export async function executarAcaoAprovada(
     case "salvar_licitacao": {
       const l = parametros.licitacao as UnifiedLicitacao | undefined;
       if (!l?.numeroControlePNCP) throw new Error("Dados da licitação ausentes.");
+      const empresa = ehEmpresaSlug(parametros.empresa) ? parametros.empresa : "vital-norte";
       const { error } = await supabase.from("saved_licitacoes").insert({
         user_id: userId,
+        empresa,
         numero_controle_pncp: l.numeroControlePNCP,
         plataforma: l.plataforma,
         titulo: l.titulo,
