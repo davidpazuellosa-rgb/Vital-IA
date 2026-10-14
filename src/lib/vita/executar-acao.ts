@@ -3,6 +3,7 @@ import { ehEmpresaSlug } from "@/lib/empresas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UnifiedLicitacao } from "@/lib/licitacoes/types";
 import { executarAlteracao } from "./banco";
+import { executarAnexarAoAcervo } from "./acervo";
 import { executarNotaFiscal, executarProposta } from "./rascunhos";
 
 /** Executa uma ação JÁ APROVADA pelo usuário, com a sessão dele. Devolve um texto de resultado. */
@@ -58,6 +59,8 @@ export async function executarAcaoAprovada(
       return await executarNotaFiscal(parametros);
     case "preencher_proposta":
       return await executarProposta(supabase, parametros);
+    case "anexar_ao_acervo":
+      return await executarAnexarAoAcervo(supabase, userId, parametros);
     case "alterar_dados": {
       const r = await executarAlteracao(supabase, userId, parametros);
       if (r.pagina) revalidatePath(r.pagina);

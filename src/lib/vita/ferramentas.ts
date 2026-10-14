@@ -8,6 +8,7 @@ import { lerAnexo } from "./anexos";
 import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS, tabelasAlteraveisDe, tabelasVisiveis } from "./banco";
 import { EMPRESAS, ehEmpresaSlug, type EmpresaSlug } from "@/lib/empresas";
 import { empresaAlvo } from "./empresa-alvo";
+import { proporAnexarAoAcervo, TIPOS_PARA_MODELO } from "./acervo";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
@@ -29,7 +30,7 @@ import {
 
 export type DetalheAcao = { rotulo: string; valor: string };
 export type AcaoProposta = {
-  tipo: "salvar_licitacao" | "remover_licitacao_salva" | "alterar_dados" | "rascunho_nota_fiscal" | "preencher_proposta";
+  tipo: "salvar_licitacao" | "remover_licitacao_salva" | "alterar_dados" | "rascunho_nota_fiscal" | "preencher_proposta" | "anexar_ao_acervo";
   parametros: Record<string, unknown>;
   resumo: string;
   detalhes: DetalheAcao[];
@@ -277,6 +278,37 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "anexar_ao_acervo",
+      description:
+        "PROPÕE guardar em Documentos (acervo da empresa) os arquivos que o usuário anexou no chat. NÃO executa: o usuário aprova num cartão e então os arquivos são copiados e cadastrados, igual ao botão \"Adicionar documento\". " +
+        "Para cada arquivo informe o NOME do anexo exatamente como foi enviado, o tipo do documento e, se aparecerem no conteúdo, as datas de emissão e validade. " +
+        `Tipos: ${TIPOS_PARA_MODELO}; use \"avulso\" se nenhum servir.`,
+      parameters: {
+        type: "object",
+        properties: {
+          arquivos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                arquivo: { type: "string", description: "Nome do anexo, como enviado." },
+                tipo: { type: "string", description: "Slug do tipo do documento." },
+                nome: { type: "string", description: "Nome de exibição (opcional; padrão: nome do arquivo)." },
+                data_emissao: { type: "string", description: "aaaa-mm-dd (opcional)." },
+                data_validade: { type: "string", description: "aaaa-mm-dd (opcional; deixe vazio para a tela tentar ler do PDF)." },
+              },
+              required: ["arquivo", "tipo"],
+            },
+          },
+          motivo: { type: "string" },
+        },
+        required: ["arquivos"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "ler_documento",
       description:
         "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo da empresa (origem \"documentos\"; da RM também é origem \"documentos\" com empresa=rm) ou de clientes/contratações da Vital Norte (origem \"cliente_documentos\"). " +
@@ -456,7 +488,7 @@ const SO_VITAL_NORTE = new Set([
 ]);
 
 /** Ferramentas que trabalham com UMA empresa: quem tem as duas precisa dizer qual (campo `empresa`). */
-const POR_EMPRESA = new Set(["consultar_empresa", "consultar_documentos", "ler_documento", "consultar_cnaes", "buscar_informacao", "pesquisar_documentos"]);
+const POR_EMPRESA = new Set(["anexar_ao_acervo", "consultar_empresa", "consultar_documentos", "ler_documento", "consultar_cnaes", "buscar_informacao", "pesquisar_documentos"]);
 
 /** Ferramentas oferecidas conforme as empresas do usuário: quem não tem a Vital Norte recebe uma versão enxuta. */
 export function ferramentasParaEmpresas(empresas: EmpresaSlug[]) {
@@ -505,6 +537,7 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   esquecer_memoria: "Apagando da memória",
   rascunho_nota_fiscal: "Preparando rascunho da nota fiscal",
   preencher_proposta: "Preparando o rascunho da proposta",
+  anexar_ao_acervo: "Preparando o envio aos Documentos",
 };
 
 /* ------------------------------------------------------------------------------------------- */
@@ -832,6 +865,7 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "consultar_cnaes": return await cnaes(args, ctx);
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
+      case "anexar_ao_acervo": return await proporAnexarAoAcervo(args, ctx);
       case "onde_encontrar": return { paraModelo: ondeEncontrar(args, await carregarMapa(ctx.supabase)) };
       case "buscar_informacao": return { paraModelo: await buscarInformacao(args, ctx) };
       case "pesquisar_documentos": return { paraModelo: await pesquisarDocumentos(args, ctx) };
