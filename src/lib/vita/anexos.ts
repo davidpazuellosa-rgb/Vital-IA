@@ -88,6 +88,58 @@ function lerDocx(bytes: Uint8Array): Pick<AnexoLido, "texto" | "observacao"> {
   return { texto };
 }
 
+const MAX_ARQUIVOS_ZIP = 40;
+const MAX_BYTES_ENTRADA_ZIP = 20 * 1024 * 1024;   // por arquivo descompactado
+const MAX_BYTES_TOTAL_ZIP = 80 * 1024 * 1024;     // soma descompactada (proteção contra ZIP bomba)
+const MAX_TEXTO_ZIP = 80_000;
+
+/** Lê cada arquivo de dentro de um ZIP (PDF, Word, planilha, texto) e junta tudo, com o nome de cada um. */
+async function lerZip(bytes: Uint8Array, nomeZip: string): Promise<Pick<AnexoLido, "texto" | "observacao">> {
+  let somaBytes = 0;
+  const entradas = unzipSync(bytes, {
+    filter: (f) => {
+      const nome = f.name;
+      if (nome.endsWith("/") || nome.startsWith("__MACOSX/") || nome.split("/").some((p) => p.startsWith("."))) return false;
+      if (f.originalSize > MAX_BYTES_ENTRADA_ZIP || somaBytes + f.originalSize > MAX_BYTES_TOTAL_ZIP) return false;
+      somaBytes += f.originalSize;
+      return true;
+    },
+  });
+  const nomes = Object.keys(entradas).sort();
+  const partes: string[] = [];
+  const ignorados: string[] = [];
+  let lidos = 0;
+  for (const nome of nomes) {
+    if (lidos >= MAX_ARQUIVOS_ZIP) { ignorados.push(`${nome} (limite de ${MAX_ARQUIVOS_ZIP} arquivos)`); continue; }
+    const tipo = tipoDoArquivo(nome, "");
+    if (tipo === "nao_suportado" || tipo === "zip") { ignorados.push(`${nome} (formato não lido)`); continue; }
+    if (tipo === "imagem") { ignorados.push(`${nome} (imagem: anexe-a separada para eu ver)`); continue; }
+    try {
+      const r = await lerBytes(entradas[nome], nome, tipo);
+      partes.push(`### ${nome}${r.observacao ? ` — ${r.observacao}` : ""}\n${cortar(r.texto, 12_000) || "(sem texto extraído)"}`);
+      lidos++;
+    } catch (e) {
+      ignorados.push(`${nome} (${e instanceof Error ? e.message : "falha na leitura"})`);
+    }
+  }
+  const ocultos = nomes.length === 0 ? "ZIP vazio ou só com arquivos muito grandes." : "";
+  return {
+    texto: cortar(partes.join("\n\n"), MAX_TEXTO_ZIP),
+    observacao: `ZIP "${nomeZip}": ${lidos} arquivo(s) lido(s)${ignorados.length ? `; não lidos: ${ignorados.slice(0, 12).join(", ")}${ignorados.length > 12 ? "…" : ""}` : ""}${ocultos ? `; ${ocultos}` : ""}`,
+  };
+}
+
+/** Extrai o texto de arquivos de bytes já conhecidos (PDF, planilha, Word, texto). */
+async function lerBytes(bytes: Uint8Array, nome: string, tipo: TipoAnexo): Promise<Pick<AnexoLido, "texto" | "observacao">> {
+  switch (tipo) {
+    case "pdf": return lerPdf(bytes, nome);
+    case "planilha": return lerPlanilha(bytes, nome);
+    case "documento": return lerDocx(bytes);
+    case "texto": return { texto: decodificarTexto(bytes) };
+    default: return { texto: "" };
+  }
+}
+
 /**
  * Baixa o anexo do armazenamento (com a sessão do usuário) e extrai o conteúdo. Nunca lança:
  * falhas viram uma observação, para a Vita poder explicar o que não conseguiu ler.
@@ -96,7 +148,7 @@ export async function lerAnexo(supabase: SupabaseClient, anexo: AnexoEnviado): P
   const tipo = tipoDoArquivo(anexo.nome, anexo.mime);
   const base: AnexoLido = { nome: anexo.nome, path: anexo.path, tipo, texto: "" };
   if (tipo === "nao_suportado") {
-    return { ...base, observacao: "formato não suportado (use PDF, imagem, XLSX, CSV, DOCX ou TXT; planilhas .xls antigas: salve como .xlsx)" };
+    return { ...base, observacao: "formato não suportado (use PDF, imagem, XLSX, CSV, DOCX, TXT ou ZIP; planilhas .xls antigas: salve como .xlsx)" };
   }
   try {
     const { data, error } = await supabase.storage.from("documentos").download(anexo.path);
@@ -110,6 +162,10 @@ export async function lerAnexo(supabase: SupabaseClient, anexo: AnexoEnviado): P
       case "planilha": {
         const r = await lerPlanilha(bytes, anexo.nome);
         return { ...base, texto: cortar(r.texto), observacao: r.observacao };
+      }
+      case "zip": {
+        const r = await lerZip(bytes, anexo.nome);
+        return { ...base, texto: r.texto, observacao: r.observacao };
       }
       case "documento":
         return { ...base, texto: cortar(lerDocx(bytes).texto) };

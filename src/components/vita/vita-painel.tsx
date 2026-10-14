@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import {
+import { FileArchive,
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
   Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, MousePointerClick, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
@@ -16,7 +16,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/compon
 import { useSidebar } from "@/components/ui/sidebar";
 import { obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
-import { ACEITOS, MAX_ANEXOS, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
+import { ACEITOS, MAX_ANEXOS, corrigirArquivo, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
 import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
 import { cn } from "@/lib/utils";
 import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
@@ -54,7 +54,7 @@ type AnexoLocal = {
 
 const sanitizar = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100) || "arquivo";
 const tamanhoLegivel = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB`);
-const ICONE_ANEXO: Record<string, typeof FileIcon> = { pdf: FileText, imagem: ImageIcon, planilha: FileSpreadsheet, documento: FileText, texto: FileText };
+const ICONE_ANEXO: Record<string, typeof FileIcon> = { pdf: FileText, imagem: ImageIcon, planilha: FileSpreadsheet, documento: FileText, texto: FileText, zip: FileArchive };
 
 /** Fotos grandes são reduzidas no navegador (lado maior 2000 px, JPEG): envio mais rápido e leitura por IA mais barata. */
 async function prepararImagem(arquivo: File): Promise<{ blob: Blob; nome: string; mime: string }> {
@@ -297,6 +297,22 @@ export function VitaPainel() {
   );
 }
 
+/** Arquivos de dentro de uma pasta arrastada (até 5 níveis e 50 arquivos; ignora os ocultos). */
+async function arquivosDaPasta(pasta: FileSystemDirectoryEntry, nivel = 0, acumulado: File[] = []): Promise<File[]> {
+  if (nivel > 5) return acumulado;
+  const leitor = pasta.createReader();
+  const lerLote = () => new Promise<FileSystemEntry[]>((ok, erro) => leitor.readEntries(ok, erro));
+  for (let lote = await lerLote(); lote.length; lote = await lerLote()) {
+    for (const e of lote) {
+      if (acumulado.length >= 50) return acumulado;
+      if (e.name.startsWith(".")) continue;
+      if (e.isDirectory) await arquivosDaPasta(e as FileSystemDirectoryEntry, nivel + 1, acumulado);
+      else await new Promise<void>((ok) => (e as FileSystemFileEntry).file((f) => { acumulado.push(f); ok(); }, () => ok()));
+    }
+  }
+  return acumulado;
+}
+
 function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean; expandido: boolean; onExpandir: () => void; onFechar: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -318,7 +334,9 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
   const enviandoAnexo = anexos.some((a) => a.estado === "enviando");
   const anexosProntos = anexos.filter((a) => a.estado === "pronto");
 
-  async function adicionarArquivos(lista: File[]) {
+  async function adicionarArquivos(bruta: File[]) {
+    // Arquivo sem extensão (ou com nome estranho) é reconhecido pelo conteúdo.
+    const lista = await Promise.all(bruta.map((a) => corrigirArquivo(a)));
     const vagas = MAX_ANEXOS - anexos.length;
     if (lista.length > vagas) toast.error(`No máximo ${MAX_ANEXOS} arquivos por mensagem.`, { description: vagas > 0 ? `Só ${vagas} foram adicionados.` : undefined });
     for (const arquivo of lista.slice(0, Math.max(0, vagas))) {
@@ -370,10 +388,20 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
       setArrastandoArquivo(false);
       if (!temArquivos(e) || e.defaultPrevented) return;
       e.preventDefault();
-      const arquivos = Array.from(e.dataTransfer?.files ?? []);
-      if (!arquivos.length) return;
+      // As entradas precisam ser lidas AGORA (depois do await o navegador as descarta): pastas viram os arquivos de dentro.
+      const itens = Array.from(e.dataTransfer?.items ?? []).filter((i) => i.kind === "file");
+      const entradas = itens.map((i) => ({ entrada: i.webkitGetAsEntry?.() ?? null, arquivo: i.getAsFile() }));
+      if (!entradas.length) return;
       abrir();
-      void adicionarRef.current(arquivos);
+      void (async () => {
+        const arquivos: File[] = [];
+        for (const { entrada, arquivo } of entradas) {
+          if (entrada?.isDirectory) arquivos.push(...(await arquivosDaPasta(entrada as FileSystemDirectoryEntry)));
+          else if (arquivo) arquivos.push(arquivo);
+        }
+        if (!arquivos.length) { toast.error("Nenhum arquivo encontrado nessa pasta."); return; }
+        void adicionarRef.current(arquivos);
+      })();
     };
     const cancelar = () => { profundidade = 0; setArrastandoArquivo(false); };
     window.addEventListener("dragenter", entrar);
@@ -769,7 +797,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             className="size-7 shrink-0 rounded-lg text-muted-foreground"
             onClick={() => seletor.current?.click()}
             disabled={anexos.length >= MAX_ANEXOS}
-            title={`Anexar arquivos (até ${MAX_ANEXOS}): PDF, foto, planilha, Word`}
+            title={`Anexar arquivos (até ${MAX_ANEXOS}): PDF, foto, planilha, Word, ZIP ou pasta`}
             aria-label="Anexar arquivos"
           >
             <Paperclip className="size-4" />
