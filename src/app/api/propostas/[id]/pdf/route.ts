@@ -24,8 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (itens.length === 0) return NextResponse.json({ erro: "Selecione e preencha ao menos um item." }, { status: 400 });
 
     const [{ data: licitacao }, { data: proposta }, { data: empresa }, { data: configuracao }, { data: documentos }] = await Promise.all([
-      supabase.from("saved_licitacoes").select("*").eq("id", id).eq("user_id", user.id).single(),
-      supabase.from("propostas").select("*").eq("licitacao_id", id).eq("user_id", user.id).maybeSingle(),
+      supabase.from("saved_licitacoes").select("*").eq("id", id).single(),
+      supabase.from("propostas").select("*").eq("licitacao_id", id).maybeSingle(),
       supabase.from("empresa").select("*").eq("user_id", empresaUserId).maybeSingle(),
       supabase.from("proposta_configuracao").select("*").eq("user_id", empresaUserId).maybeSingle(),
       supabase.from("documentos").select("*").eq("user_id", empresaUserId).order("created_at", { ascending: false }),
@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
 
     await supabase.from("propostas").upsert({
-      user_id: user.id,
+      user_id: empresaUserId,
       licitacao_id: id,
       status: "gerada",
       validade_dias: configuracao?.validade_dias ?? CONFIGURACAO_PROPOSTA_PADRAO.validade_dias,

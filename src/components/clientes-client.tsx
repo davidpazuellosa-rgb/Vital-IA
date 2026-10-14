@@ -148,7 +148,8 @@ export function ClienteDocUpload({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sessão expirada. Faça login novamente.");
         const docId = crypto.randomUUID();
-        const path = `${user.id}/clientes/${clienteId}/${docId}/${sanitizar(file.name)}`;
+        const { data: dono } = await supabase.rpc("empresa_user_id");
+        const path = `${typeof dono === "string" ? dono : user.id}/clientes/${clienteId}/${docId}/${sanitizar(file.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });

@@ -100,7 +100,6 @@ async function conferirPertencimento(
       .from("clientes")
       .select("id")
       .eq("id", clienteId)
-      .eq("user_id", userId)
       .maybeSingle();
     if (!data) throw new Error("Cliente inválido.");
   }
@@ -109,7 +108,6 @@ async function conferirPertencimento(
       .from("contratacoes")
       .select("id")
       .eq("id", contratacaoId)
-      .eq("user_id", userId)
       .maybeSingle();
     if (!data) throw new Error("Contratação inválida.");
   }
@@ -155,7 +153,6 @@ export async function atualizarNotaFiscalRascunho(id: string, formData: FormData
     .from("notas_fiscais")
     .select("status")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status !== "rascunho") throw new Error("Apenas rascunhos podem ser editados.");
@@ -166,7 +163,6 @@ export async function atualizarNotaFiscalRascunho(id: string, formData: FormData
     .from("notas_fiscais")
     .update({ ...colunasNota(c), updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("user_id", user.id)
     .eq("status", "rascunho");
   if (error) throw new Error(error.message);
   revalidatePath(PATH);
@@ -277,7 +273,6 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     .from("notas_fiscais")
     .select("*")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) return { ok: false, mensagem: "Nota não encontrada." };
   if (nota.status !== "rascunho") return { ok: false, mensagem: "Esta nota já foi enviada." };
@@ -333,7 +328,6 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
     .from("notas_fiscais")
     .update({ status: "processando", payload, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("user_id", user.id)
     .eq("status", "rascunho")
     .select("id");
   if (!marcada || marcada.length === 0) {
@@ -349,7 +343,6 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
         .from("notas_fiscais")
         .update({ status: "rascunho", updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("user_id", user.id)
         .eq("status", "processando");
       return { ok: false, mensagem: "Falha ao alocar a numeração da nota fiscal." };
     }
@@ -368,7 +361,6 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
       .from("notas_fiscais")
       .update({ status: "rascunho", updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("user_id", user.id)
       .eq("status", "processando");
     revalidatePath(PATH);
     return { ok: false, mensagem: e instanceof Error ? e.message : "Falha ao enviar a nota." };
@@ -405,8 +397,7 @@ export async function emitirNotaFiscal(id: string): Promise<ResultadoEmissao> {
       protocolo: resultado.protocolo ?? "",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) return { ok: false, mensagem: error.message };
 
   // Anexa automaticamente no acervo do cliente quando autorizada (não-fatal).
@@ -442,7 +433,6 @@ export async function consultarStatusNotaFiscal(id: string) {
     .from("notas_fiscais")
     .select("ref, status, chave, protocolo")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status !== "processando") {
@@ -467,8 +457,7 @@ export async function consultarStatusNotaFiscal(id: string) {
       protocolo: resultado.protocolo ?? "",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
 
   // Anexo automático quando a consulta resolve para autorizada (não-fatal).
@@ -478,7 +467,6 @@ export async function consultarStatusNotaFiscal(id: string) {
         .from("notas_fiscais")
         .select("id, numero, cliente_id, contratacao_id, danfe_url, xml_url")
         .eq("id", id)
-        .eq("user_id", user.id)
         .single();
       if (n2) await anexarNotaNoAcervo(supabase, user.id, n2);
     } catch {
@@ -513,7 +501,6 @@ async function anexarNotaNoAcervo(
       .from("contratacoes")
       .select("cliente_id")
       .eq("id", nota.contratacao_id)
-      .eq("user_id", userId)
       .maybeSingle();
     if (ct?.cliente_id) clienteId = ct.cliente_id as string;
   }
@@ -530,7 +517,6 @@ async function anexarNotaNoAcervo(
     .from("notas_fiscais")
     .update({ anexada_em: new Date().toISOString() })
     .eq("id", nota.id)
-    .eq("user_id", userId)
     .is("anexada_em", null)
     .select("id");
   if (!claim || claim.length === 0) return; // já anexada
@@ -571,14 +557,13 @@ async function anexarNotaNoAcervo(
   } catch (e) {
     // Rollback do parcial e libera o claim para permitir nova tentativa limpa.
     for (const c of criados) {
-      await supabase.from("cliente_documentos").delete().eq("id", c.rowId).eq("user_id", userId);
+      await supabase.from("cliente_documentos").delete().eq("id", c.rowId);
       await supabase.storage.from(BUCKET).remove([c.path]);
     }
     await supabase
       .from("notas_fiscais")
       .update({ anexada_em: null })
-      .eq("id", nota.id)
-      .eq("user_id", userId);
+      .eq("id", nota.id);
     throw e instanceof Error ? e : new Error("Falha ao anexar a nota.");
   }
 
@@ -601,7 +586,6 @@ export async function anexarNotaNaContratacao(id: string) {
     .from("notas_fiscais")
     .select("id, numero, cliente_id, contratacao_id, danfe_url, xml_url, status")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser anexadas.");
@@ -626,7 +610,6 @@ export async function cancelarNotaFiscal(id: string, justificativa: string) {
     .from("notas_fiscais")
     .select("ref, status, chave, protocolo")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status !== "autorizada") throw new Error("Apenas notas autorizadas podem ser canceladas.");
@@ -645,7 +628,6 @@ export async function cancelarNotaFiscal(id: string, justificativa: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("user_id", user.id)
     .eq("status", "autorizada");
   if (error) throw new Error(error.message);
   revalidatePath(PATH);
@@ -666,7 +648,6 @@ export async function cartaCorrecaoNotaFiscal(id: string, correcao: string) {
     .from("notas_fiscais")
     .select("ref, status, chave, protocolo, cartas_correcao")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status !== "autorizada") {
@@ -687,7 +668,6 @@ export async function cartaCorrecaoNotaFiscal(id: string, correcao: string) {
     .from("notas_fiscais")
     .update({ cartas_correcao: atualizado, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("user_id", user.id)
     .eq("status", "autorizada");
   if (error) throw new Error(error.message);
   revalidatePath(PATH);
@@ -704,7 +684,6 @@ export async function removerNotaFiscal(id: string) {
     .from("notas_fiscais")
     .select("status")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (!nota) throw new Error("Nota não encontrada.");
   if (nota.status === "autorizada" || nota.status === "processando") {
@@ -714,8 +693,7 @@ export async function removerNotaFiscal(id: string) {
   const { error } = await supabase
     .from("notas_fiscais")
     .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(PATH);
 }

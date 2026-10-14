@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { CATEGORIA_AVULSO } from "./types";
 import { buscarDadosCnpj } from "@/lib/nota-fiscal/actions";
 
@@ -23,8 +24,7 @@ export async function preencherDadosOrgaoCliente(clienteId: string, cnpj: string
       municipio: dados.municipio,
       uf: dados.uf,
     })
-    .eq("id", clienteId)
-    .eq("user_id", user.id);
+    .eq("id", clienteId);
   if (error) throw new Error(error.message);
   revalidatePath(`/vital-norte/clientes/${clienteId}`);
   return dados.nome;
@@ -60,12 +60,11 @@ export async function removerCliente(id: string) {
   const { data: docs } = await supabase
     .from("cliente_documentos")
     .select("arquivo_path")
-    .eq("cliente_id", id)
-    .eq("user_id", user.id);
+    .eq("cliente_id", id);
   const paths = (docs ?? []).map((d) => d.arquivo_path).filter(Boolean);
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
 
-  const { error } = await supabase.from("clientes").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("clientes").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/vital-norte/clientes");
 }
@@ -78,8 +77,7 @@ export async function atualizarClienteStatus(id: string, status: string, proximo
   const { error } = await supabase
     .from("clientes")
     .update({ status: status.trim(), proximo_passo: proximoPasso.trim() })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/vital-norte/clientes/${id}`);
 }
@@ -113,12 +111,11 @@ export async function removerContratacao(id: string, clienteId: string) {
   const { data: docs } = await supabase
     .from("cliente_documentos")
     .select("arquivo_path")
-    .eq("contratacao_id", id)
-    .eq("user_id", user.id);
+    .eq("contratacao_id", id);
   const paths = (docs ?? []).map((d) => d.arquivo_path).filter(Boolean);
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
 
-  const { error } = await supabase.from("contratacoes").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("contratacoes").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/vital-norte/clientes/${clienteId}`);
 }
@@ -131,8 +128,7 @@ export async function atualizarContratacaoStatus(id: string, clienteId: string, 
   const { error } = await supabase
     .from("contratacoes")
     .update({ status: status.trim(), proximo_passo: proximoPasso.trim() })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${id}`);
 }
@@ -175,12 +171,10 @@ export async function listarDestinosPropostaFinal(licitacaoId: string): Promise<
       .from("saved_licitacoes")
       .select("id, orgao, titulo, numero_controle_pncp")
       .eq("id", licitacaoId)
-      .eq("user_id", user.id)
       .single(),
     supabase
       .from("clientes")
       .select("id, nome, orgao")
-      .eq("user_id", user.id)
       .order("nome", { ascending: true }),
   ]);
   if (!licitacao) throw new Error("Licitação não encontrada.");
@@ -192,7 +186,6 @@ export async function listarDestinosPropostaFinal(licitacaoId: string): Promise<
     ? await supabase
       .from("contratacoes")
       .select("id, cliente_id, titulo, identificador")
-      .eq("user_id", user.id)
       .in("cliente_id", clienteIds)
       .order("created_at", { ascending: false })
     : { data: [], error: null };
@@ -239,12 +232,11 @@ export async function garantirContratacaoPropostaFinal(licitacaoId: string, clie
   if (!clienteId) throw new Error("Selecione o cliente onde a proposta final será salva.");
 
   const [{ data: cliente }, { data: licitacao }] = await Promise.all([
-    supabase.from("clientes").select("id").eq("id", clienteId).eq("user_id", user.id).single(),
+    supabase.from("clientes").select("id").eq("id", clienteId).single(),
     supabase
       .from("saved_licitacoes")
       .select("titulo, orgao, numero_controle_pncp")
       .eq("id", licitacaoId)
-      .eq("user_id", user.id)
       .single(),
   ]);
   if (!cliente) throw new Error("Cliente não encontrado.");
@@ -256,7 +248,6 @@ export async function garantirContratacaoPropostaFinal(licitacaoId: string, clie
       .select("id")
       .eq("id", contratacaoId)
       .eq("cliente_id", clienteId)
-      .eq("user_id", user.id)
       .single();
     if (error || !contratacao) throw new Error("Contratação não encontrada neste cliente.");
     return contratacao.id as string;
@@ -268,7 +259,6 @@ export async function garantirContratacaoPropostaFinal(licitacaoId: string, clie
       .from("contratacoes")
       .select("id")
       .eq("cliente_id", clienteId)
-      .eq("user_id", user.id)
       .eq("identificador", identificador)
       .maybeSingle();
     if (existente?.id) return existente.id as string;
@@ -289,14 +279,14 @@ export async function registrarClienteDocumento(input: RegistrarClienteDocInput)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
-  if (!input.path.startsWith(user.id + "/")) throw new Error("Caminho de arquivo inválido.");
+  const dono = await resolverEmpresaUserId(supabase, user.id);
+  if (!input.path.startsWith(dono + "/") || input.path.includes("..")) throw new Error("Caminho de arquivo inválido.");
 
   const { data: contratacao, error: destinoError } = await supabase
     .from("contratacoes")
     .select("id")
     .eq("id", input.contratacaoId)
     .eq("cliente_id", input.clienteId)
-    .eq("user_id", user.id)
     .single();
   if (destinoError || !contratacao) {
     await supabase.storage.from(BUCKET).remove([input.path]);
@@ -328,11 +318,10 @@ export async function removerClienteDocumento(id: string, clienteId: string, con
     .from("cliente_documentos")
     .select("arquivo_path")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (doc?.arquivo_path) await supabase.storage.from(BUCKET).remove([doc.arquivo_path]);
 
-  const { error } = await supabase.from("cliente_documentos").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("cliente_documentos").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/vital-norte/clientes/${clienteId}/contratacao/${contratacaoId}`);
 }

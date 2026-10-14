@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { obterAcesso } from "@/lib/acesso";
 import type { EmpresaSlug } from "@/lib/empresas";
 import { normalizarEtapa, UnifiedLicitacao, type EtapaSlug } from "./types";
@@ -115,7 +116,7 @@ export async function removerLicitacaoSalva(id: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
 
-  const { error } = await supabase.from("saved_licitacoes").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("saved_licitacoes").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/minhas-licitacoes");
 }
@@ -128,8 +129,7 @@ export async function atualizarEtapaLicitacao(id: string, etapa: EtapaSlug) {
   const { error } = await supabase
     .from("saved_licitacoes")
     .update({ etapa: normalizarEtapa(etapa) })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/minhas-licitacoes");
 }
@@ -142,8 +142,7 @@ export async function marcarPropostaRecusada(id: string) {
   const { error } = await supabase
     .from("saved_licitacoes")
     .update({ etapa: "perdida" satisfies EtapaSlug })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/minhas-licitacoes");
   revalidatePath("/licitacao/" + id);
@@ -158,13 +157,12 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
     .from("saved_licitacoes")
     .select("id, empresa, numero_controle_pncp, plataforma, titulo, descricao, orgao, uf, municipio, modalidade, situacao, valor_estimado, data_abertura_proposta, data_encerramento_proposta, link_origem")
     .eq("id", id)
-    .eq("user_id", user.id)
     .single();
   if (licitacaoError || !licitacao) throw new Error("Licitação não encontrada.");
 
   // Só a Vital Norte tem Clientes: nas outras empresas a licitação apenas vai para "Vencida".
   if (licitacao.empresa !== "vital-norte") {
-    const { error: e } = await supabase.from("saved_licitacoes").update({ etapa: "vencida" satisfies EtapaSlug }).eq("id", id).eq("user_id", user.id);
+    const { error: e } = await supabase.from("saved_licitacoes").update({ etapa: "vencida" satisfies EtapaSlug }).eq("id", id);
     if (e) throw new Error(e.message);
     revalidatePath("/minhas-licitacoes");
     return "/minhas-licitacoes";
@@ -174,7 +172,6 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
   const { data: clienteExistente } = await supabase
     .from("clientes")
     .select("id")
-    .eq("user_id", user.id)
     .eq("nome", nomeCliente)
     .maybeSingle();
 
@@ -207,7 +204,6 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
   const { data: contratacaoExistente } = await supabase
     .from("contratacoes")
     .select("id")
-    .eq("user_id", user.id)
     .eq("cliente_id", clienteId)
     .eq("identificador", identificador)
     .maybeSingle();
@@ -240,12 +236,11 @@ export async function converterLicitacaoEmCliente(id: string): Promise<string> {
   const { error: etapaError } = await supabase
     .from("saved_licitacoes")
     .update({ etapa: "vencida" satisfies EtapaSlug })
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
   if (etapaError) throw new Error(etapaError.message);
 
   // Anexa os documentos do edital (PNCP) à contratação
-  await anexarEditalDaLicitacao(supabase, user.id, clienteId, contratacaoId, identificador);
+  await anexarEditalDaLicitacao(supabase, await resolverEmpresaUserId(supabase, user.id), clienteId, contratacaoId, identificador);
 
   revalidatePath("/minhas-licitacoes");
   revalidatePath("/vital-norte/clientes");

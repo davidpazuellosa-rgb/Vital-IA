@@ -46,7 +46,6 @@ export async function obterPropostaLicitacao(licitacaoId: string): Promise<Propo
     .from("propostas")
     .select("status, itens, analise_edital, updated_at")
     .eq("licitacao_id", licitacaoId)
-    .eq("user_id", user.id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!proposta?.analise_edital) return null;
@@ -68,12 +67,12 @@ export async function salvarRascunhoProposta(licitacaoId: string, itens: ItemPro
     .from("saved_licitacoes")
     .select("id")
     .eq("id", licitacaoId)
-    .eq("user_id", user.id)
     .single();
   if (!licitacao) throw new Error("Licitação não encontrada");
 
+  const dono = await resolverEmpresaUserId(supabase, user.id); // os dados pertencem à empresa, não a quem criou
   const { error } = await supabase.from("propostas").upsert({
-    user_id: user.id,
+    user_id: dono,
     licitacao_id: licitacaoId,
     status: "rascunho",
     itens: normalizarItensRascunho(itens),
@@ -139,7 +138,6 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
       .from("saved_licitacoes")
       .select("id, numero_controle_pncp")
       .eq("id", licitacaoId)
-      .eq("user_id", user.id)
       .single(),
     supabase.from("documentos").select("*").eq("user_id", empresaUserId).order("created_at", { ascending: false }),
     supabase.from("empresa").select("porte, natureza_juridica").eq("user_id", empresaUserId).maybeSingle(),
@@ -180,8 +178,9 @@ export async function analisarEditalLicitacao(licitacaoId: string): Promise<Anal
     analise.alertas.push("DEEPSEEK_API_KEY não configurada. Análise realizada somente pelo parser local.");
   }
 
+  const dono = await resolverEmpresaUserId(supabase, user.id);
   const { error } = await supabase.from("propostas").upsert({
-    user_id: user.id,
+    user_id: dono,
     licitacao_id: licitacaoId,
     analise_edital: analise,
     edital_analisado_em: analise.analisadoEm,

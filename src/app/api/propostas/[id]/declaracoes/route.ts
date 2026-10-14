@@ -18,8 +18,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
 
     const [{ data: licitacao }, { data: proposta }, { data: empresa }, { data: configuracao }] = await Promise.all([
-      supabase.from("saved_licitacoes").select("*").eq("id", id).eq("user_id", user.id).single(),
-      supabase.from("propostas").select("*").eq("licitacao_id", id).eq("user_id", user.id).maybeSingle(),
+      supabase.from("saved_licitacoes").select("*").eq("id", id).single(),
+      supabase.from("propostas").select("*").eq("licitacao_id", id).maybeSingle(),
       supabase.from("empresa").select("*").eq("user_id", empresaUserId).maybeSingle(),
       supabase.from("proposta_configuracao").select("*").eq("user_id", empresaUserId).maybeSingle(),
     ]);

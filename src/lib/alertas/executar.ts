@@ -66,8 +66,12 @@ async function salvarOportunidadesDoAlerta(
 ) {
   if (licitacoes.length === 0) return;
 
+  // Os dados pertencem à empresa: grava com o dono da empresa de quem criou o alerta.
+  const { data: vinculo } = await supabase.from("empresa_membros").select("empresa_user_id").eq("user_id", userId).maybeSingle();
+  const donoId = String(vinculo?.empresa_user_id ?? userId);
+
   const registros = licitacoes.map((licitacao) => ({
-      user_id: userId,
+      user_id: donoId,
       empresa: "vital-norte", // alertas são da Vital Norte
       numero_controle_pncp: licitacao.numeroControlePNCP,
       plataforma: licitacao.plataforma,

@@ -24,8 +24,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!user) return NextResponse.json({ erro: "Não autenticado" }, { status: 401 });
 
     const [{ data: licitacao }, { data: proposta }] = await Promise.all([
-      supabase.from("saved_licitacoes").select("numero_controle_pncp, orgao").eq("id", id).eq("user_id", user.id).single(),
-      supabase.from("propostas").select("analise_edital").eq("licitacao_id", id).eq("user_id", user.id).maybeSingle(),
+      supabase.from("saved_licitacoes").select("numero_controle_pncp, orgao").eq("id", id).single(),
+      supabase.from("propostas").select("analise_edital").eq("licitacao_id", id).maybeSingle(),
     ]);
     if (!licitacao) return NextResponse.json({ erro: "Licitação não encontrada." }, { status: 404 });
     const analise = proposta?.analise_edital as AnaliseEdital | null;

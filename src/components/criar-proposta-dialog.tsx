@@ -488,7 +488,8 @@ function MontagemProposta({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Sessão expirada. Faça login novamente.");
       const docId = crypto.randomUUID();
-      const path = user.id + "/clientes/" + clienteDestino + "/" + docId + "/" + sanitizarArquivo(novoArquivo.name);
+      const { data: dono } = await supabase.rpc("empresa_user_id");
+      const path = (typeof dono === "string" ? dono : user.id) + "/clientes/" + clienteDestino + "/" + docId + "/" + sanitizarArquivo(novoArquivo.name);
       const { error: uploadError } = await supabase.storage
         .from("documentos")
         .upload(path, novoArquivo, { contentType: novoArquivo.type || "application/pdf", upsert: false });

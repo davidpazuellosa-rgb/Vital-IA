@@ -37,7 +37,6 @@ export async function obterPacoteEnvio(licitacaoId: string): Promise<PacoteEnvio
     .from("saved_licitacoes")
     .select("id, numero_controle_pncp, titulo, orgao, uf, municipio, modalidade, link_origem, data_abertura_proposta, data_encerramento_proposta, etapa")
     .eq("id", licitacaoId)
-    .eq("user_id", user.id)
     .single();
   if (error || !lic) throw new Error("Licitação não encontrada.");
 
@@ -46,7 +45,6 @@ export async function obterPacoteEnvio(licitacaoId: string): Promise<PacoteEnvio
       .from("propostas")
       .select("status, itens, analise_edital, enviada_em, protocolo_envio, valor_enviado, observacoes_envio, comprovante_path, comprovante_nome")
       .eq("licitacao_id", licitacaoId)
-      .eq("user_id", user.id)
       .maybeSingle(),
     supabase.from("sistemas_licitacao").select("id, nome, url, login").order("ordem", { ascending: true }),
     resolverEmpresaUserId(supabase, user.id),
@@ -131,7 +129,6 @@ export async function registrarEnvioProposta(licitacaoId: string, dados: DadosEn
     .from("saved_licitacoes")
     .select("id, link_origem")
     .eq("id", licitacaoId)
-    .eq("user_id", user.id)
     .single();
   if (!lic) throw new Error("Licitação não encontrada.");
 
@@ -151,7 +148,6 @@ export async function registrarEnvioProposta(licitacaoId: string, dados: DadosEn
     .from("propostas")
     .select("id")
     .eq("licitacao_id", licitacaoId)
-    .eq("user_id", user.id)
     .maybeSingle();
   const resultado = existente
     ? await supabase.from("propostas").update(campos).eq("id", existente.id)
@@ -161,8 +157,7 @@ export async function registrarEnvioProposta(licitacaoId: string, dados: DadosEn
   const { error: etapaErro } = await supabase
     .from("saved_licitacoes")
     .update({ etapa: "proposta_enviada" })
-    .eq("id", licitacaoId)
-    .eq("user_id", user.id);
+    .eq("id", licitacaoId);
   if (etapaErro) throw new Error(etapaErro.message);
 
   revalidatePath("/minhas-licitacoes");
@@ -188,15 +183,13 @@ export async function desfazerEnvioProposta(licitacaoId: string) {
       comprovante_nome: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("licitacao_id", licitacaoId)
-    .eq("user_id", user.id);
+    .eq("licitacao_id", licitacaoId);
   if (error) throw new Error(error.message);
 
   const { error: etapaErro } = await supabase
     .from("saved_licitacoes")
     .update({ etapa: "proposta_pronta" })
-    .eq("id", licitacaoId)
-    .eq("user_id", user.id);
+    .eq("id", licitacaoId);
   if (etapaErro) throw new Error(etapaErro.message);
 
   revalidatePath("/minhas-licitacoes");

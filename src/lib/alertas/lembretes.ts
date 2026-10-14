@@ -22,6 +22,12 @@ type Pendente = {
 
 export type ResumoLembretes = { verificadas: number; avisadas: number; usuarios: number };
 
+/** O dono da empresa e todos os usuários vinculados a ele. */
+async function membrosDaEmpresa(supabase: ReturnType<typeof createServiceClient>, donoId: string): Promise<string[]> {
+  const { data } = await supabase.from("empresa_membros").select("user_id").eq("empresa_user_id", donoId);
+  return [...new Set([donoId, ...(data ?? []).map((m) => String(m.user_id))])];
+}
+
 export async function executarLembretes(): Promise<ResumoLembretes> {
   const supabase = createServiceClient();
   const agora = Date.now();
@@ -70,16 +76,8 @@ export async function executarLembretes(): Promise<ResumoLembretes> {
   const link = site ? `${site}/minhas-licitacoes` : "";
   let avisadas = 0;
 
-  for (const [userId, lista] of porUsuario) {
+  for (const [donoId, lista] of porUsuario) {
     lista.sort((a, b) => a.restanteHoras - b.restanteHoras);
-    const { data: cfg } = await supabase
-      .from("notificacoes_config")
-      .select("telegram_chat_id, telegram_bot_token, email_destino, email_remetente, email_api_key")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const emailStorage = await carregarEmailConfigStorage(supabase, userId);
-    const config = { ...(cfg ?? {}), ...emailStorage } as Record<string, string | null | undefined>;
-
     const linhas = lista.map((p) => {
       const quando = p.restanteHoras < 1 ? "menos de 1h" : `~${Math.round(p.restanteHoras)}h`;
       return { texto: `${p.orgao} (${p.uf}) — encerra em ${quando} (${formatarData(p.data_encerramento_proposta)})`, titulo: p.titulo };
@@ -90,27 +88,38 @@ export async function executarLembretes(): Promise<ResumoLembretes> {
       (link ? `\n\n${link}` : "");
 
     let algumCanal = false;
-    const chatId = config.telegram_chat_id?.trim();
-    if (chatId) {
-      const r = await enviarTelegram(chatId, textoTelegram, config.telegram_bot_token ?? undefined);
-      if (r.ok) algumCanal = true;
-      else console.error("[Lembretes] Falha Telegram", { userId, erro: r.erro });
-    }
-    const emailDestino = config.email_destino?.trim();
-    const apiKey = config.email_api_key?.trim() || process.env.RESEND_API_KEY?.trim();
-    const remetente = process.env.EMAIL_FROM?.trim() || config.email_remetente?.trim() || "Vital Norte <onboarding@resend.dev>";
-    if (emailDestino && apiKey) {
-      const r = await enviarEmail({
-        para: emailDestino, remetente, apiKey,
-        assunto: `⏰ ${lista.length} proposta(s) a encerrar sem envio registrado`,
-        texto: textoTelegram.replace(/<[^>]*>/g, ""),
-        html: `<p><strong>Proposta(s) sem envio registrado:</strong></p><ul>${linhas.map((l) => `<li><strong>${escapeHtml(l.texto)}</strong><br>${escapeHtml(l.titulo.slice(0, 160))}</li>`).join("")}</ul>${link ? `<p><a href="${escapeHtml(link)}">Abrir Minhas Licitações</a></p>` : ""}`,
-      });
-      if (r.ok) algumCanal = true;
-      else console.error("[Lembretes] Falha E-mail", { userId, erro: r.erro });
+    // Toda a equipe da empresa recebe, cada pessoa no canal que configurou.
+    for (const userId of await membrosDaEmpresa(supabase, donoId)) {
+      const { data: cfg } = await supabase
+        .from("notificacoes_config")
+        .select("telegram_chat_id, telegram_bot_token, email_destino, email_remetente, email_api_key")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const emailStorage = await carregarEmailConfigStorage(supabase, userId);
+      const config = { ...(cfg ?? {}), ...emailStorage } as Record<string, string | null | undefined>;
+
+      const chatId = config.telegram_chat_id?.trim();
+      if (chatId) {
+        const r = await enviarTelegram(chatId, textoTelegram, config.telegram_bot_token ?? undefined);
+        if (r.ok) algumCanal = true;
+        else console.error("[Lembretes] Falha Telegram", { userId, erro: r.erro });
+      }
+      const emailDestino = config.email_destino?.trim();
+      const apiKey = config.email_api_key?.trim() || process.env.RESEND_API_KEY?.trim();
+      const remetente = process.env.EMAIL_FROM?.trim() || config.email_remetente?.trim() || "Vital Norte <onboarding@resend.dev>";
+      if (emailDestino && apiKey) {
+        const r = await enviarEmail({
+          para: emailDestino, remetente, apiKey,
+          assunto: `⏰ ${lista.length} proposta(s) a encerrar sem envio registrado`,
+          texto: textoTelegram.replace(/<[^>]*>/g, ""),
+          html: `<p><strong>Proposta(s) sem envio registrado:</strong></p><ul>${linhas.map((l) => `<li><strong>${escapeHtml(l.texto)}</strong><br>${escapeHtml(l.titulo.slice(0, 160))}</li>`).join("")}</ul>${link ? `<p><a href="${escapeHtml(link)}">Abrir Minhas Licitações</a></p>` : ""}`,
+        });
+        if (r.ok) algumCanal = true;
+        else console.error("[Lembretes] Falha E-mail", { userId, erro: r.erro });
+      }
     }
     if (!algumCanal) {
-      console.error("[Lembretes] Nenhum canal de notificação configurado ou enviado", { userId });
+      console.error("[Lembretes] Nenhum canal de notificação configurado ou enviado", { empresa: donoId });
       continue; // não marca como avisado: tenta de novo na próxima rodada
     }
 

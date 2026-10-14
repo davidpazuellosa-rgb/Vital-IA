@@ -63,7 +63,7 @@ export default async function MinhasLicitacoesPage() {
   );
 
   const alertasIds = userId
-    ? ((await serviceSupabase.from("alertas").select("id").eq("user_id", userId)).data ?? []).map((alerta) => String(alerta.id))
+    ? ((await supabase.from("alertas").select("id")).data ?? []).map((alerta) => String(alerta.id)) // todos os da empresa (RLS)
     : [];
 
   const enviosAlertas = alertasIds.length > 0

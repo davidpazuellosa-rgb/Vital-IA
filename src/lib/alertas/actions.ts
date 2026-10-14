@@ -106,7 +106,10 @@ export async function salvarAlerta(formData: FormData) {
   };
 
   if (id) {
-    const { error } = await supabase.from("alertas").update(valores).eq("id", id).eq("user_id", user.id);
+    // Qualquer pessoa da empresa edita; quem criou continua sendo quem recebe os avisos (user_id não muda).
+    const { user_id: _criador, ...paraAtualizar } = valores;
+    void _criador;
+    const { error } = await supabase.from("alertas").update(paraAtualizar).eq("id", id);
     if (error) throw new Error(error.message);
   } else {
     const { error } = await supabase.from("alertas").insert(valores);
@@ -119,7 +122,7 @@ export async function alternarAlerta(id: string, ativo: boolean) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
-  const { error } = await supabase.from("alertas").update({ ativo }).eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("alertas").update({ ativo }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/vital-norte/alertas");
 }
@@ -128,7 +131,7 @@ export async function removerAlerta(id: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado");
-  const { error } = await supabase.from("alertas").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase.from("alertas").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/vital-norte/alertas");
 }

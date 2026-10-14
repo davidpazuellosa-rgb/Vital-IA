@@ -49,8 +49,7 @@ export async function executarAcaoAprovada(
       const { error, count } = await supabase
         .from("saved_licitacoes")
         .delete({ count: "exact" })
-        .in("id", ids)
-        .eq("user_id", userId);
+        .in("id", ids);
       if (error) throw new Error(error.message);
       revalidatePath("/minhas-licitacoes");
       return count ? `Licitação ${String(parametros.numero)} removida de Minhas Licitações.` : "A licitação já não estava salva.";
