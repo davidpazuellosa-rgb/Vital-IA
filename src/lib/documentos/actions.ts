@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { extrairDatasDoPdf } from "./extract";
-import { TIPO_AVULSO, tipoSemValidade } from "./types";
+import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, tipoSemValidade } from "./types";
 
 const BUCKET = "documentos";
 
@@ -187,6 +187,31 @@ export async function renomearDocumento(id: string, nome: string, empresa?: Empr
     .update({ nome: limpo })
     .eq("id", id)
     .eq("user_id", empresaUserId);
+  if (error) throw new Error(error.message);
+  revalidatePath(cfg.rotaDocumentos);
+}
+
+/** Edita o nome e/ou a categoria (tipo) de um documento. Qualquer um dos dois pode ficar de fora. */
+export async function editarDocumento(id: string, campos: { nome?: string; tipo?: string }, empresa?: EmpresaSlug) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+  const empresaUserId = await resolverEmpresaUserId(supabase, user.id);
+  const cfg = configEmpresa(empresa);
+
+  const alteracoes: Record<string, string> = {};
+  if (campos.nome !== undefined) {
+    const limpo = campos.nome.trim();
+    if (!limpo) throw new Error("Informe um nome.");
+    alteracoes.nome = limpo;
+  }
+  if (campos.tipo !== undefined) {
+    if (campos.tipo !== TIPO_AVULSO && !CHECKLIST_DOCUMENTOS.some((t) => t.slug === campos.tipo)) throw new Error("Categoria inválida.");
+    alteracoes.tipo = campos.tipo;
+  }
+  if (!Object.keys(alteracoes).length) return;
+
+  const { error } = await supabase.from(cfg.tabelaDocumentos).update(alteracoes).eq("id", id).eq("user_id", empresaUserId);
   if (error) throw new Error(error.message);
   revalidatePath(cfg.rotaDocumentos);
 }

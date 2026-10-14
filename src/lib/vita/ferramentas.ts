@@ -281,7 +281,7 @@ export const FERRAMENTAS = [
       name: "anexar_ao_acervo",
       description:
         "PROPÕE guardar em Documentos (acervo da empresa) os arquivos que o usuário anexou no chat. NÃO executa: o usuário aprova num cartão e então os arquivos são copiados e cadastrados, igual ao botão \"Adicionar documento\". " +
-        "Para cada arquivo informe: `arquivo` = nome do anexo exatamente como foi enviado; `tipo`; `nome` = o NOME CORRETO do documento (limpo e descritivo, ex.: \"Cartão CNPJ\", \"CND Federal\", \"Contrato Social — 3ª alteração\", nunca o nome bruto do arquivo como scan001.pdf) — o arquivo guardado também recebe esse nome; e, se aparecerem no conteúdo, as datas de emissão e validade. " +
+        "Para cada arquivo informe: `arquivo` = nome do anexo exatamente como foi enviado; `tipo`; `nome` (OPCIONAL) só se o usuário pedir um nome ou se o nome do arquivo for claramente genérico (scan001, IMG_2031…); sem `nome`, o documento mantém o nome do arquivo e nada é renomeado — o usuário edita nome e categoria depois na tela; e, se aparecerem no conteúdo, as datas de emissão e validade. " +
         `Tipos: ${TIPOS_PARA_MODELO}; use \"avulso\" se nenhum servir.`,
       parameters: {
         type: "object",
@@ -293,11 +293,11 @@ export const FERRAMENTAS = [
               properties: {
                 arquivo: { type: "string", description: "Nome do anexo, como enviado." },
                 tipo: { type: "string", description: "Slug do tipo do documento." },
-                nome: { type: "string", description: "Nome correto do documento (descritivo, sem extensão). Preencha sempre; defina a partir do tipo e do conteúdo." },
+                nome: { type: "string", description: "Opcional. Nome do documento (sem extensão), só quando o usuário pedir ou o nome do arquivo for genérico." },
                 data_emissao: { type: "string", description: "aaaa-mm-dd (opcional)." },
                 data_validade: { type: "string", description: "aaaa-mm-dd (opcional; deixe vazio para a tela tentar ler do PDF)." },
               },
-              required: ["arquivo", "tipo", "nome"],
+              required: ["arquivo", "tipo"],
             },
           },
           motivo: { type: "string" },

@@ -25,13 +25,15 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
+import { CHECKLIST_DOCUMENTOS, GRUPOS_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
-import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, renomearDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
+import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, editarDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { comDownload } from "@/lib/format";
 
@@ -222,6 +224,7 @@ export function DocumentoAcoes({
   const [valor, setValor] = useState(dataValidade ?? "");
   const [renomeando, setRenomeando] = useState(false);
   const [novoNome, setNovoNome] = useState(nome);
+  const [novoTipo, setNovoTipo] = useState(tipo);
   const [substituindo, setSubstituindo] = useState(false);
   const [erroSubstituir, setErroSubstituir] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
@@ -277,14 +280,14 @@ export function DocumentoAcoes({
   }
 
   function salvarNome() {
-    const t = toast.loading("Renomeando…");
+    const t = toast.loading("Salvando…");
     startTransition(async () => {
       try {
-        await renomearDocumento(id, novoNome, empresa);
+        await editarDocumento(id, { nome: novoNome, tipo: novoTipo }, empresa);
         setRenomeando(false);
-        toast.success("Documento renomeado", { id: t });
+        toast.success("Documento atualizado", { id: t });
       } catch (e) {
-        toast.error("Não foi possível renomear", { id: t, description: e instanceof Error ? e.message : undefined });
+        toast.error("Não foi possível salvar", { id: t, description: e instanceof Error ? e.message : undefined });
       }
     });
   }
@@ -339,9 +342,9 @@ export function DocumentoAcoes({
             <RefreshCw className="size-4" />
             Substituir arquivo
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setNovoNome(nome); setRenomeando(true); }}>
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setNovoNome(nome); setNovoTipo(tipo); setRenomeando(true); }}>
             <Pencil className="size-4" />
-            Renomear
+            Editar nome e categoria
           </DropdownMenuItem>
           {!semValidade && (
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditando(true); }}>
@@ -389,19 +392,39 @@ export function DocumentoAcoes({
       <Dialog open={renomeando} onOpenChange={setRenomeando}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Renomear documento</DialogTitle>
+            <DialogTitle>Editar documento</DialogTitle>
             <DialogDescription>
-              Use para identificar melhor o documento (ex.: &ldquo;Balanço Patrimonial 2025&rdquo;).
+              Ajuste o nome e a categoria (ex.: &ldquo;Balanço Patrimonial 2025&rdquo;).
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`nome-${id}`}>Nome</Label>
-            <Input
-              id={`nome-${id}`}
-              value={novoNome}
-              onChange={(e) => setNovoNome(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") salvarNome(); }}
-            />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`nome-${id}`}>Nome</Label>
+              <Input
+                id={`nome-${id}`}
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") salvarNome(); }}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Categoria</Label>
+              <Select value={novoTipo} onValueChange={setNovoTipo}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {GRUPOS_DOCUMENTOS.map((g) => (
+                    <SelectGroup key={g.slug}>
+                      <SelectLabel>{g.titulo}</SelectLabel>
+                      {g.tipos.map((t) => <SelectItem key={t.slug} value={t.slug}>{t.nome}</SelectItem>)}
+                    </SelectGroup>
+                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Outros</SelectLabel>
+                    <SelectItem value={TIPO_AVULSO}>Avulso</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenomeando(false)} disabled={pendente}>
