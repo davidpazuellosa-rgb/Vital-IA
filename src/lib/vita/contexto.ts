@@ -30,8 +30,9 @@ export async function instrucoesVita(
   pagina: string,
   memoria: { config: ConfigVita; memorias: Memoria[]; avaliacoes?: Avaliacao[]; tela?: SnapshotTela | null; mapa?: EntradaMapa[] } = { config: { memoriaAtiva: false, memoriaAutomatica: false, aprenderFeedback: false, desativadas: [], mapaDesativados: [] }, memorias: [] },
   empresas: EmpresaSlug[] = ["vital-norte", "rm"],
+  anexosConversa: string[] = [],
 ): Promise<string> {
-  if (!empresas.includes("vital-norte")) return instrucoesSoRm(supabase, pagina, memoria);
+  if (!empresas.includes("vital-norte")) return instrucoesSoRm(supabase, pagina, memoria, anexosConversa);
   const { data: empresa } = await supabase
     .from("empresa")
     .select("razao_social, nome_fantasia, cnpj, porte, cnae_principal, municipio, uf")
@@ -91,6 +92,7 @@ export async function instrucoesVita(
     "- Para comparar um edital com o catálogo: detalhar_licitacao (itens) + consultar_dados em catalogo_itens; aponte correspondências, custo, preço de referência e se a margem mínima é atendida frente ao valor estimado.",
     "- Margem no catálogo = (preço − custo) / custo, a mesma conta da tela; use o campo margem_real_sobre_custo que vem na consulta. Para um preço de edital, calcule do mesmo jeito.",
     "",
+    ...instrucoesDeAnexos(anexosConversa),
     ...instrucoesDeMemoria(memoria.config, memoria.memorias),
     ...instrucoesDeAprendizado(memoria.config, memoria.avaliacoes ?? []),
     ...instrucoesDeTela(memoria.config, memoria.tela ?? null),
@@ -178,6 +180,7 @@ async function instrucoesSoRm(
   supabase: SupabaseClient,
   pagina: string,
   memoria: { config: ConfigVita; tela?: SnapshotTela | null },
+  anexosConversa: string[] = [],
 ): Promise<string> {
   const { data: empresa } = await supabase
     .from("rm_empresa")
@@ -222,8 +225,20 @@ async function instrucoesSoRm(
     "- Fora do seu alcance: emitir nota fiscal, gerar/assinar/enviar proposta, tokens e chaves.",
     "- Arquivos anexados no chat podem ser GUARDADOS em Documentos com `anexar_ao_acervo` (com aprovação): classifique cada um pelo tipo, leia emissão/validade no conteúdo quando houver e proponha o cartão. O nome é OPCIONAL: não renomeie por conta própria (só defina `nome` se o usuário pedir ou se o arquivo tiver nome genérico como scan001); o usuário pode editar nome e categoria depois, na tela, e você também pode com alterar_dados (nome e tipo). Nunca diga que não consegue enviar arquivos ao acervo e NUNCA ofereça preencher o diálogo da tela para o usuário anexar: se ele quer guardar arquivos e não há anexos na conversa, peça que anexe aqui no chat (clipe ou arrastar arquivos/pasta) e então use `anexar_ao_acervo`.",
     "",
+    ...instrucoesDeAnexos(anexosConversa),
     ...instrucoesDeTela(memoria.config, memoria.tela ?? null),
     "Tabelas:",
     descreverEsquema(["rm"]),
   ].join("\n");
+}
+
+/** Arquivos já anexados na conversa e o aviso de que recusas antigas sobre guardá-los no acervo não valem mais. */
+function instrucoesDeAnexos(nomes: string[]): string[] {
+  if (!nomes.length) return [];
+  return [
+    `Arquivos ANEXADOS nesta conversa (disponíveis agora): ${nomes.slice(0, 30).join("; ")}.`,
+    "- Para guardá-los em Documentos use `anexar_ao_acervo` (com aprovação; se o usuário tiver as duas empresas e não disse qual, pergunte). Não use a tela para enviar documentos.",
+    "- ATENÇÃO: se em mensagens anteriores desta conversa você afirmou que não consegue guardar arquivos no acervo, ou mandou o usuário fazer isso pela tela, isso está DESATUALIZADO — agora você consegue. Não repita a recusa: monte o pedido com `anexar_ao_acervo`.",
+    "",
+  ];
 }

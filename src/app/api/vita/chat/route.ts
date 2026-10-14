@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { blocoAnexos, lerAnexo, MAX_ANEXOS, MAX_BYTES_ANEXO, type AnexoEnviado, type AnexoLido } from "@/lib/vita/anexos";
 import { instrucoesVita } from "@/lib/vita/contexto";
 import { obterAcesso } from "@/lib/acesso";
+import { anexosDaConversa } from "@/lib/vita/acervo";
 import { executarFerramenta, ferramentasParaEmpresas, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { carregarAvaliacoesRecentes } from "@/lib/vita/feedback";
@@ -165,9 +166,11 @@ export async function POST(request: NextRequest) {
   const memorias = config.memoriaAtiva && temVitalNorte ? await carregarMemoriasAtivas(supabase) : [];
   const avaliacoes = config.aprenderFeedback && temVitalNorte ? await carregarAvaliacoesRecentes(supabase) : [];
   const mapa = temVitalNorte ? await carregarMapa(supabase, config.mapaDesativados) : [];
+  // Arquivos já anexados nesta conversa (inclui os desta mensagem): a Vita precisa saber que eles existem e podem ser guardados.
+  const nomesAnexos = [...new Set([...(await anexosDaConversa(supabase, conversaId)).values()].map((a) => a.nome).concat(anexos.map((a) => a.nome)))];
   const desativadas = new Set([...config.desativadas, ...(config.memoriaAtiva ? [] : FERRAMENTAS_DE_MEMORIA)]);
   const ferramentasAtivas = ferramentasParaEmpresas(empresas).filter((f) => !desativadas.has(f.function.name));
-  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, mapa, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) }, empresas);
+  const sistema = await instrucoesVita(supabase, String(corpo.pagina ?? ""), { config, memorias, avaliacoes, mapa, tela: desativadas.has("ver_pagina") ? null : sanitizarSnapshot(corpo.tela) }, empresas, nomesAnexos);
   const base: MensagemModelo[] = [{ role: "system", content: sistema }, ...historico];
 
   const ctx: ContextoFerramenta = { supabase, userId: user.id, empresas, vistas, conversaId };

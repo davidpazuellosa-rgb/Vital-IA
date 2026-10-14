@@ -28,7 +28,7 @@ const mimeDe = (nome: string) => (/\.pdf$/i.test(nome) ? "application/pdf" : /\.
 type AnexoDaConversa = { nome: string; path: string; tipo?: string };
 
 /** Anexos enviados nesta conversa (do mais recente para o mais antigo), por nome. */
-async function anexosDaConversa(supabase: SupabaseClient, conversaId: string): Promise<Map<string, AnexoDaConversa>> {
+export async function anexosDaConversa(supabase: SupabaseClient, conversaId: string): Promise<Map<string, AnexoDaConversa>> {
   const { data } = await supabase
     .from("vita_mensagens")
     .select("dados, created_at")
