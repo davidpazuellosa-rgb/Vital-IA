@@ -21,6 +21,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/app/login/actions";
+import type { EmpresaSlug } from "@/lib/empresas";
 
 const NAV_ITEMS = [
   { href: "/busca", label: "Busca", icon: Search },
@@ -54,7 +55,10 @@ function limparEstadoBusca() {
   }
 }
 
-export function AppSidebar({ userEmail }: { userEmail: string }) {
+export function AppSidebar({ userEmail, empresas }: { userEmail: string; empresas: EmpresaSlug[] }) {
+  const temVitalNorte = empresas.includes("vital-norte");
+  const temRm = empresas.includes("rm");
+  const navItens = NAV_ITEMS.filter((i) => temVitalNorte || i.href !== "/assinador-propostas");
   const pathname = usePathname();
   const iniciais = (userEmail.slice(0, 2) || "U").toUpperCase();
 
@@ -74,7 +78,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
+              {navItens.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
                     <Link href={item.href} onClick={limparEstadoBusca}>
@@ -86,6 +90,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
               ))}
 
               {/* Seção recolhível Vital Norte */}
+              {temVitalNorte && (
               <Collapsible defaultOpen className="group/vn">
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
@@ -111,8 +116,10 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+              )}
 
               {/* Seção recolhível RM */}
+              {temRm && (
               <Collapsible defaultOpen={pathname.startsWith("/rm")} className="group/rm">
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
@@ -138,6 +145,7 @@ export function AppSidebar({ userEmail }: { userEmail: string }) {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

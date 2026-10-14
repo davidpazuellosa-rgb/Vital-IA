@@ -1,6 +1,7 @@
 import { CheckCircle2, Download, ExternalLink, FileSignature, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { exigirEmpresa } from "@/lib/acesso";
 
 const ASSINADOR_URL = "https://sso.acesso.gov.br/login?client_id=assinador.iti.br&authorization_id=19eea711b3c";
 const ETAPAS = [
@@ -22,7 +23,8 @@ const ETAPAS = [
   },
 ];
 
-export default function AssinadorPropostasPage() {
+export default async function AssinadorPropostasPage() {
+  await exigirEmpresa("vital-norte");
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <div className="flex md:justify-end">

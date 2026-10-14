@@ -2,35 +2,31 @@ import Link from "next/link";
 import { Bell, Building2, FileText, FolderOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { obterAcesso, podeEmpresa } from "@/lib/acesso";
+import { listarUsuarios } from "@/lib/usuarios/actions";
+import { UsuariosClient } from "@/components/usuarios-client";
+import type { EmpresaSlug } from "@/lib/empresas";
 
-const CONFIGURACOES = [
-  {
-    titulo: "Dados da empresa",
-    href: "/vital-norte/dados",
-    icon: Building2,
-  },
-  {
-    titulo: "Documentos",
-    href: "/documentos",
-    icon: FolderOpen,
-  },
-  {
-    titulo: "Alertas",
-    href: "/vital-norte/alertas",
-    icon: Bell,
-  },
-  {
-    titulo: "Propostas",
-    href: "/vital-norte/dados",
-    icon: FileText,
-  },
+const CONFIGURACOES: { titulo: string; href: string; icon: typeof Building2; empresa: EmpresaSlug }[] = [
+  { titulo: "Dados da empresa", href: "/vital-norte/dados", icon: Building2, empresa: "vital-norte" },
+  { titulo: "Documentos", href: "/documentos", icon: FolderOpen, empresa: "vital-norte" },
+  { titulo: "Alertas", href: "/vital-norte/alertas", icon: Bell, empresa: "vital-norte" },
+  { titulo: "Propostas", href: "/vital-norte/dados", icon: FileText, empresa: "vital-norte" },
+  { titulo: "Dados da empresa RM", href: "/rm/dados", icon: Building2, empresa: "rm" },
+  { titulo: "Documentos RM", href: "/rm/documentos", icon: FolderOpen, empresa: "rm" },
 ];
 
-export default function ConfiguracoesPage() {
+export default async function ConfiguracoesPage() {
+  const acesso = await obterAcesso();
+  // Super admin gerencia os usuários; admin vê só os atalhos das empresas liberadas.
+  if (acesso?.cargo === "super_admin") {
+    return <UsuariosClient usuarios={await listarUsuarios()} meuId={acesso.userId} />;
+  }
+  const itens = CONFIGURACOES.filter((c) => podeEmpresa(acesso, c.empresa));
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {CONFIGURACOES.map((item) => (
+        {itens.map((item) => (
           <Card key={item.titulo} className="shadow-sm">
             <CardContent className="flex h-full flex-col gap-4">
               <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">

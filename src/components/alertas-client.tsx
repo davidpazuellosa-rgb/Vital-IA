@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -245,9 +246,8 @@ export function EmailConfig({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email_api_key">API key do Resend</Label>
-        <Input
+        <PasswordInput
           id="email_api_key"
-          type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={apiKeySalva ? "API key já salva — cole outra para trocar" : "Cole a API key do Resend"}
@@ -448,9 +448,8 @@ export function TelegramConfig({ chatId, botTokenConfigurado }: { chatId: string
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1.5">
           <Label htmlFor="telegram_bot_token">Token do bot</Label>
-          <Input
+          <PasswordInput
             id="telegram_bot_token"
-            type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder={tokenSalvo ? "Token já salvo — cole outro para trocar" : "Cole o token do bot"}

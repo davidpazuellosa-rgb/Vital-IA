@@ -1,22 +1,19 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { useActionState } from "react";
+import { Mail, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { signIn, signUp } from "./actions";
+import { signIn } from "./actions";
 
-type FormState = { error: string } | { success: string } | null;
+type FormState = { error: string } | null;
 
 export default function LoginPage() {
-  const [modo, setModo] = useState<"entrar" | "cadastrar">("entrar");
-  const [mostrarSenha, setMostrarSenha] = useState(false);
-  const action = modo === "entrar" ? signIn : signUp;
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    async (_prev, formData) => (await action(formData)) ?? null,
+    async (_prev, formData) => (await signIn(formData)) ?? null,
     null,
   );
 
@@ -46,25 +43,6 @@ export default function LoginPage() {
 
         <Card className="shadow-xl shadow-black/5">
           <CardContent className="pt-6">
-            {/* Abas segmentadas */}
-            <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-              {(["entrar", "cadastrar"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setModo(m)}
-                  className={cn(
-                    "rounded-md py-1.5 text-sm font-medium transition-colors",
-                    modo === m
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {m === "entrar" ? "Entrar" : "Cadastrar"}
-                </button>
-              ))}
-            </div>
-
             <form action={formAction} className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email">E-mail</Label>
@@ -83,29 +61,15 @@ export default function LoginPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={mostrarSenha ? "text" : "password"}
-                    required
-                    minLength={6}
-                    autoComplete={modo === "entrar" ? "current-password" : "new-password"}
-                    placeholder="••••••••"
-                    className="px-9"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setMostrarSenha((v) => !v)}
-                    aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                    aria-pressed={mostrarSenha}
-                    title={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                    className="absolute right-1.5 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    {mostrarSenha ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
+                <PasswordInput
+                  id="password"
+                  name="password"
+                  required
+                  minLength={6}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  leftIcon={<Lock />}
+                />
               </div>
 
               {state && "error" in state && (
@@ -113,15 +77,10 @@ export default function LoginPage() {
                   {state.error}
                 </p>
               )}
-              {state && "success" in state && (
-                <p className="rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
-                  {state.success}
-                </p>
-              )}
 
               <Button type="submit" disabled={pending} className="mt-1">
                 {pending && <Loader2 className="animate-spin" />}
-                {modo === "entrar" ? "Entrar" : "Criar conta"}
+                Entrar
               </Button>
             </form>
           </CardContent>
