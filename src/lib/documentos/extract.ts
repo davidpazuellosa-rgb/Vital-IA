@@ -15,11 +15,12 @@ function brParaIso(dia: string, mes: string, ano: string): string | null {
 }
 
 const RE_DATA = /(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{2,4})/g;
-const RE_DATA_ONE = /(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{2,4})/;
 // (?<!in) evita casar com "invalidará" / "inválido"; \b ancora no início da palavra
-const RE_VALIDADE = /(?<!in)\b(v[áa]lid[ao]\s*(?:at[ée]|:)?|validade|vencimento|vence|efic[áa]cia|expira(?:[çc][ãa]o)?)/i;
+const RE_VALIDADE = /(?<!in)\b(v[áa]lid[ao]\s*(?:at[ée]|:)?|validade|vencimento|vence|efic[áa]cia|vig[êe]ncia|expira(?:[çc][ãa]o)?)/i;
 // quão longe da palavra-chave ainda aceitamos a data de validade
-const JANELA_VALIDADE = 60;
+const JANELA_VALIDADE = 70;
+// o que pode ligar as duas datas de um período: "15/10/2026 a 13/11/2026", "de … até …", "… - …"
+const RE_LIGACAO_PERIODO = /^\s*(?:a|à|ao|at[ée]|e|-|–|—)\s*$/i;
 
 export type DatasExtraidas = {
   dataValidade: string | null;
@@ -42,6 +43,11 @@ export async function extrairDatasDoPdf(buffer: ArrayBuffer): Promise<DatasExtra
     return { dataValidade: null, dataEmissao: null };
   }
 
+  return extrairDatasDoTexto(texto);
+}
+
+/** Datas de validade/emissão a partir do TEXTO de um documento (separado do PDF para poder ser testado). */
+export function extrairDatasDoTexto(texto: string): DatasExtraidas {
   if (!texto.trim()) return { dataValidade: null, dataEmissao: null };
 
   type Achado = { iso: string; index: number };
@@ -54,11 +60,22 @@ export async function extrairDatasDoPdf(buffer: ArrayBuffer): Promise<DatasExtra
 
   // 1) Data logo após uma palavra-chave de validade (dentro de uma janela curta)
   let validade: string | null = null;
+  let inicioDoPeriodo: string | null = null;
   const kw = RE_VALIDADE.exec(texto);
   if (kw) {
     const janela = texto.slice(kw.index, kw.index + JANELA_VALIDADE);
-    const m = RE_DATA_ONE.exec(janela);
-    if (m) validade = brParaIso(m[1], m[2], m[3]);
+    const encontradas = [...janela.matchAll(RE_DATA)];
+    const primeira = encontradas[0];
+    const segunda = encontradas[1];
+    if (primeira) {
+      validade = brParaIso(primeira[1], primeira[2], primeira[3]);
+      // Período ("Validade: 15/10/2026 a 13/11/2026"): a primeira data é o INÍCIO; a validade é a última.
+      if (segunda && validade) {
+        const entre = janela.slice((primeira.index ?? 0) + primeira[0].length, segunda.index ?? 0);
+        const fim = brParaIso(segunda[1], segunda[2], segunda[3]);
+        if (fim && fim > validade && RE_LIGACAO_PERIODO.test(entre)) { inicioDoPeriodo = validade; validade = fim; }
+      }
+    }
   }
 
   // 2) Fallback: a data mais distante (validade costuma ser a maior do documento)
@@ -66,8 +83,8 @@ export async function extrairDatasDoPdf(buffer: ArrayBuffer): Promise<DatasExtra
     validade = [...datas].sort((a, b) => b.iso.localeCompare(a.iso))[0]?.iso ?? null;
   }
 
-  // Emissão: a maior data estritamente anterior à validade (ignora datas espúrias antigas)
-  const emissao =
+  // Emissão: o início do período, se houve; senão a maior data estritamente anterior à validade (ignora datas espúrias antigas)
+  const emissao = inicioDoPeriodo ?? 
     datas
       .map((d) => d.iso)
       .filter((iso) => validade != null && iso < validade)
