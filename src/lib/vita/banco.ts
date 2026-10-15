@@ -167,7 +167,7 @@ function encurtar(linha: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** consultar_dados: SELECT estruturado (sem SQL livre), com a sessão do usuário. */
-export async function consultarDados(args: Record<string, unknown>, supabase: SupabaseClient, empresas: EmpresaSlug[] = TODAS_EMPRESAS): Promise<string> {
+export async function consultarDados(args: Record<string, unknown>, supabase: SupabaseClient, empresas: EmpresaSlug[] = TODAS_EMPRESAS, limiteMax = 100): Promise<string> {
   const tabela = String(args.tabela ?? "");
   const regra = TABELAS[tabela];
   if (!regra || !tabelaVisivel(tabela, empresas)) return json({ erro: `Tabela não disponível. Use: ${tabelasVisiveis(empresas).join(", ")}` });
@@ -193,7 +193,7 @@ export async function consultarDados(args: Record<string, unknown>, supabase: Su
   }
   const ordenar = String(args.ordenar_por ?? "");
   if (ordenar && regra.leitura.includes(ordenar)) q = q.order(ordenar, { ascending: args.decrescente !== true, nullsFirst: false });
-  const limite = Math.min(100, Math.max(1, Number(args.limite) || 30));
+  const limite = Math.min(limiteMax, Math.max(1, Number(args.limite) || 30));
   const { data, error, count } = await q.limit(limite);
   if (error) return json({ erro: error.message });
   let linhas = (data ?? []).map((l) => encurtar(l as unknown as Record<string, unknown>));

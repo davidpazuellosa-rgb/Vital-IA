@@ -9,6 +9,7 @@ import { consultarDados, NOMES_TABELAS, proporAlteracao, TABELAS_ALTERAVEIS, tab
 import { EMPRESAS, ehEmpresaSlug, type EmpresaSlug } from "@/lib/empresas";
 import { empresaAlvo } from "./empresa-alvo";
 import { proporAnexarAoAcervo, TIPOS_PARA_MODELO } from "./acervo";
+import { gerarArquivo } from "./gerar-arquivo";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
@@ -309,6 +310,57 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "gerar_arquivo",
+      description:
+        "GERA um arquivo para o usuário BAIXAR: planilha Excel (xlsx), PDF ou documento Word (docx). Só leitura: não altera nada no sistema e não precisa de aprovação. " +
+        "Use quando ele pedir planilha, relatório, PDF, Word/Docs, exportação ou \"gere/monte/baixar\". " +
+        "Para listas do banco use `fonte_dados` (mesmos campos do consultar_dados: tabela, colunas, filtros, ordenar_por, limite até 5.000): o servidor traz as linhas, você não precisa redigitá-las. " +
+        "Para dados que você já tem na conversa (ex.: resultados de buscar_licitacoes) informe `colunas` e `linhas`. " +
+        "xlsx: use `abas` (cada aba é uma tabela). pdf/docx: use `blocos` na ordem desejada (titulo, subtitulo, paragrafo, lista ou tabela). PDF/Word aceitam até 500 linhas por tabela (para mais, planilha). " +
+        "Depois mostre ao usuário o link de download que a ferramenta devolver, exatamente como veio.",
+      parameters: {
+        type: "object",
+        properties: {
+          formato: { type: "string", enum: ["xlsx", "pdf", "docx"] },
+          titulo: { type: "string", description: "Título do documento (vira o nome do arquivo)." },
+          abas: {
+            type: "array",
+            description: "Planilha: uma aba por tabela.",
+            items: {
+              type: "object",
+              properties: {
+                nome: { type: "string" },
+                colunas: { type: "array", items: { type: "string" }, description: "Títulos das colunas (quando não usar fonte_dados)." },
+                linhas: { type: "array", items: { type: "array", items: {} }, description: "Cada linha é uma lista de valores na ordem das colunas." },
+                fonte_dados: { type: "object", description: "Traz as linhas do banco: { tabela, colunas?, filtros?, ordenar_por?, decrescente?, limite? } (igual ao consultar_dados)." },
+              },
+            },
+          },
+          blocos: {
+            type: "array",
+            description: "PDF/Word: conteúdo em ordem.",
+            items: {
+              type: "object",
+              properties: {
+                tipo: { type: "string", enum: ["titulo", "subtitulo", "paragrafo", "lista", "tabela"] },
+                texto: { type: "string", description: "Para titulo, subtitulo e paragrafo." },
+                itens: { type: "array", items: { type: "string" }, description: "Para lista." },
+                titulo: { type: "string", description: "Para tabela: título acima dela." },
+                colunas: { type: "array", items: { type: "string" } },
+                linhas: { type: "array", items: { type: "array", items: {} } },
+                fonte_dados: { type: "object", description: "Igual ao das abas." },
+              },
+              required: ["tipo"],
+            },
+          },
+        },
+        required: ["formato", "titulo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "ler_documento",
       description:
         "Lê o CONTEÚDO (texto) de um arquivo guardado no sistema: do acervo da empresa (origem \"documentos\"; da RM também é origem \"documentos\" com empresa=rm) ou de clientes/contratações da Vital Norte (origem \"cliente_documentos\"). " +
@@ -538,6 +590,7 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   rascunho_nota_fiscal: "Preparando rascunho da nota fiscal",
   preencher_proposta: "Preparando o rascunho da proposta",
   anexar_ao_acervo: "Preparando o envio aos Documentos",
+  gerar_arquivo: "Gerando o arquivo",
 };
 
 /* ------------------------------------------------------------------------------------------- */
@@ -866,6 +919,7 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "rascunho_nota_fiscal": return await proporNotaFiscal(args, ctx.supabase);
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
       case "anexar_ao_acervo": return await proporAnexarAoAcervo(args, ctx);
+      case "gerar_arquivo": return await gerarArquivo(args, ctx);
       case "onde_encontrar": return { paraModelo: ondeEncontrar(args, await carregarMapa(ctx.supabase)) };
       case "buscar_informacao": return { paraModelo: await buscarInformacao(args, ctx) };
       case "pesquisar_documentos": return { paraModelo: await pesquisarDocumentos(args, ctx) };

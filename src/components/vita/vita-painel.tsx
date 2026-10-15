@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { FileArchive,
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
-  Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, MousePointerClick, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
+  Download, Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, MousePointerClick, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1179,7 +1179,11 @@ function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: bo
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ href, children }) =>
-            linkInterno(href) ? (
+            href?.startsWith("/api/vita/arquivo") ? (
+              <a href={href} download className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/15">
+                <Download className="size-3.5" />{children}
+              </a>
+            ) : linkInterno(href) ? (
               <Link
                 href={href}
                 onClick={onNavegar}

@@ -32,6 +32,7 @@ export const INFO_FERRAMENTAS: InfoFerramenta[] = [
   { nome: "remover_licitacao_salva", titulo: "Remover licitação salva", tipo: "aprovacao", descricao: "Propõe remover uma licitação (e o rascunho de proposta dela)." },
   { nome: "alterar_dados", titulo: "Alterar dados", tipo: "aprovacao", descricao: "Propõe cadastrar, alterar ou remover em catálogo, clientes, contratações, alertas, empresa e outros." },
   { nome: "rascunho_nota_fiscal", titulo: "Rascunho de nota fiscal", tipo: "aprovacao", descricao: "Propõe criar ou editar rascunhos de NF-e (a emissão continua só com você)." },
+  { nome: "gerar_arquivo", titulo: "Gerar planilha, PDF ou Word", tipo: "consulta", descricao: "Monta um arquivo Excel, PDF ou Word para você baixar (listas do sistema, resultados de busca, relatórios). Só leitura: não altera nada." },
   { nome: "anexar_ao_acervo", titulo: "Guardar anexos em Documentos", tipo: "aprovacao", descricao: "Propõe guardar no acervo de Documentos (Vital Norte ou RM) os arquivos anexados no chat, com tipo e validade." },
   { nome: "preencher_proposta", titulo: "Preencher proposta", tipo: "aprovacao", descricao: "Propõe preencher marca, preço e itens do rascunho de uma proposta." },
   { nome: "ver_pagina", titulo: "Ver a minha tela", tipo: "tela", descricao: "A Vita enxerga o texto e os controles da página que você está vendo (enviado junto de cada mensagem). Desligada, ela não vê a tela." },
