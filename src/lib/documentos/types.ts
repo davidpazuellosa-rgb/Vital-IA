@@ -24,6 +24,8 @@ export type GrupoDocumentos = {
   titulo: string;
   descricao: string;
   tipos: TipoDocumento[];
+  /** "Outros" do grupo: aceita quantos documentos for preciso e não conta no checklist (nunca aparece como pendente). */
+  extra: TipoDocumento;
 };
 
 export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
@@ -38,6 +40,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "estadual", nome: "Certidão Estadual", descricao: "Regularidade fiscal estadual" },
       { slug: "municipal", nome: "Certidão Municipal", descricao: "Regularidade fiscal municipal" },
     ],
+    extra: { slug: "fiscal_outros", nome: "Outras certidões", descricao: "Outras certidões e comprovantes fiscais ou trabalhistas" },
   },
   {
     slug: "juridica",
@@ -49,6 +52,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "inscricao_estadual", nome: "Inscrição Estadual", descricao: "Comprovante de inscrição estadual" },
       { slug: "inscricao_municipal", nome: "Inscrição Municipal", descricao: "Comprovante de inscrição municipal" },
     ],
+    extra: { slug: "juridica_outros", nome: "Outros — Habilitação Jurídica", descricao: "Outros documentos de habilitação jurídica" },
   },
   {
     slug: "economico_financeira",
@@ -60,6 +64,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "conta_titularidade_1", nome: "Titularidade de Conta — Conta 1", descricao: "Comprovante de titularidade de conta bancária" },
       { slug: "conta_titularidade_2", nome: "Titularidade de Conta — Conta 2", descricao: "Comprovante de titularidade de conta bancária" },
     ],
+    extra: { slug: "economico_outros", nome: "Outros — Econômico-Financeira", descricao: "Outros documentos econômico-financeiros" },
   },
   {
     slug: "tecnica",
@@ -68,6 +73,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     tipos: [
       { slug: "atestado_capacidade_tecnica", nome: "Atestado de Capacidade Técnica", descricao: "Atestado de capacidade técnica emitido por cliente" },
     ],
+    extra: { slug: "tecnica_outros", nome: "Outros atestados e comprovações técnicas", descricao: "Outros atestados e comprovações de capacidade técnica" },
   },
   {
     slug: "socios",
@@ -78,6 +84,7 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "socio_identidade_ruy", nome: "Identidade e CPF — Ruy", descricao: "RG e CPF do sócio Ruy" },
       { slug: "socio_residencia", nome: "Comprovante de Residência", descricao: "Comprovante de endereço dos sócios" },
     ],
+    extra: { slug: "socios_outros", nome: "Outros — Sócios", descricao: "Outros documentos de sócios e representantes" },
   },
   {
     slug: "declaracoes",
@@ -88,7 +95,10 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
       { slug: "decl_areas_atuacao", nome: "Áreas de Atuação", descricao: "Declaração de áreas de atuação" },
       { slug: "decl_nao_emprega_menor", nome: "Não emprega menor", descricao: "Declaração de que não emprega menor de idade (salvo aprendiz)" },
       { slug: "decl_nepotismo", nome: "Negativa de Nepotismo", descricao: "Declaração negativa de nepotismo" },
+      { slug: "decl_equidade", nome: "Equidade entre homens e mulheres", descricao: "Declaração de equidade entre homens e mulheres (desempate, art. 60, III, Lei 14.133)" },
+      { slug: "decl_integridade", nome: "Programa de Integridade", descricao: "Declaração de programa de integridade (desempate, art. 60, IV, Lei 14.133)" },
     ],
+    extra: { slug: "decl_outras", nome: "Outras declarações", descricao: "Qualquer outra declaração (quantas forem precisas)" },
   },
   {
     slug: "modelo_proposta",
@@ -97,11 +107,18 @@ export const GRUPOS_DOCUMENTOS: GrupoDocumentos[] = [
     tipos: [
       { slug: "modelo_proposta", nome: "Modelo de Proposta", descricao: "Proposta vencedora usada como modelo" },
     ],
+    extra: { slug: "modelo_proposta_outros", nome: "Outros modelos de proposta", descricao: "Outros modelos de proposta" },
   },
 ];
 
 /** Lista achatada de todos os tipos do checklist (para selects e contagens). */
 export const CHECKLIST_DOCUMENTOS: TipoDocumento[] = GRUPOS_DOCUMENTOS.flatMap((g) => g.tipos);
+
+/** Checklist + os "Outros" de cada grupo: tudo o que um documento pode ser (selects, validação, nomes). */
+export const TODOS_TIPOS: TipoDocumento[] = GRUPOS_DOCUMENTOS.flatMap((g) => [...g.tipos, g.extra]);
+
+/** Todos os tipos que pertencem a um grupo (checklist + "outros"). */
+export const tiposDoGrupo = (g: GrupoDocumentos): string[] => [...g.tipos.map((t) => t.slug), g.extra.slug];
 
 export const TIPO_AVULSO = "avulso";
 
@@ -122,7 +139,16 @@ export const TIPOS_SEM_VALIDADE = new Set([
   "decl_areas_atuacao",
   "decl_nao_emprega_menor",
   "decl_nepotismo",
+  "decl_equidade",
+  "decl_integridade",
   "modelo_proposta",
+  // "Outros" de cada grupo (menos as certidões fiscais, que têm validade)
+  "juridica_outros",
+  "economico_outros",
+  "tecnica_outros",
+  "socios_outros",
+  "decl_outras",
+  "modelo_proposta_outros",
 ]);
 
 export function tipoSemValidade(slug: string): boolean {
@@ -130,7 +156,7 @@ export function tipoSemValidade(slug: string): boolean {
 }
 
 const CHECKLIST_NOMES: Record<string, string> = Object.fromEntries(
-  CHECKLIST_DOCUMENTOS.map((t) => [t.slug, t.nome]),
+  TODOS_TIPOS.map((t) => [t.slug, t.nome]),
 );
 
 export function nomeTipo(slug: string): string {

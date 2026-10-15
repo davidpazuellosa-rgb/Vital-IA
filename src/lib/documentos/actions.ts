@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { extrairDatasDoPdf } from "./extract";
-import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, tipoSemValidade } from "./types";
+import { TIPO_AVULSO, TODOS_TIPOS, tipoSemValidade } from "./types";
 
 const BUCKET = "documentos";
 
@@ -206,7 +206,7 @@ export async function editarDocumento(id: string, campos: { nome?: string; tipo?
     alteracoes.nome = limpo;
   }
   if (campos.tipo !== undefined) {
-    if (campos.tipo !== TIPO_AVULSO && !CHECKLIST_DOCUMENTOS.some((t) => t.slug === campos.tipo)) throw new Error("Categoria inválida.");
+    if (campos.tipo !== TIPO_AVULSO && !TODOS_TIPOS.some((t) => t.slug === campos.tipo)) throw new Error("Categoria inválida.");
     alteracoes.tipo = campos.tipo;
   }
   if (!Object.keys(alteracoes).length) return;

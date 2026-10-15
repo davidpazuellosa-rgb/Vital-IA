@@ -7,6 +7,7 @@ import {
   CHECKLIST_DOCUMENTOS,
   GRUPOS_DOCUMENTOS,
   TIPO_AVULSO,
+  TODOS_TIPOS,
   avaliarValidade,
   nomeTipo,
   tipoSemValidade,
@@ -38,12 +39,12 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
     }),
   );
 
-  // Documento mais recente por tipo do checklist
-  const porTipo = new Map<string, Documento>();
-  for (const d of documentos) {
-    if (!porTipo.has(d.tipo)) porTipo.set(d.tipo, d);
-  }
-  const avulsos = documentos.filter((d) => d.tipo === TIPO_AVULSO);
+  // TODOS os documentos de cada tipo (podem ser vários; o mais recente vem primeiro)
+  const porTipo = new Map<string, Documento[]>();
+  for (const d of documentos) porTipo.set(d.tipo, [...(porTipo.get(d.tipo) ?? []), d]);
+  // Avulsos e documentos de tipo desconhecido (nunca somem da tela)
+  const conhecidos = new Set(TODOS_TIPOS.map((t) => t.slug));
+  const avulsos = documentos.filter((d) => d.tipo === TIPO_AVULSO || !conhecidos.has(d.tipo));
 
   const totalChecklist = CHECKLIST_DOCUMENTOS.length;
   const enviados = CHECKLIST_DOCUMENTOS.filter((t) => porTipo.has(t.slug)).length;
@@ -71,23 +72,30 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
         </h2>
         {GRUPOS_DOCUMENTOS.map((grupo) => {
           const enviadosGrupo = grupo.tipos.filter((t) => porTipo.has(t.slug)).length;
+          const extras = porTipo.get(grupo.extra.slug) ?? [];
+          const arquivosGrupo = [...grupo.tipos.map((t) => t.slug), grupo.extra.slug].reduce((s, t) => s + (porTipo.get(t)?.length ?? 0), 0);
           return (
             <Grupo
               key={grupo.slug}
               titulo={grupo.titulo}
               enviados={enviadosGrupo}
               total={grupo.tipos.length}
+              arquivos={arquivosGrupo}
               slug={grupo.slug}
               empresa={empresa}
             >
               {grupo.tipos.map((tipo) => {
-                const doc = porTipo.get(tipo.slug);
-                return doc ? (
-                  <LinhaDocumento key={tipo.slug} doc={doc} url={urls.get(doc.id) ?? null} empresa={empresa} />
+                const docsDoTipo = porTipo.get(tipo.slug) ?? [];
+                return docsDoTipo.length ? (
+                  docsDoTipo.map((doc) => <LinhaDocumento key={doc.id} doc={doc} url={urls.get(doc.id) ?? null} empresa={empresa} />)
                 ) : (
                   <LinhaPendente key={tipo.slug} tipo={tipo.slug} nome={tipo.nome} empresa={empresa} />
                 );
               })}
+              {extras.map((doc) => <LinhaDocumento key={doc.id} doc={doc} url={urls.get(doc.id) ?? null} empresa={empresa} />)}
+              <div className="flex justify-end">
+                <UploadDocumento empresa={empresa} tipoFixo={grupo.extra.slug} nomeSugerido="" variant="outline" size="sm" label={`Adicionar em ${grupo.titulo}`} />
+              </div>
             </Grupo>
           );
         })}
@@ -114,6 +122,7 @@ function Grupo({
   titulo,
   enviados,
   total,
+  arquivos,
   slug,
   empresa,
   children,
@@ -121,6 +130,8 @@ function Grupo({
   titulo: string;
   enviados: number;
   total?: number;
+  /** Quantos arquivos há no grupo (pode passar do total de tipos: um tipo aceita vários). */
+  arquivos?: number;
   slug?: string;
   empresa?: EmpresaSlug;
   children: React.ReactNode;
@@ -140,6 +151,9 @@ function Grupo({
         >
           {total != null ? `${enviados}/${total}` : enviados}
         </Badge>
+        {arquivos != null && arquivos > enviados && (
+          <Badge variant="outline" className="shrink-0 font-normal tabular-nums text-muted-foreground">{arquivos} arquivos</Badge>
+        )}
       </summary>
       <div className="flex flex-col gap-2 border-t px-3 py-3">{children}</div>
     </details>

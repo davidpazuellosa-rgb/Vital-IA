@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { zipSync } from "fflate";
 import { createClient } from "@/lib/supabase/server";
-import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, type Documento } from "@/lib/documentos/types";
+import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, tiposDoGrupo, type Documento } from "@/lib/documentos/types";
 import { configEmpresa } from "@/lib/empresas";
 
 /**
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const cfg = configEmpresa(request.nextUrl.searchParams.get("empresa"));
   const grupo = GRUPOS_DOCUMENTOS.find((g) => g.slug === slug);
   // Grupo do checklist → seus tipos; "avulso" → documentos fora do checklist.
-  const tipos = grupo ? grupo.tipos.map((t) => t.slug) : slug === TIPO_AVULSO ? [TIPO_AVULSO] : null;
+  const tipos = grupo ? tiposDoGrupo(grupo) : slug === TIPO_AVULSO ? [TIPO_AVULSO] : null;
   if (!tipos) return new Response("Grupo não encontrado.", { status: 400 });
   const nomeZip = `${cfg.slug === "rm" ? "rm-" : ""}${grupo ? grupo.slug : "avulsos"}`;
 

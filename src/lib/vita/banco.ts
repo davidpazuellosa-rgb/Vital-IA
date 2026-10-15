@@ -4,6 +4,7 @@ import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { ETAPAS_LICITACAO } from "@/lib/licitacoes/types";
 import type { EmpresaSlug } from "@/lib/empresas";
+import { TODOS_TIPOS, GRUPOS_DOCUMENTOS } from "@/lib/documentos/types";
 import type { AcaoProposta, DetalheAcao } from "./ferramentas";
 
 /* ---------------------------------------------------------------------------------------------
@@ -40,7 +41,7 @@ export const TABELAS: Record<string, RegraTabela> = {
     escopo: "empresa", chave: "user_id", pagina: "/vital-norte/dados",
   },
   documentos: {
-    descricao: "Acervo de documentos de habilitação (certidões etc.) com validade. O arquivo é lido com ler_documento.",
+    descricao: "Acervo de documentos de habilitação (certidões etc.) com validade. O arquivo é lido com ler_documento. O `tipo` precisa ser um tipo existente de um grupo da tela (ou "avulso"); cada grupo aceita quantos documentos for preciso (use o "outros" do grupo quando nenhum tipo servir).",
     leitura: ["id", "tipo", "nome", "arquivo_nome", "data_emissao", "data_validade", "validade_automatica", "created_at"],
     escrita: ["nome", "tipo", "data_emissao", "data_validade"],
     operacoes: ["atualizar"],
@@ -229,6 +230,10 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
   if (base(tabela) === "empresa") {
     for (const [k, v] of Object.entries(dados)) dados[k] = k === "data_abertura" ? (txtOuNulo(v)) : String(v ?? "").trim();
     if (typeof dados.uf === "string") dados.uf = dados.uf.toUpperCase().slice(0, 2);
+  }
+  if (base(tabela) === "documentos" && "tipo" in dados && dados.tipo !== "avulso" && !TODOS_TIPOS.some((t) => t.slug === dados.tipo)) {
+    // Tipo inventado não aparece em nenhum grupo da tela: só vale um tipo existente.
+    throw new Error(`Tipo de documento inválido: "${String(dados.tipo)}". Tipos por grupo: ${GRUPOS_DOCUMENTOS.map((g) => `${g.titulo}: ${[...g.tipos, g.extra].map((t) => t.slug).join(", ")}`).join(" | ")}; ou "avulso". Cada grupo aceita quantos documentos for preciso (use o "outros" do grupo quando nenhum tipo servir).`);
   }
   if (tabela === "saved_licitacoes" && "etapa" in dados && !ETAPAS_LICITACAO.some((e) => e.slug === dados.etapa)) {
     throw new Error(`Etapa inválida. Use: ${ETAPAS_LICITACAO.map((e) => e.slug).join(", ")}.`);

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { registrarDocumento } from "@/lib/documentos/actions";
-import { CHECKLIST_DOCUMENTOS, TIPO_AVULSO, nomeTipo } from "@/lib/documentos/types";
+import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, TODOS_TIPOS, nomeTipo } from "@/lib/documentos/types";
 import { configEmpresa } from "@/lib/empresas";
 import { empresaAlvo } from "./empresa-alvo";
 import type { ContextoFerramenta, ResultadoFerramenta } from "./ferramentas";
@@ -15,9 +15,10 @@ import type { ContextoFerramenta, ResultadoFerramenta } from "./ferramentas";
 const json = (v: unknown) => JSON.stringify(v);
 const MAX_ARQUIVOS = 20;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
-const TIPOS_VALIDOS = new Set(CHECKLIST_DOCUMENTOS.map((t) => t.slug));
+const TIPOS_VALIDOS = new Set(TODOS_TIPOS.map((t) => t.slug));
 
-export const TIPOS_PARA_MODELO = CHECKLIST_DOCUMENTOS.map((t) => `${t.slug} (${t.nome})`).join("; ");
+/** Lista de tipos por grupo para o modelo: cada grupo aceita quantos documentos forem precisos; o "outros" do grupo serve para o que não tem tipo próprio. */
+export const TIPOS_PARA_MODELO = GRUPOS_DOCUMENTOS.map((g) => `${g.titulo}: ${[...g.tipos, g.extra].map((t) => `${t.slug} (${t.nome})`).join(", ")}`).join(" | ");
 
 const sanitizar = (nome: string) => nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-120);
 /** Nome de exibição limpo: sem barras nem caracteres de controle, no máximo 100 caracteres. */

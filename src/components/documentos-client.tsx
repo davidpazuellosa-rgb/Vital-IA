@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CHECKLIST_DOCUMENTOS, GRUPOS_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
+import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, editarDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
@@ -164,10 +164,11 @@ export function UploadDocumento({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={TIPO_AVULSO}>Avulso / outro</SelectItem>
-                  {CHECKLIST_DOCUMENTOS.map((t) => (
-                    <SelectItem key={t.slug} value={t.slug}>
-                      {t.nome}
-                    </SelectItem>
+                  {GRUPOS_DOCUMENTOS.map((g) => (
+                    <SelectGroup key={g.slug}>
+                      <SelectLabel>{g.titulo}</SelectLabel>
+                      {[...g.tipos, g.extra].map((t) => <SelectItem key={t.slug} value={t.slug}>{t.nome}</SelectItem>)}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
@@ -415,7 +416,7 @@ export function DocumentoAcoes({
                   {GRUPOS_DOCUMENTOS.map((g) => (
                     <SelectGroup key={g.slug}>
                       <SelectLabel>{g.titulo}</SelectLabel>
-                      {g.tipos.map((t) => <SelectItem key={t.slug} value={t.slug}>{t.nome}</SelectItem>)}
+                      {[...g.tipos, g.extra].map((t) => <SelectItem key={t.slug} value={t.slug}>{t.nome}</SelectItem>)}
                     </SelectGroup>
                   ))}
                   <SelectGroup>
