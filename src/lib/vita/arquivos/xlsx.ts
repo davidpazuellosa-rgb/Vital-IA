@@ -51,26 +51,63 @@ const ESTILOS =
   `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 
-export function gerarXlsx(abas: Array<{ nome: string; tabela: Tabela }>): Uint8Array {
-  if (!abas.length) throw new Error("Nenhuma tabela para a planilha.");
+export type ImagemGrafico = { titulo: string; png: Uint8Array; largura: number; altura: number };
+
+/** Aba "Gráficos": cada gráfico é uma imagem fixa com o título numa célula acima. */
+function abaGraficos(graficos: ImagemGrafico[]): { sheet: string; drawing: string; drawingRels: string } {
+  const LARG_PX = 760;
+  const alturas = graficos.map((g) => Math.round((LARG_PX * g.altura) / g.largura));
+  const linhasPor = graficos.map((_, i) => Math.ceil(alturas[i] / 20) + 3);
+  let inicio = 0;
+  const comeco = linhasPor.map((l) => { const r = inicio; inicio += l; return r; });
+  const titulos = graficos.map((g, i) => `<row r="${comeco[i] + 1}"><c r="A${comeco[i] + 1}" s="1" t="inlineStr"><is><t xml:space="preserve">${escaparXml(g.titulo || `Gráfico ${i + 1}`)}</t></is></c></row>`).join("");
+  const sheet = `${XML}<worksheet xmlns="${NS}" xmlns:r="${REL}"><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><cols><col min="1" max="1" width="60" customWidth="1"/></cols><sheetData>${titulos}</sheetData><drawing r:id="rId1"/></worksheet>`;
+  const ancoras = graficos.map((_, i) => {
+    const cx = LARG_PX * 9525, cy = alturas[i] * 9525;
+    return (
+      `<xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${comeco[i] + 1}</xdr:row><xdr:rowOff>60000</xdr:rowOff></xdr:from><xdr:ext cx="${cx}" cy="${cy}"/>` +
+      `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${i + 2}" name="Gráfico ${i + 1}" descr="${escaparXml(graficos[i].titulo)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+      `<xdr:blipFill><a:blip r:embed="rId${i + 1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+      `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`
+    );
+  }).join("");
+  const drawing = `${XML}<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="${REL}">${ancoras}</xdr:wsDr>`;
+  const drawingRels = `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${graficos.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL}/image" Target="../media/grafico${i + 1}.png"/>`).join("")}</Relationships>`;
+  return { sheet, drawing, drawingRels };
+}
+
+export function gerarXlsx(abas: Array<{ nome: string; tabela: Tabela }>, graficos: ImagemGrafico[] = []): Uint8Array {
+  if (!abas.length && !graficos.length) throw new Error("Nada para a planilha.");
   const usados = new Set<string>();
   const nomes = abas.map((a) => nomeAba(a.nome, usados));
+  const temGraficos = graficos.length > 0;
+  if (temGraficos) nomes.push(nomeAba("Gráficos", usados));
+  const total = nomes.length; // abas de dados + aba de gráficos
   const arquivos: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(
-      `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
+      `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${temGraficos ? '<Default Extension="png" ContentType="image/png"/>' : ""}` +
       `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
-      abas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") +
+      nomes.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") +
+      (temGraficos ? `<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>` : "") +
       `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
     ),
     "_rels/.rels": strToU8(`${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
     "xl/workbook.xml": strToU8(`${XML}<workbook xmlns="${NS}" xmlns:r="${REL}"><sheets>${nomes.map((n, i) => `<sheet name="${escaparXml(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`),
     "xl/_rels/workbook.xml.rels": strToU8(
       `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-      abas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("") +
-      `<Relationship Id="rId${abas.length + 1}" Type="${REL}/styles" Target="styles.xml"/></Relationships>`,
+      nomes.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("") +
+      `<Relationship Id="rId${total + 1}" Type="${REL}/styles" Target="styles.xml"/></Relationships>`,
     ),
     "xl/styles.xml": strToU8(ESTILOS),
   };
   abas.forEach((a, i) => { arquivos[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(xmlAba(a.tabela)); });
+  if (temGraficos) {
+    const g = abaGraficos(graficos);
+    arquivos[`xl/worksheets/sheet${total}.xml`] = strToU8(g.sheet);
+    arquivos[`xl/worksheets/_rels/sheet${total}.xml.rels`] = strToU8(`${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+    arquivos["xl/drawings/drawing1.xml"] = strToU8(g.drawing);
+    arquivos["xl/drawings/_rels/drawing1.xml.rels"] = strToU8(g.drawingRels);
+    graficos.forEach((im, i) => { arquivos[`xl/media/grafico${i + 1}.png`] = im.png; });
+  }
   return zipSync(arquivos, { level: 6 });
 }

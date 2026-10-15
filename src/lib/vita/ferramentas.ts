@@ -10,6 +10,8 @@ import { EMPRESAS, ehEmpresaSlug, type EmpresaSlug } from "@/lib/empresas";
 import { empresaAlvo } from "./empresa-alvo";
 import { proporAnexarAoAcervo, TIPOS_PARA_MODELO } from "./acervo";
 import { gerarArquivo } from "./gerar-arquivo";
+import { resolverGrafico } from "./graficos/resolver";
+import { TIPOS_GRAFICO, type GraficoSpec } from "./graficos/tipos";
 import { manualDoSistema, TOPICOS_MANUAL } from "./manual";
 import { proporNotaFiscal, proporProposta } from "./rascunhos";
 import { esquecer, memorizar } from "./memoria";
@@ -45,13 +47,15 @@ export type ContextoFerramenta = {
   empresas?: EmpresaSlug[];
   /** Licitações vistas na conversa, por nº de controle (persistido em vita_conversas.dados). */
   vistas: Record<string, UnifiedLicitacao>;
+  /** Gráficos criados nesta resposta (para o gerar_arquivo reaproveitar pelo grafico_id). */
+  graficos?: Map<string, GraficoSpec>;
   /** Conversa atual (para registrar de onde nasceu uma memória). */
   conversaId?: string | null;
   /** Pede uma ação ao navegador do usuário (ver/clicar/preencher/navegar na tela). */
   pedirAoNavegador?: (pedido: PedidoTela) => Promise<ResultadoTela>;
 };
 
-export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta; pergunta?: PerguntaVita };
+export type ResultadoFerramenta = { paraModelo: string; acao?: AcaoProposta; pergunta?: PerguntaVita; grafico?: GraficoSpec };
 
 const ID_PLATAFORMAS = PLATAFORMAS.map((p) => p.id);
 const LISTA_MODALIDADES = MODALIDADES.map((m) => `${m.id}=${m.nome}`).join("; ");
@@ -310,13 +314,88 @@ export const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "criar_grafico",
+      description:
+        "MOSTRA um gráfico INTERATIVO no chat (passar o mouse mostra os valores; clicar na legenda esconde/mostra séries). Só leitura. " +
+        "Use quando o usuário pedir gráfico, comparação visual, evolução, distribuição, indicadores ou \"mostre em gráfico\". " +
+        "COMO ESCOLHER o tipo: comparação entre categorias → `colunas` (vertical, bom para períodos/etapas) ou `barras` (horizontal, bom para nomes longos e rankings); `colunas_empilhadas` para partes dentro de cada categoria; " +
+        "tendência no tempo → `linhas` ou `area` (use `periodo` em colunas de data); participação no total → `pizza` (poucas fatias) ou `rosca`; número exato direto → `kpi` (resumo); " +
+        "valores detalhados lado a lado → `tabela`; duas métricas diferentes juntas (ex.: quantidade e valor) → `combinacao` (colunas + linha, dois eixos Y); " +
+        "relação entre duas variáveis numéricas → `dispersao`; desempenho contra uma meta → `medidor`. " +
+        "DADOS DO SISTEMA: use `fonte_dados` (mesmos campos do consultar_dados: tabela, filtros…) com `agrupar_por` (coluna das categorias) e `metrica` (contar, somar ou media; somar/media pedem `coluna_valor`) — o servidor agrupa e soma, você não calcula. " +
+        "Para várias métricas no mesmo gráfico (combinação, tabela, kpi) use `metricas` [{nome, metrica, coluna_valor, tipo: coluna|linha, eixo: esquerdo|direito}]. `serie_por` divide em várias séries. " +
+        "kpi sem `agrupar_por` mostra um cartão por métrica; medidor aceita `valor` ou `fonte_dados`+`metrica`, com `meta`, `minimo` e `maximo`; dispersao aceita `fonte_dados` com `eixo_x`, `eixo_y` (e `rotulo_coluna`, `serie_por`). " +
+        "DADOS QUE VOCÊ JÁ TEM (ex.: resultados de buscar_licitacoes): informe `categorias` e `series` (dispersão: series com `pontos` [x, y]). " +
+        "Para levar o gráfico num PDF, Word ou planilha depois, use `gerar_arquivo` com um bloco do tipo grafico e o `grafico_id` devolvido (vai como imagem fixa).",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: [...TIPOS_GRAFICO] },
+          titulo: { type: "string" },
+          formato_valor: { type: "string", enum: ["numero", "moeda", "percentual"], description: "Como mostrar os valores. Padrão: numero (moeda é detectada em colunas de valor)." },
+          rotulo_x: { type: "string" },
+          rotulo_y: { type: "string" },
+          categorias: { type: "array", items: { type: "string" }, description: "Rótulos do eixo X, das fatias, dos cartões ou das linhas da tabela. Até 40." },
+          series: {
+            type: "array",
+            description: "Cada série tem nome e valores (um por categoria). Até 8; pizza/rosca/kpi usam só a primeira. Combinação: `tipo` (coluna|linha) e `eixo` (esquerdo|direito) por série. Dispersão: `pontos` [[x, y], …] no lugar de valores.",
+            items: {
+              type: "object",
+              properties: {
+                nome: { type: "string" },
+                valores: { type: "array", items: { type: "number" } },
+                pontos: { type: "array", items: { type: "array", items: { type: "number" } } },
+                tipo: { type: "string", enum: ["coluna", "linha"] },
+                eixo: { type: "string", enum: ["esquerdo", "direito"] },
+                formato: { type: "string", enum: ["numero", "moeda", "percentual"] },
+              },
+              required: ["nome"],
+            },
+          },
+          fonte_dados: { type: "object", description: "Traz os dados do banco: { tabela, filtros?, ordenar_por? } (igual ao consultar_dados)." },
+          agrupar_por: { type: "string", description: "Coluna que vira as categorias (ex.: etapa, uf, orgao, modalidade, tipo)." },
+          metrica: { type: "string", enum: ["contar", "somar", "media"], description: "Padrão: contar." },
+          coluna_valor: { type: "string", description: "Coluna numérica para somar/média (ex.: valor_estimado)." },
+          metricas: {
+            type: "array",
+            description: "Várias métricas no mesmo gráfico (cada uma vira uma série, cartão ou coluna da tabela).",
+            items: {
+              type: "object",
+              properties: {
+                nome: { type: "string" },
+                metrica: { type: "string", enum: ["contar", "somar", "media"] },
+                coluna_valor: { type: "string" },
+                tipo: { type: "string", enum: ["coluna", "linha"] },
+                eixo: { type: "string", enum: ["esquerdo", "direito"] },
+                formato: { type: "string", enum: ["numero", "moeda", "percentual"] },
+              },
+            },
+          },
+          serie_por: { type: "string", description: "Coluna que divide em séries (opcional)." },
+          periodo: { type: "string", enum: ["dia", "mes", "ano"], description: "Para agrupar uma coluna de data." },
+          limite_categorias: { type: "integer", description: "Máximo de categorias (o resto vira Outros). Padrão: 15 (pizza: 10; kpi: 6)." },
+          valor: { type: "number", description: "Medidor: o valor atual (quando não usar fonte_dados)." },
+          meta: { type: "number", description: "Medidor: a meta (colore verde/amarelo/vermelho conforme o atingimento)." },
+          minimo: { type: "number" },
+          maximo: { type: "number" },
+          eixo_x: { type: "string", description: "Dispersão com fonte_dados: coluna numérica do eixo X." },
+          eixo_y: { type: "string", description: "Dispersão com fonte_dados: coluna numérica do eixo Y." },
+          rotulo_coluna: { type: "string", description: "Dispersão com fonte_dados: coluna que nomeia cada ponto." },
+        },
+        required: ["tipo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "gerar_arquivo",
       description:
         "GERA um arquivo para o usuário BAIXAR: planilha Excel (xlsx), PDF ou documento Word (docx). Só leitura: não altera nada no sistema e não precisa de aprovação. " +
         "Use quando ele pedir planilha, relatório, PDF, Word/Docs, exportação ou \"gere/monte/baixar\". " +
         "Para listas do banco use `fonte_dados` (mesmos campos do consultar_dados: tabela, colunas, filtros, ordenar_por, limite até 5.000): o servidor traz as linhas, você não precisa redigitá-las. " +
         "Para dados que você já tem na conversa (ex.: resultados de buscar_licitacoes) informe `colunas` e `linhas`. " +
-        "xlsx: use `abas` (cada aba é uma tabela). pdf/docx: use `blocos` na ordem desejada (titulo, subtitulo, paragrafo, lista ou tabela). PDF/Word aceitam até 500 linhas por tabela (para mais, planilha). " +
+        "xlsx: use `abas` (cada aba é uma tabela). pdf/docx: use `blocos` na ordem desejada (titulo, subtitulo, paragrafo, lista, tabela ou grafico). Bloco `grafico` entra como IMAGEM FIXA (no Excel, numa aba \"Gráficos\"): passe `grafico_id` de um gráfico já mostrado no chat, ou os dados do gráfico no próprio bloco. PDF/Word aceitam até 500 linhas por tabela (para mais, planilha). " +
         "Depois mostre ao usuário o link de download que a ferramenta devolver, exatamente como veio.",
       parameters: {
         type: "object",
@@ -342,7 +421,9 @@ export const FERRAMENTAS = [
             items: {
               type: "object",
               properties: {
-                tipo: { type: "string", enum: ["titulo", "subtitulo", "paragrafo", "lista", "tabela"] },
+                tipo: { type: "string", enum: ["titulo", "subtitulo", "paragrafo", "lista", "tabela", "grafico"] },
+                grafico_id: { type: "string", description: "Para grafico: id devolvido por criar_grafico (reaproveita o gráfico já mostrado no chat)." },
+                tipo_grafico: { type: "string", description: "Para grafico definido na hora: colunas, barras, linhas, area, pizza, rosca, kpi, tabela, combinacao, dispersao ou medidor (os dados vão nos mesmos campos do criar_grafico: categorias, series, fonte_dados, agrupar_por, metrica, coluna_valor, metricas, serie_por, periodo, formato_valor, valor, meta…)." },
                 texto: { type: "string", description: "Para titulo, subtitulo e paragrafo." },
                 itens: { type: "array", items: { type: "string" }, description: "Para lista." },
                 titulo: { type: "string", description: "Para tabela: título acima dela." },
@@ -591,6 +672,7 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   preencher_proposta: "Preparando o rascunho da proposta",
   anexar_ao_acervo: "Preparando o envio aos Documentos",
   gerar_arquivo: "Gerando o arquivo",
+  criar_grafico: "Montando o gráfico",
 };
 
 /* ------------------------------------------------------------------------------------------- */
@@ -920,6 +1002,23 @@ export async function executarFerramenta(nome: string, argsTexto: string, ctx: C
       case "preencher_proposta": return await proporProposta(args, ctx.supabase);
       case "anexar_ao_acervo": return await proporAnexarAoAcervo(args, ctx);
       case "gerar_arquivo": return await gerarArquivo(args, ctx);
+      case "criar_grafico": {
+        const r = await resolverGrafico(args, ctx);
+        if ("erro" in r) return { paraModelo: json({ erro: r.erro }) };
+        (ctx.graficos ??= new Map()).set(r.grafico.id, r.grafico);
+        return {
+          grafico: r.grafico,
+          paraModelo: json({
+            resultado: "Gráfico interativo exibido no chat para o usuário.",
+            grafico_id: r.grafico.id,
+            tipo: r.grafico.tipo,
+            categorias: r.grafico.categorias,
+            series: r.grafico.series.map((s) => ({ nome: s.nome, valores: s.valores })),
+            ...(r.aviso ? { aviso: r.aviso } : {}),
+            como_usar: "Comente em 1 ou 2 frases o que o gráfico mostra (use SOMENTE os números acima). Não repita todos os valores. Se pedirem em PDF/Word/planilha, use gerar_arquivo com bloco tipo grafico e este grafico_id.",
+          }),
+        };
+      }
       case "onde_encontrar": return { paraModelo: ondeEncontrar(args, await carregarMapa(ctx.supabase)) };
       case "buscar_informacao": return { paraModelo: await buscarInformacao(args, ctx) };
       case "pesquisar_documentos": return { paraModelo: await pesquisarDocumentos(args, ctx) };

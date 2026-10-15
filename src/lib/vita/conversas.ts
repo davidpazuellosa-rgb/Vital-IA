@@ -1,5 +1,6 @@
 "use server";
 import type { PerguntaVita } from "./pergunta";
+import type { GraficoSpec } from "./graficos/tipos";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,6 +23,7 @@ export type MensagemVita = {
   acoes: string[];
   anexos: AnexoExibido[];
   pergunta?: PerguntaVita | null;
+  graficos?: GraficoSpec[];
   /** Minha avaliação desta resposta: 1 (gostei), -1 (não gostei) ou null. */
   avaliacao?: 1 | -1 | null;
 };
@@ -65,10 +67,10 @@ export async function carregarConversa(id: string): Promise<{ mensagens: Mensage
   const avaliacoes = new Map((notas ?? []).map((n) => [String(n.mensagem_id), n.nota as 1 | -1]));
   return {
     mensagens: (msgs ?? []).map((m) => {
-      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[]; pergunta?: PerguntaVita };
+      const dados = (m.dados ?? {}) as { ferramentas?: MensagemVita["ferramentas"]; acoes?: string[]; anexos?: AnexoExibido[]; pergunta?: PerguntaVita; graficos?: GraficoSpec[] };
       return {
         id: m.id, papel: m.papel as MensagemVita["papel"], conteudo: m.conteudo,
-        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [], pergunta: dados.pergunta ?? null, avaliacao: avaliacoes.get(String(m.id)) ?? null,
+        ferramentas: dados.ferramentas ?? [], acoes: dados.acoes ?? [], pergunta: dados.pergunta ?? null, graficos: dados.graficos ?? [], avaliacao: avaliacoes.get(String(m.id)) ?? null,
         anexos: (dados.anexos ?? []).map((a) => ({ nome: a.nome, tipo: a.tipo, observacao: a.observacao ?? null })),
       };
     }),

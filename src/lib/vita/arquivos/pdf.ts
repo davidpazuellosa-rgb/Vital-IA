@@ -114,7 +114,13 @@ export async function gerarPdf(doc: DocumentoGerado, geradoEm: string): Promise<
     else if (b.tipo === "subtitulo") { y -= 4; texto(b.texto, { tamanho: 11.5, negrito: true, depois: 3 }); }
     else if (b.tipo === "paragrafo") texto(b.texto);
     else if (b.tipo === "lista") for (const it of b.itens) texto(`•  ${it}`, { indent: 10, depois: 2 });
-    else { if (b.titulo) texto(b.titulo, { tamanho: 11.5, negrito: true, depois: 3 }); tabela(b.tabela); }
+    else if (b.tipo === "grafico") {
+      const img = await pdf.embedPng(b.png);
+      const w = Math.min(util, 520), h = (w * b.altura) / b.largura;
+      garantir(h + 10);
+      pagina.drawImage(img, { x: M, y: y - h, width: w, height: h });
+      y -= h + 12;
+    } else { if (b.titulo) texto(b.titulo, { tamanho: 11.5, negrito: true, depois: 3 }); tabela(b.tabela); }
   }
 
   const paginas = pdf.getPages();

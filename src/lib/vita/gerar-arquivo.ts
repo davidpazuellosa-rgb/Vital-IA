@@ -4,7 +4,10 @@ import type { ContextoFerramenta, ResultadoFerramenta } from "./ferramentas";
 import { gerarDocx } from "./arquivos/docx";
 import { EXTENSAO, MIME, limparTexto, type Bloco, type Celula, type DocumentoGerado, type FormatoArquivo, type Tabela } from "./arquivos/modelo";
 import { gerarPdf } from "./arquivos/pdf";
-import { gerarXlsx } from "./arquivos/xlsx";
+import { gerarXlsx, type ImagemGrafico } from "./arquivos/xlsx";
+import { renderizarPng } from "./graficos/png";
+import { resolverGrafico } from "./graficos/resolver";
+import type { GraficoSpec } from "./graficos/tipos";
 
 /* ---------------------------------------------------------------------------------------------
  * gerar_arquivo: monta uma planilha (.xlsx), um PDF ou um documento Word (.docx) para o usuário BAIXAR.
@@ -16,6 +19,7 @@ import { gerarXlsx } from "./arquivos/xlsx";
 const json = (v: unknown) => JSON.stringify(v);
 const MAX_TABELAS = 12;
 const MAX_BLOCOS = 200;
+const MAX_GRAFICOS = 10;
 const MAX_LINHAS_PLANILHA = 5_000;
 const MAX_LINHAS_DOCUMENTO = 500; // PDF/Word com milhares de linhas não servem: use planilha
 
@@ -75,6 +79,19 @@ async function resolverTabela(t: TabelaEntrada, ctx: ContextoFerramenta, limite:
   return { tabela: { colunas, linhas }, aviso: bruto.length > limite ? `a tabela foi cortada em ${limite} linhas` : undefined };
 }
 
+/** Procura nas respostas anteriores da conversa um gráfico que a Vita já mostrou (pelo id). */
+async function graficoDaConversa(ctx: ContextoFerramenta, id: string): Promise<GraficoSpec | null> {
+  const dessa = ctx.graficos?.get(id);
+  if (dessa) return dessa;
+  if (!ctx.conversaId) return null;
+  const { data } = await ctx.supabase.from("vita_mensagens").select("dados").eq("conversa_id", ctx.conversaId).eq("papel", "assistant").order("created_at", { ascending: false }).limit(60);
+  for (const m of data ?? []) {
+    const achado = ((m.dados as { graficos?: GraficoSpec[] })?.graficos ?? []).find((g) => g.id === id);
+    if (achado) return achado;
+  }
+  return null;
+}
+
 export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise<ResultadoFerramenta> {
   const formato = String(args.formato ?? "").toLowerCase() as FormatoArquivo;
   if (!["xlsx", "pdf", "docx"].includes(formato)) return { paraModelo: json({ erro: "`formato` deve ser xlsx (planilha), pdf ou docx (Word)." }) };
@@ -90,6 +107,8 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
   const blocos: Bloco[] = [];
   const planilhas: Array<{ nome: string; tabela: Tabela }> = [];
   let totalTabelas = 0;
+  let totalGraficos = 0;
+  const imagens: ImagemGrafico[] = [];
   const adicionarTabela = async (entrada: TabelaEntrada, nome: string) => {
     if (++totalTabelas > MAX_TABELAS) return { erro: `No máximo ${MAX_TABELAS} tabelas por arquivo.` };
     const r = await resolverTabela(entrada, ctx, limite);
@@ -106,6 +125,21 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
       if (tipo === "tabela") {
         const e = await adicionarTabela(b as TabelaEntrada, limparTexto(b.titulo ?? b.nome ?? `Tabela ${totalTabelas + 1}`, 80));
         if (e) return { paraModelo: json(e) };
+      } else if (tipo === "grafico") {
+        if (++totalGraficos > MAX_GRAFICOS) return { paraModelo: json({ erro: `No máximo ${MAX_GRAFICOS} gráficos por arquivo.` }) };
+        let spec: GraficoSpec | null = null;
+        if (b.grafico_id) {
+          spec = await graficoDaConversa(ctx, String(b.grafico_id));
+          if (!spec) return { paraModelo: json({ erro: `Não achei o gráfico "${String(b.grafico_id)}" nesta conversa. Crie-o de novo com criar_grafico ou passe os dados no bloco (tipo_grafico, categorias, series ou fonte_dados).` }) };
+        } else {
+          const r = await resolverGrafico({ ...b, tipo: b.tipo_grafico ?? "colunas" }, ctx);
+          if ("erro" in r) return { paraModelo: json({ erro: r.erro }) };
+          if (r.aviso) avisos.push(`Gráfico "${r.grafico.titulo}": ${r.aviso}`);
+          spec = r.grafico;
+        }
+        const img = renderizarPng(spec, 1400);
+        imagens.push({ titulo: spec.titulo, ...img });
+        blocos.push({ tipo: "grafico", titulo: spec.titulo, ...img });
       } else if (tipo === "lista") {
         const itens = Array.isArray(b.itens) ? b.itens.map((i) => limparTexto(i, 1_000)).filter(Boolean) : [];
         if (itens.length) blocos.push({ tipo: "lista", itens });
@@ -121,14 +155,14 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
   } catch (e) {
     return { paraModelo: json({ erro: e instanceof Error ? e.message : "Falha ao montar o conteúdo." }) };
   }
-  if (formato === "xlsx" && !planilhas.length) return { paraModelo: json({ erro: "Para a planilha informe `abas` (cada uma com colunas e linhas, ou fonte_dados)." }) };
+  if (formato === "xlsx" && !planilhas.length && !imagens.length) return { paraModelo: json({ erro: "Para a planilha informe `abas` (cada uma com colunas e linhas, ou fonte_dados) e/ou blocos de gráfico." }) };
   if (formato !== "xlsx" && !blocos.length) return { paraModelo: json({ erro: "Informe `blocos` (titulo, subtitulo, paragrafo, lista ou tabela) para o documento." }) };
 
   const geradoEm = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Manaus" });
   const documento: DocumentoGerado = { titulo, blocos };
   let bytes: Uint8Array;
   try {
-    bytes = formato === "xlsx" ? gerarXlsx(planilhas) : formato === "pdf" ? await gerarPdf(documento, geradoEm) : gerarDocx(documento, geradoEm);
+    bytes = formato === "xlsx" ? gerarXlsx(planilhas, imagens) : formato === "pdf" ? await gerarPdf(documento, geradoEm) : gerarDocx(documento, geradoEm);
   } catch (e) {
     return { paraModelo: json({ erro: `Não consegui montar o arquivo: ${e instanceof Error ? e.message : "erro desconhecido"}.` }) };
   }
@@ -148,6 +182,7 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
       formato,
       tamanho_kb: Math.max(1, Math.round(bytes.length / 1024)),
       tabelas: planilhas.map((p) => ({ nome: p.nome, linhas: p.tabela.linhas.length })),
+      ...(imagens.length ? { graficos: imagens.map((g) => g.titulo) } : {}),
       ...(avisos.length ? { avisos } : {}),
       link_download: link,
       como_usar: `Mostre ao usuário o link EXATAMENTE assim: [Baixar ${nomeAmigavel}](${link}). Diga em uma frase o que o arquivo contém e repita os avisos, se houver.`,

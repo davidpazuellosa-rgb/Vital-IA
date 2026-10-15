@@ -8,7 +8,8 @@ export type Bloco =
   | { tipo: "subtitulo"; texto: string }
   | { tipo: "paragrafo"; texto: string }
   | { tipo: "lista"; itens: string[] }
-  | { tipo: "tabela"; titulo?: string; tabela: Tabela };
+  | { tipo: "tabela"; titulo?: string; tabela: Tabela }
+  | { tipo: "grafico"; titulo?: string; png: Uint8Array; largura: number; altura: number };
 
 export type DocumentoGerado = { titulo: string; blocos: Bloco[] };
 export type FormatoArquivo = "xlsx" | "pdf" | "docx";

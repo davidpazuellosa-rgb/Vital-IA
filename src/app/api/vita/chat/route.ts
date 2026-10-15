@@ -6,6 +6,7 @@ import { blocoAnexos, lerAnexo, MAX_ANEXOS, MAX_BYTES_ANEXO, type AnexoEnviado, 
 import { instrucoesVita } from "@/lib/vita/contexto";
 import { obterAcesso } from "@/lib/acesso";
 import { anexosDaConversa } from "@/lib/vita/acervo";
+import type { GraficoSpec } from "@/lib/vita/graficos/tipos";
 import { executarFerramenta, ferramentasParaEmpresas, ROTULO_FERRAMENTA, type ContextoFerramenta } from "@/lib/vita/ferramentas";
 import { carregarConfig, carregarMemoriasAtivas } from "@/lib/vita/memoria";
 import { carregarAvaliacoesRecentes } from "@/lib/vita/feedback";
@@ -211,6 +212,7 @@ export async function POST(request: NextRequest) {
       const protocolo: MensagemModelo[] = [];
       const ferramentasUsadas: Array<{ nome: string; rotulo: string }> = [];
       const acoesCriadas: string[] = [];
+      const graficosCriados: GraficoSpec[] = [];
       let perguntaFeita: PerguntaVita | null = null;
       let textoFinal = "";
       let erro: string | null = null;
@@ -247,6 +249,10 @@ export async function POST(request: NextRequest) {
                 enviar({ tipo: "acao", acao });
               }
             }
+            if (r.grafico) {
+              graficosCriados.push(r.grafico);
+              enviar({ tipo: "grafico", grafico: r.grafico });
+            }
             if (r.pergunta) {
               perguntaFeita = r.pergunta;
               enviar({ tipo: "pergunta", pergunta: r.pergunta });
@@ -274,7 +280,7 @@ export async function POST(request: NextRequest) {
         .insert({
           conversa_id: conversaId, user_id: user.id, papel: "assistant",
           conteudo: erro && !conteudo ? `⚠️ ${erro}` : conteudo,
-          dados: { protocolo, ferramentas: ferramentasUsadas, acoes: acoesCriadas, ...(perguntaFeita ? { pergunta: perguntaFeita } : {}), ...(erro ? { erro } : {}) },
+          dados: { protocolo, ferramentas: ferramentasUsadas, acoes: acoesCriadas, ...(graficosCriados.length ? { graficos: graficosCriados } : {}), ...(perguntaFeita ? { pergunta: perguntaFeita } : {}), ...(erro ? { erro } : {}) },
         })
         .select("id")
         .single();

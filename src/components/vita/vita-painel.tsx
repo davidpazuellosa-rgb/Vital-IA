@@ -26,6 +26,8 @@ import { capturarTela, executarPedidoTela } from "@/lib/vita/tela-cliente";
 import type { PedidoTela } from "@/lib/vita/tela";
 import { MOTIVOS_NEGATIVOS } from "@/lib/vita/feedback";
 import { LARGURA_MAX, LARGURA_MIN, useVita } from "./vita-contexto";
+import { GraficoInterativo } from "./grafico-interativo";
+import type { GraficoSpec } from "@/lib/vita/graficos/tipos";
 
 type Ferramenta = { id?: string; nome: string; rotulo: string; estado: "rodando" | "ok" };
 type Msg = {
@@ -36,6 +38,7 @@ type Msg = {
   acoes: string[];
   anexos: AnexoExibido[];
   pergunta?: PerguntaVita | null;
+  graficos?: GraficoSpec[];
   avaliacao?: 1 | -1 | null;
   erro?: string;
   transmitindo?: boolean;
@@ -531,6 +534,9 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
             case "pergunta":
               atualizarUltima((m) => ({ ...m, pergunta: ev.pergunta as PerguntaVita }));
               break;
+            case "grafico":
+              atualizarUltima((m) => ({ ...m, graficos: [...(m.graficos ?? []), ev.grafico as GraficoSpec] }));
+              break;
             case "tela": {
               // A Vita pede uma ação na tela: executa aqui (com as travas) e devolve o resultado ao servidor.
               const idPedido = String(ev.id);
@@ -704,6 +710,7 @@ function Conversa({ aberto, expandido, onExpandir, onFechar }: { aberto: boolean
                       {[0, 150, 300].map((d) => <span key={d} className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" style={{ animationDelay: `${d}ms` }} />)}
                     </span>
                   ) : null}
+                  {(m.graficos ?? []).map((g) => <GraficoInterativo key={g.id} spec={g} />)}
                   {m.acoes.map((id) => acoes[id] && <CartaoAcao key={id} acao={acoes[id]} compacto={!expandido} onDecidir={decidir} />)}
                   {m.pergunta && (
                     <CartaoPergunta
