@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
 
   const caminho = request.nextUrl.searchParams.get("p") ?? "";
   const dono = await resolverEmpresaUserId(supabase, user.id);
-  if (!caminho.startsWith(`${dono}/vita/gerados/`) || caminho.includes("..")) return new Response("Arquivo inválido.", { status: 400 });
+  // Cada pessoa só baixa o que ela mesma gerou: a pasta leva o id de quem pediu.
+  if (!caminho.startsWith(`${dono}/vita/gerados/${user.id}/`) || caminho.includes("..")) return new Response("Arquivo inválido.", { status: 400 });
 
   const { data, error } = await supabase.storage.from("documentos").download(caminho);
   if (error || !data) return new Response("Arquivo não encontrado.", { status: 404 });

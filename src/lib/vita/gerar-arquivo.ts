@@ -22,7 +22,20 @@ const MAX_LINHAS_DOCUMENTO = 500; // PDF/Word com milhares de linhas não servem
 type Args = Record<string, unknown>;
 type TabelaEntrada = { titulo?: unknown; nome?: unknown; colunas?: unknown; linhas?: unknown; fonte_dados?: unknown };
 
-const bonito = (coluna: string) => { const t = coluna.replace(/_/g, " ").trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
+/** Palavras comuns dos nomes de coluna do banco, com acento e sigla certos. */
+const PALAVRAS: Record<string, string> = {
+  titulo: "título", orgao: "órgão", municipio: "município", situacao: "situação", descricao: "descrição", observacoes: "observações",
+  codigo: "código", preco: "preço", referencia: "referência", razao: "razão", juridica: "jurídica", numero: "número", emissao: "emissão",
+  publicacao: "publicação", inscricao: "inscrição", minima: "mínima", maxima: "máxima", operacao: "operação", execucao: "execução",
+  ultima: "última", serie: "série", destinatario: "destinatário", bancarios: "bancários", validade: "validade", periodo: "período",
+  uf: "UF", cnpj: "CNPJ", cnae: "CNAE", pncp: "PNCP", id: "ID", cep: "CEP", cpf: "CPF", email: "e-mail", ufs: "UFs", nf: "NF", nfe: "NF-e",
+  catalogo: "catálogo", usuario: "usuário", responsavel: "responsável", telefone: "telefone", endereco: "endereço", contratacao: "contratação",
+  contratacoes: "contratações", licitacao: "licitação", licitacoes: "licitações", proposta: "proposta", dias: "dias", disponivel: "disponível",
+};
+const bonito = (coluna: string) => {
+  const t = coluna.replace(/_/g, " ").trim().split(/\s+/).map((p) => PALAVRAS[p.toLowerCase()] ?? p).join(" ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 function celula(v: unknown): Celula {
   if (v == null) return null;
@@ -122,7 +135,7 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
   if (bytes.length > 20 * 1024 * 1024) return { paraModelo: json({ erro: "O arquivo passou de 20 MB. Reduza as linhas ou separe em partes." }) };
 
   const dono = await resolverEmpresaUserId(ctx.supabase, ctx.userId);
-  const caminho = `${dono}/vita/gerados/${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.${EXTENSAO[formato]}`;
+  const caminho = `${dono}/vita/gerados/${ctx.userId}/${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.${EXTENSAO[formato]}`;
   const { error } = await ctx.supabase.storage.from("documentos").upload(caminho, bytes, { contentType: MIME[formato], upsert: false });
   if (error) return { paraModelo: json({ erro: `Não consegui guardar o arquivo: ${error.message}` }) };
 
