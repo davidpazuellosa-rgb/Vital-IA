@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { obterAcesso } from "@/lib/acesso";
 import { signOut } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
+import { AvisoVersao } from "@/components/aviso-versao";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -46,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </SidebarInset>
       </VitaProvider>
       </AcessoProvider>
+      <AvisoVersao />
       <Toaster position="top-right" richColors closeButton />
     </SidebarProvider>
   );
