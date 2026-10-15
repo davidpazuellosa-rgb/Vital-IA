@@ -41,7 +41,7 @@ export const TABELAS: Record<string, RegraTabela> = {
     escopo: "empresa", chave: "user_id", pagina: "/vital-norte/dados",
   },
   documentos: {
-    descricao: "Acervo de documentos de habilitação (certidões etc.) com validade. O arquivo é lido com ler_documento. O `tipo` precisa ser um tipo existente de um grupo da tela (ou "avulso"); cada grupo aceita quantos documentos for preciso (use o "outros" do grupo quando nenhum tipo servir).",
+    descricao: "Acervo de documentos de habilitação (certidões etc.) com validade. O arquivo é lido com ler_documento. O `tipo` precisa ser um tipo existente de um grupo da tela (ou \"avulso\"); cada grupo aceita quantos documentos for preciso (use o \"outros\" do grupo quando nenhum tipo servir).",
     leitura: ["id", "tipo", "nome", "arquivo_nome", "data_emissao", "data_validade", "validade_automatica", "created_at"],
     escrita: ["nome", "tipo", "data_emissao", "data_validade"],
     operacoes: ["atualizar"],
