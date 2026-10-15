@@ -8,6 +8,7 @@ import {
   GRUPOS_DOCUMENTOS,
   TIPO_AVULSO,
   TODOS_TIPOS,
+  tiposDoGrupo,
   avaliarValidade,
   nomeTipo,
   tipoSemValidade,
@@ -15,6 +16,7 @@ import {
   type StatusValidade,
 } from "@/lib/documentos/types";
 import { UploadDocumento, DocumentoAcoes, BaixarGrupo } from "@/components/documentos-client";
+import { CardVencidos } from "@/components/card-vencidos";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 
 /** Página de Documentos de uma empresa (padrão: Vital Norte). A RM usa tabelas e pasta próprias. */
@@ -48,9 +50,13 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
 
   const totalChecklist = CHECKLIST_DOCUMENTOS.length;
   const enviados = CHECKLIST_DOCUMENTOS.filter((t) => porTipo.has(t.slug)).length;
-  const vencidos = documentos.filter(
-    (d) => !tipoSemValidade(d.tipo) && avaliarValidade(d.data_validade).status === "vencido",
-  ).length;
+  const vencidosDe = (tipos: (d: Documento) => boolean) =>
+    documentos.filter((d) => tipos(d) && !tipoSemValidade(d.tipo) && avaliarValidade(d.data_validade).status === "vencido").length;
+  // vencidos, do mais antigo para o mais recente (o card abre o primeiro e vai passando)
+  const idsVencidos = documentos
+    .filter((d) => !tipoSemValidade(d.tipo) && avaliarValidade(d.data_validade).status === "vencido")
+    .sort((a, b) => String(a.data_validade).localeCompare(String(b.data_validade)))
+    .map((d) => d.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,7 +67,7 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
       {/* Resumo */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <ResumoCard rotulo="Checklist enviado" valor={`${enviados} / ${totalChecklist}`} />
-        <ResumoCard rotulo="Documentos vencidos" valor={String(vencidos)} alerta={vencidos > 0} />
+        <CardVencidos ids={idsVencidos} />
         <ResumoCard rotulo="Total de arquivos" valor={String(documentos.length)} />
       </div>
 
@@ -81,6 +87,7 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
               enviados={enviadosGrupo}
               total={grupo.tipos.length}
               arquivos={arquivosGrupo}
+              vencidos={vencidosDe((d) => tiposDoGrupo(grupo).includes(d.tipo))}
               slug={grupo.slug}
               empresa={empresa}
             >
@@ -102,7 +109,7 @@ export async function DocumentosPagina({ empresa }: { empresa?: EmpresaSlug }) {
       </section>
 
       {/* Outros documentos (avulsos) */}
-      <Grupo titulo="Outros documentos" enviados={avulsos.length} slug={TIPO_AVULSO} empresa={empresa}>
+      <Grupo titulo="Outros documentos" enviados={avulsos.length} vencidos={vencidosDe((d) => d.tipo === TIPO_AVULSO || !conhecidos.has(d.tipo))} slug={TIPO_AVULSO} empresa={empresa}>
         <div className="flex justify-end">
           <UploadDocumento empresa={empresa} variant="outline" size="sm" label="Adicionar avulso" />
         </div>
@@ -123,6 +130,7 @@ function Grupo({
   enviados,
   total,
   arquivos,
+  vencidos,
   slug,
   empresa,
   children,
@@ -132,6 +140,8 @@ function Grupo({
   total?: number;
   /** Quantos arquivos há no grupo (pode passar do total de tipos: um tipo aceita vários). */
   arquivos?: number;
+  /** Documentos vencidos neste grupo (bolinha vermelha). */
+  vencidos?: number;
   slug?: string;
   empresa?: EmpresaSlug;
   children: React.ReactNode;
@@ -142,7 +152,18 @@ function Grupo({
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5">
         <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 [details[open]_&]:rotate-90" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-tight">{titulo}</p>
+          <p className="flex items-center gap-2 font-semibold leading-tight">
+            {titulo}
+            {vencidos != null && vencidos > 0 && (
+              <span
+                title={`${vencidos} documento${vencidos > 1 ? "s" : ""} vencido${vencidos > 1 ? "s" : ""}`}
+                aria-label={`${vencidos} vencido${vencidos > 1 ? "s" : ""}`}
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive text-[11px] font-semibold leading-none text-white tabular-nums"
+              >
+                {vencidos}
+              </span>
+            )}
+          </p>
         </div>
         {slug && enviados > 0 && <BaixarGrupo slug={slug} empresa={empresa} />}
         <Badge
@@ -185,7 +206,7 @@ function LinhaDocumento({ doc, url, empresa }: { doc: Documento; url: string | n
   const Icon = semValidade ? FileCheck2 : style.icon;
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border bg-background px-3 py-2.5">
+    <div data-doc-id={doc.id} className="flex items-center gap-4 rounded-lg border bg-background px-3 py-2.5 transition-shadow">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
         <Icon className="size-5 text-muted-foreground" />
       </div>
