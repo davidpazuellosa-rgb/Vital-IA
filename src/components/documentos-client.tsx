@@ -34,6 +34,7 @@ import {
 import { GRUPOS_DOCUMENTOS, TIPO_AVULSO, siteResponsavel } from "@/lib/documentos/types";
 import { configEmpresa, type EmpresaSlug } from "@/lib/empresas";
 import { registrarDocumento, substituirDocumento, removerDocumento, atualizarValidade, editarDocumento, obterEmpresaUserId } from "@/lib/documentos/actions";
+import { ZonaArquivo } from "@/components/zona-arquivo";
 import { createClient } from "@/lib/supabase/client";
 import { comDownload } from "@/lib/format";
 
@@ -182,7 +183,7 @@ export function UploadDocumento({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="arquivo">Arquivo</Label>
-            <Input id="arquivo" name="arquivo" type="file" accept=".pdf,image/*,application/pdf" required />
+            <ZonaArquivo id="arquivo" />
           </div>
 
           {erro && <p className="text-sm text-destructive">{erro}</p>}
@@ -451,13 +452,7 @@ export function DocumentoAcoes({
           <form onSubmit={onSubmitSubstituir} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`arquivo-sub-${id}`}>Novo arquivo</Label>
-              <Input
-                id={`arquivo-sub-${id}`}
-                name="arquivo"
-                type="file"
-                accept=".pdf,image/*,application/pdf"
-                required
-              />
+              <ZonaArquivo id={`arquivo-sub-${id}`} />
             </div>
             {erroSubstituir && <p className="text-sm text-destructive">{erroSubstituir}</p>}
             <DialogFooter>
