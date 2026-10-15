@@ -100,7 +100,11 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
   const limite = formato === "xlsx" ? MAX_LINHAS_PLANILHA : MAX_LINHAS_DOCUMENTO;
 
   const abas = Array.isArray(args.abas) ? (args.abas as TabelaEntrada[]) : [];
-  const blocosEntrada = Array.isArray(args.blocos) ? (args.blocos as Array<Record<string, unknown>>) : [];
+  // `graficos` (ids do chat ou definições) vale para os três formatos; item de `abas` com grafico_id também conta como gráfico.
+  const graficosTopo = (Array.isArray(args.graficos) ? args.graficos : []).map((g) => (typeof g === "string" ? { tipo: "grafico", grafico_id: g } : { ...(g as Record<string, unknown>), tipo: "grafico", tipo_grafico: (g as Record<string, unknown>)?.tipo_grafico ?? (g as Record<string, unknown>)?.tipo }));
+  const abasComGrafico = abas.filter((a) => (a as Record<string, unknown>).grafico_id).map((a) => ({ tipo: "grafico", grafico_id: String((a as Record<string, unknown>).grafico_id) }));
+  const abasSoTabelas = abas.filter((a) => !(a as Record<string, unknown>).grafico_id);
+  const blocosEntrada: Array<Record<string, unknown>> = [...(Array.isArray(args.blocos) ? (args.blocos as Array<Record<string, unknown>>) : []), ...graficosTopo, ...abasComGrafico];
   if (blocosEntrada.length > MAX_BLOCOS) return { paraModelo: json({ erro: `No máximo ${MAX_BLOCOS} blocos.` }) };
 
   const avisos: string[] = [];
@@ -148,7 +152,7 @@ export async function gerarArquivo(args: Args, ctx: ContextoFerramenta): Promise
         if (texto) blocos.push({ tipo, texto } as Bloco);
       }
     }
-    for (const a of abas) {
+    for (const a of abasSoTabelas) {
       const e = await adicionarTabela(a, limparTexto(a.nome ?? a.titulo ?? `Planilha ${totalTabelas + 1}`, 60));
       if (e) return { paraModelo: json(e) };
     }

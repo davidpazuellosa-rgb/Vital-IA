@@ -326,7 +326,7 @@ export const FERRAMENTAS = [
         "Para várias métricas no mesmo gráfico (combinação, tabela, kpi) use `metricas` [{nome, metrica, coluna_valor, tipo: coluna|linha, eixo: esquerdo|direito}]. `serie_por` divide em várias séries. " +
         "kpi sem `agrupar_por` mostra um cartão por métrica; medidor aceita `valor` ou `fonte_dados`+`metrica`, com `meta`, `minimo` e `maximo`; dispersao aceita `fonte_dados` com `eixo_x`, `eixo_y` (e `rotulo_coluna`, `serie_por`). " +
         "DADOS QUE VOCÊ JÁ TEM (ex.: resultados de buscar_licitacoes): informe `categorias` e `series` (dispersão: series com `pontos` [x, y]). " +
-        "Para levar o gráfico num PDF, Word ou planilha depois, use `gerar_arquivo` com um bloco do tipo grafico e o `grafico_id` devolvido (vai como imagem fixa).",
+        "Para levar o gráfico num PDF, Word ou planilha depois, use `gerar_arquivo` com `graficos: [\"<grafico_id>\"]` (vai como imagem fixa).",
       parameters: {
         type: "object",
         properties: {
@@ -414,6 +414,11 @@ export const FERRAMENTAS = [
                 fonte_dados: { type: "object", description: "Traz as linhas do banco: { tabela, colunas?, filtros?, ordenar_por?, decrescente?, limite? } (igual ao consultar_dados)." },
               },
             },
+          },
+          graficos: {
+            type: "array",
+            description: "Gráficos a incluir como IMAGEM FIXA em qualquer formato (no Excel vão numa aba \"Gráficos\"). Cada item: o grafico_id de um gráfico já mostrado no chat (texto), ou uma definição { tipo_grafico, titulo, categorias, series | fonte_dados, agrupar_por, metrica… }.",
+            items: {},
           },
           blocos: {
             type: "array",
