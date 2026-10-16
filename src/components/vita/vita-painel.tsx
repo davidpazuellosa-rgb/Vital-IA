@@ -1226,6 +1226,16 @@ function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
 /** Link para uma página do próprio sistema (começa com "/" e não com "//"). */
 const linkInterno = (href?: string): href is string => Boolean(href && href.startsWith("/") && !href.startsWith("//"));
 
+/** Cópia por textarea + execCommand, para quando a API de área de transferência é recusada. */
+function copiarClassico(texto: string): boolean {
+  const area = document.createElement("textarea");
+  area.value = texto;
+  area.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  document.body.appendChild(area);
+  area.select();
+  try { return document.execCommand("copy"); } catch { return false; } finally { area.remove(); }
+}
+
 /** Tabela do chat com botão de copiar no canto superior direito: cola como tabela no Word/Docs e em colunas no Excel. */
 function TabelaCopiavel({ children, compacto }: { children: React.ReactNode; compacto?: boolean }) {
   const tabela = useRef<HTMLTableElement>(null);
@@ -1236,21 +1246,21 @@ function TabelaCopiavel({ children, compacto }: { children: React.ReactNode; com
     if (!el) return;
     const limpar = (t: string) => t.replace(/\s+/g, " ").trim();
     const tsv = [...el.rows].map((l) => [...l.cells].map((c) => limpar(c.innerText)).join("\t")).join("\n");
+    const html = `<table border="1" cellpadding="4" style="border-collapse:collapse">${el.innerHTML}</table>`;
+    // 1) tabela + texto em colunas; 2) só o texto; 3) cópia clássica (navegadores que bloqueiam a API nova).
+    let ok = false;
     try {
-      if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
-        const html = `<table border="1" cellpadding="4" style="border-collapse:collapse">${el.innerHTML}</table>`;
-        await navigator.clipboard.write([new ClipboardItem({
-          "text/plain": new Blob([tsv], { type: "text/plain" }),
-          "text/html": new Blob([html], { type: "text/html" }),
-        })]);
-      } else {
-        await navigator.clipboard.writeText(tsv);
-      }
-      setCopiada(true);
-      window.setTimeout(() => setCopiada(false), 2000);
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([tsv], { type: "text/plain" }),
+        "text/html": new Blob([html], { type: "text/html" }),
+      })]);
+      ok = true;
     } catch {
-      toast.error("Não foi possível copiar a tabela");
+      try { await navigator.clipboard.writeText(tsv); ok = true; } catch { ok = copiarClassico(tsv); }
     }
+    if (!ok) { toast.error("Não foi possível copiar a tabela"); return; }
+    setCopiada(true);
+    window.setTimeout(() => setCopiada(false), 2000);
   }
 
   return (
