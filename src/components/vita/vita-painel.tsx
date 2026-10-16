@@ -1226,6 +1226,51 @@ function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
 /** Link para uma página do próprio sistema (começa com "/" e não com "//"). */
 const linkInterno = (href?: string): href is string => Boolean(href && href.startsWith("/") && !href.startsWith("//"));
 
+/** Tabela do chat com botão de copiar no canto superior direito: cola como tabela no Word/Docs e em colunas no Excel. */
+function TabelaCopiavel({ children, compacto }: { children: React.ReactNode; compacto?: boolean }) {
+  const tabela = useRef<HTMLTableElement>(null);
+  const [copiada, setCopiada] = useState(false);
+
+  async function copiar() {
+    const el = tabela.current;
+    if (!el) return;
+    const limpar = (t: string) => t.replace(/\s+/g, " ").trim();
+    const tsv = [...el.rows].map((l) => [...l.cells].map((c) => limpar(c.innerText)).join("\t")).join("\n");
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+        const html = `<table border="1" cellpadding="4" style="border-collapse:collapse">${el.innerHTML}</table>`;
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/plain": new Blob([tsv], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        })]);
+      } else {
+        await navigator.clipboard.writeText(tsv);
+      }
+      setCopiada(true);
+      window.setTimeout(() => setCopiada(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar a tabela");
+    }
+  }
+
+  return (
+    <div className="relative">
+      <div className="overflow-x-auto rounded-lg border">
+        <table ref={tabela} className={cn("w-full", compacto ? "text-[10px]" : "text-xs")}>{children}</table>
+      </div>
+      <button
+        type="button"
+        onClick={() => void copiar()}
+        title="Copiar tabela"
+        aria-label="Copiar tabela"
+        className="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded-md border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+      >
+        {copiada ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+      </button>
+    </div>
+  );
+}
+
 /** compacto = painel lateral: tudo 2px menor que no modo expandido. */
 function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: boolean; onNavegar?: () => void }) {
   // Toda licitação citada ganha [Perfil] e [PNCP], mesmo que o modelo não tenha colocado.
@@ -1268,11 +1313,7 @@ function Markdown({ texto, compacto, onNavegar }: { texto: string; compacto?: bo
           h2: ({ children }) => <p className={cn("font-semibold", compacto ? "text-[12px]" : "text-sm")}>{children}</p>,
           h3: ({ children }) => <p className={cn("font-semibold", compacto ? "text-[12px]" : "text-sm")}>{children}</p>,
           code: ({ children }) => <code className={cn("rounded bg-muted px-1 py-0.5 font-mono", compacto ? "text-[10px]" : "text-[12px]")}>{children}</code>,
-          table: ({ children }) => (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className={cn("w-full", compacto ? "text-[10px]" : "text-xs")}>{children}</table>
-            </div>
-          ),
+          table: ({ children }) => <TabelaCopiavel compacto={compacto}>{children}</TabelaCopiavel>,
           thead: ({ children }) => <thead className="bg-muted/60 text-left">{children}</thead>,
           th: ({ children }) => <th className="px-2 py-1.5 font-medium whitespace-nowrap">{children}</th>,
           td: ({ children }) => <td className="border-t px-2 py-1.5 align-top">{children}</td>,
