@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useImperativeHandle, useState, useTransition, type Ref } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -43,12 +43,17 @@ export function EnvioPropostaDialog({
   variant = "outline",
   size = "sm",
   compacto = false,
+  oculto = false,
+  ref,
 }: {
   licitacaoId: string;
   enviada?: boolean;
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "sm";
   compacto?: boolean;
+  /** Sem botão próprio: o diálogo é aberto por quem tem o ref (ex.: menu de três pontinhos). */
+  oculto?: boolean;
+  ref?: Ref<{ abrir: () => void }>;
 }) {
   const [aberto, setAberto] = useState(false);
   const [pacote, setPacote] = useState<PacoteEnvio | null>(null);
@@ -68,10 +73,11 @@ export function EnvioPropostaDialog({
   }
 
   const jaEnviada = pacote ? Boolean(pacote.envio) : enviada;
+  useImperativeHandle(ref, () => ({ abrir: () => { setAberto(true); void carregar(); } }));
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => { setAberto(v); if (v) void carregar(); }}>
-      <Button
+      {!oculto && <Button
         variant={jaEnviada ? "secondary" : variant}
         size={size}
         onClick={() => { setAberto(true); void carregar(); }}
@@ -81,7 +87,7 @@ export function EnvioPropostaDialog({
         {jaEnviada ? <CheckCircle2 className="text-primary" /> : <Send />}
         {!compacto && (jaEnviada ? "Enviada" : "Enviar proposta")}
         {compacto && <span className="hidden xl:inline">{jaEnviada ? "Enviada" : "Enviar"}</span>}
-      </Button>
+      </Button>}
       <DialogContent className="max-h-[90vh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Send className="size-5 text-primary" /> Enviar proposta</DialogTitle>

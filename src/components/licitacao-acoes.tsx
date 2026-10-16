@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
 import { EtapaSelect } from "@/components/etapa-select";
+import { TemperaturaSelect } from "@/components/temperatura-select";
 import { BaixarEditalButton } from "@/components/baixar-edital-button";
-import { ehExclusivoMeEpp, LicitacaoItem, type EtapaSlug } from "@/lib/licitacoes/types";
+import { ehExclusivoMeEpp, LicitacaoItem, type EtapaSlug, type Temperatura } from "@/lib/licitacoes/types";
 
 type ArquivoEdital = { titulo: string; url: string };
 
@@ -76,6 +77,7 @@ export function LicitacaoAcoes({
   numeroControle,
   licitacaoId,
   etapa,
+  temperatura = null,
   orgao = "",
   uf = "",
   esfera = "",
@@ -86,6 +88,7 @@ export function LicitacaoAcoes({
   numeroControle: string;
   licitacaoId: string;
   etapa: EtapaSlug;
+  temperatura?: Temperatura | null;
   orgao?: string;
   uf?: string;
   esfera?: string;
@@ -123,6 +126,8 @@ export function LicitacaoAcoes({
         Ações
       </p>
       <div className="rounded-lg border bg-muted/30 p-2">
+        <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">Temperatura</p>
+        <TemperaturaSelect id={licitacaoId} temperatura={temperatura} size="default" className="mb-3 w-full" />
         <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">Situação na pipeline</p>
         <EtapaSelect id={licitacaoId} etapa={etapa} size="default" className="w-full" />
         <p className="mt-2 px-1 text-[11px] text-muted-foreground">

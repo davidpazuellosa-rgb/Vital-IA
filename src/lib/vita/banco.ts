@@ -68,8 +68,8 @@ export const TABELAS: Record<string, RegraTabela> = {
   },
   saved_licitacoes: {
     descricao: "Minhas Licitações (licitações salvas) e a etapa de cada uma.",
-    leitura: ["id", "empresa", "numero_controle_pncp", "plataforma", "titulo", "orgao", "uf", "municipio", "modalidade", "situacao", "valor_estimado", "data_publicacao", "data_abertura_proposta", "data_encerramento_proposta", "link_origem", "observacoes", "etapa", "created_at"],
-    escrita: ["etapa", "observacoes"],
+    leitura: ["id", "empresa", "numero_controle_pncp", "plataforma", "titulo", "orgao", "uf", "municipio", "modalidade", "situacao", "valor_estimado", "data_publicacao", "data_abertura_proposta", "data_encerramento_proposta", "link_origem", "observacoes", "etapa", "temperatura", "created_at"],
+    escrita: ["etapa", "temperatura", "observacoes"],
     operacoes: ["atualizar"],
     escopo: "usuario", chave: "id", pagina: "/minhas-licitacoes", dono: "geral",
   },
@@ -237,6 +237,9 @@ function limparDados(tabela: string, bruto: unknown): Record<string, unknown> {
   }
   if (tabela === "saved_licitacoes" && "etapa" in dados && !ETAPAS_LICITACAO.some((e) => e.slug === dados.etapa)) {
     throw new Error(`Etapa inválida. Use: ${ETAPAS_LICITACAO.map((e) => e.slug).join(", ")}.`);
+  }
+  if (tabela === "saved_licitacoes" && "temperatura" in dados && dados.temperatura !== null && !["fria", "morna", "quente"].includes(String(dados.temperatura))) {
+    throw new Error('Temperatura inválida. Use: fria, morna, quente (ou null para limpar).');
   }
   return dados;
 }

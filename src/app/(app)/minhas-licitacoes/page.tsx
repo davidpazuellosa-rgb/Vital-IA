@@ -6,11 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { EMPRESAS, type EmpresaSlug } from "@/lib/empresas";
 import { obterAcesso } from "@/lib/acesso";
 import { createServiceClient } from "@/lib/supabase/service";
-import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
+import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, normalizarTemperatura, type EtapaSlug } from "@/lib/licitacoes/types";
 import { MinhasLicitacoesClient, type ItemMinhas } from "@/components/minhas-licitacoes-client";
-import { RemoverLicitacaoButton } from "@/components/remover-licitacao-button";
 import { EtapaSelect } from "@/components/etapa-select";
-import { CriarPropostaDialog } from "@/components/criar-proposta-dialog";
+import { TemperaturaSelect } from "@/components/temperatura-select";
+import { AcoesLicitacaoMenu } from "@/components/acoes-licitacao-menu";
 import { EnvioPropostaDialog } from "@/components/envio-proposta-dialog";
 import { Badge } from "@/components/ui/badge";
 import { COR_NIVEL_PRAZO, prazoDe } from "@/lib/propostas/prazo";
@@ -35,6 +35,7 @@ type SavedLicitacao = {
   data_encerramento_proposta: string | null;
   link_origem: string | null;
   etapa: string | null;
+  temperatura: string | null;
   created_at: string | null;
 };
 
@@ -188,18 +189,17 @@ export default async function MinhasLicitacoesPage() {
               salvoPorAlerta: licitacoesSalvasPorAlerta.has(item.numero_controle_pncp),
               action: (
                 <div className="flex items-center gap-1.5">
-                  <CriarPropostaDialog licitacaoId={item.id} temPropostaInicial={licitacoesComProposta.has(item.id)} size="sm" compacto />
-                  <EnvioPropostaDialog licitacaoId={item.id} enviada={licitacoesEnviadas.has(item.id)} size="sm" compacto />
+                  <TemperaturaSelect id={item.id} temperatura={normalizarTemperatura(item.temperatura)} />
                   <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
-                  <RemoverLicitacaoButton id={item.id} />
+                  <AcoesLicitacaoMenu id={item.id} temProposta={licitacoesComProposta.has(item.id)} enviada={licitacoesEnviadas.has(item.id)} />
                 </div>
               ),
               // Na tabela não há o botão de proposta (ela abre pelo perfil da licitação, no título).
               acaoTabela: (
                 <div className="flex items-center gap-1.5">
-                  <EnvioPropostaDialog licitacaoId={item.id} enviada={licitacoesEnviadas.has(item.id)} size="sm" compacto />
+                  <TemperaturaSelect id={item.id} temperatura={normalizarTemperatura(item.temperatura)} />
                   <EtapaSelect id={item.id} etapa={normalizarEtapa(item.etapa) as EtapaSlug} />
-                  <RemoverLicitacaoButton id={item.id} />
+                  <AcoesLicitacaoMenu id={item.id} comProposta={false} enviada={licitacoesEnviadas.has(item.id)} />
                 </div>
               ),
             },

@@ -28,6 +28,18 @@ export const ETAPAS_LICITACAO: EtapaInfo[] = [
   { slug: "perdida", nome: "Licitação Perdida", descricao: "Não seguirá adiante" },
 ];
 
+export type Temperatura = "fria" | "morna" | "quente";
+
+export const TEMPERATURAS: Array<{ slug: Temperatura; nome: string; ponto: string }> = [
+  { slug: "fria", nome: "Fria", ponto: "bg-blue-500" },
+  { slug: "morna", nome: "Morna", ponto: "bg-orange-500" },
+  { slug: "quente", nome: "Quente", ponto: "bg-red-500" },
+];
+
+export function normalizarTemperatura(valor: string | null | undefined): Temperatura | null {
+  return TEMPERATURAS.some((t) => t.slug === valor) ? (valor as Temperatura) : null;
+}
+
 export const ETAPA_PADRAO: EtapaSlug = "oportunidade";
 
 const ETAPAS_VALIDAS = new Set<string>(ETAPAS_LICITACAO.map((etapa) => etapa.slug));

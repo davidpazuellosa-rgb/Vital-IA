@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 import { obterAcesso } from "@/lib/acesso";
 import type { EmpresaSlug } from "@/lib/empresas";
-import { normalizarEtapa, UnifiedLicitacao, type EtapaSlug } from "./types";
+import { normalizarEtapa, normalizarTemperatura, UnifiedLicitacao, type EtapaSlug, type Temperatura } from "./types";
 import { buscarArquivosPncp } from "./providers/pncp-arquivos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -132,6 +132,20 @@ export async function atualizarEtapaLicitacao(id: string, etapa: EtapaSlug) {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/minhas-licitacoes");
+}
+
+export async function atualizarTemperaturaLicitacao(id: string, temperatura: Temperatura | null) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { error } = await supabase
+    .from("saved_licitacoes")
+    .update({ temperatura: normalizarTemperatura(temperatura) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/minhas-licitacoes");
+  revalidatePath(`/licitacao/${id}`);
 }
 
 export async function marcarPropostaRecusada(id: string) {

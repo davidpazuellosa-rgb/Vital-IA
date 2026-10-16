@@ -22,7 +22,7 @@ Se a palavra-chave for um nº de controle PNCP, traz exatamente aquela licitaç�
 - vencida (Licitação Vencida — vira cliente)
 - perdida (Licitação Perdida)
 Painel "Propostas em andamento": proposta pronta ou com rascunho, não enviada e no prazo, ordenadas pelo prazo (urgente <24h, atenção ≤2 dias, ok, encerrado), com botão Enviar proposta.
-Cada cartão: Criar proposta / Abrir rascunho, Enviar, seletor de etapa, remover. Selo "Salvo alerta" quando veio de um alerta.
+Cada cartão: seletor de temperatura (fria = bolinha azul, morna = laranja, quente = vermelha; coluna temperatura em saved_licitacoes), seletor de etapa e menu de três pontinhos (Proposta / Abrir rascunho, Enviar, Remover). Selo "Salvo alerta" quando veio de um alerta.
 Ao marcar VENCIDA: cria (ou reaproveita) o cliente com o nome do órgão, cria a contratação com o nº PNCP, e anexa automaticamente os arquivos do edital do PNCP em cliente_documentos (tipo edital); depois abre a contratação.`,
 
   detalhe_licitacao: `Detalhe da licitação salva (/licitacao/[id]): dados (objeto, órgão, modalidade, local, situação, datas, esfera, local de entrega tirado do edital), resumo financeiro, tabela de itens.

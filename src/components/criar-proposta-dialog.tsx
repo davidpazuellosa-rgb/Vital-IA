@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, useTransition, type Ref } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -45,6 +45,8 @@ export function CriarPropostaDialog({
   size = "default",
   compacto = false,
   className,
+  oculto = false,
+  ref,
 }: {
   licitacaoId: string;
   temPropostaInicial?: boolean;
@@ -52,6 +54,9 @@ export function CriarPropostaDialog({
   size?: "default" | "sm";
   compacto?: boolean;
   className?: string;
+  /** Sem botão próprio: o diálogo é aberto por quem tem o ref (ex.: menu de três pontinhos). */
+  oculto?: boolean;
+  ref?: Ref<{ abrir: () => void }>;
 }) {
   const [aberto, setAberto] = useState(false);
   const [analise, setAnalise] = useState<AnaliseEdital | null>(null);
@@ -114,9 +119,11 @@ export function CriarPropostaDialog({
     });
   }
 
+  useImperativeHandle(ref, () => ({ abrir: iniciar }));
+
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
-      <Button
+      {!oculto && <Button
         variant={variant}
         size={size}
         className={className}
@@ -128,7 +135,7 @@ export function CriarPropostaDialog({
         {pendente ? <Loader2 className="animate-spin" /> : <FileText />}
         {!compacto && (temProposta ? "Abrir rascunho" : "Criar proposta")}
         {compacto && <span className="hidden xl:inline">{temProposta ? "Abrir" : "Proposta"}</span>}
-      </Button>
+      </Button>}
       <DialogContent className="max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><FileSearch className="size-5 text-primary" /> {temProposta ? "Proposta em rascunho" : "Criar proposta"}</DialogTitle>

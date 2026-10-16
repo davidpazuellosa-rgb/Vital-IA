@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { formatarData, formatarMoeda } from "@/lib/format";
-import { normalizarEtapa, PLATAFORMAS } from "@/lib/licitacoes/types";
+import { normalizarEtapa, normalizarTemperatura, PLATAFORMAS } from "@/lib/licitacoes/types";
 import { carregarDadosPncp, localEntregaSegura, type DadosPncp } from "@/lib/licitacoes/dados-pncp";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
 import { linkSistemaOrigem, rotuloSistemaOrigem } from "@/lib/licitacoes/plataforma-origem";
@@ -172,6 +172,7 @@ export default async function LicitacaoDetalhePage({
                   numeroControle={lic.numero_controle_pncp}
                   licitacaoId={id}
                   etapa={normalizarEtapa(lic.etapa)}
+                  temperatura={normalizarTemperatura(lic.temperatura)}
                   orgao={lic.orgao}
                   uf={lic.uf}
                   esfera={esferaNome(lic).split(" ")[0]}
@@ -248,12 +249,13 @@ async function CartaoItens({ dados }: { dados: Promise<DadosPncp> }) {
 }
 
 async function AcoesLicitacao({
-  dados, numeroControle, licitacaoId, etapa, orgao, uf, esfera, temProposta,
+  dados, numeroControle, licitacaoId, etapa, temperatura, orgao, uf, esfera, temProposta,
 }: {
   dados: Promise<DadosPncp>;
   numeroControle: string;
   licitacaoId: string;
   etapa: ReturnType<typeof normalizarEtapa>;
+  temperatura: ReturnType<typeof normalizarTemperatura>;
   orgao: string;
   uf: string;
   esfera: string;
@@ -266,6 +268,7 @@ async function AcoesLicitacao({
       numeroControle={numeroControle}
       licitacaoId={licitacaoId}
       etapa={etapa}
+      temperatura={temperatura}
       orgao={orgao}
       uf={uf}
       esfera={esfera}
