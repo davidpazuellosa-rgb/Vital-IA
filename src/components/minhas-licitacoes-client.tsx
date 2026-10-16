@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ListFilter, Search, X } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ListFilter, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,9 @@ export type ItemMinhas = {
   plataformaId: string;
   /** Empresa dona da licitação (slug em src/lib/empresas.ts). */
   empresa: string;
+  /** Quando a licitação foi salva e quando a proposta foi enviada (ISO), para ordenar. */
+  salvaEm: string | null;
+  enviadaEm: string | null;
   temProposta: boolean;
 };
 
@@ -37,6 +40,70 @@ type Filtros = {
   soAlerta: boolean;
   soProposta: boolean;
 };
+
+/* ---------------------------------------- ordenação ---------------------------------------- */
+type Campo = "salva" | "encerramento" | "envio" | "abertura" | "valor" | "titulo" | "orgao";
+type Dir = "asc" | "desc";
+type Ordem = { campo: Campo; dir: Dir };
+
+const ORDEM_PADRAO: Ordem = { campo: "salva", dir: "desc" };
+const CHAVE_ORDEM = "vitalia:ordem-minhas-licitacoes";
+
+const CAMPOS: Array<{ campo: Campo; rotulo: string; dirPadrao: Dir; asc: string; desc: string }> = [
+  { campo: "salva", rotulo: "Salvas em", dirPadrao: "desc", asc: "Mais antigas primeiro", desc: "Mais recentes primeiro" },
+  { campo: "encerramento", rotulo: "Encerramento das propostas", dirPadrao: "asc", asc: "Mais próximo primeiro", desc: "Mais distante primeiro" },
+  { campo: "envio", rotulo: "Envio da proposta", dirPadrao: "desc", asc: "Mais antigo primeiro", desc: "Mais recente primeiro" },
+  { campo: "abertura", rotulo: "Abertura", dirPadrao: "asc", asc: "Mais próxima primeiro", desc: "Mais distante primeiro" },
+  { campo: "valor", rotulo: "Valor estimado", dirPadrao: "desc", asc: "Menor primeiro", desc: "Maior primeiro" },
+  { campo: "titulo", rotulo: "Objeto (A–Z)", dirPadrao: "asc", asc: "A → Z", desc: "Z → A" },
+  { campo: "orgao", rotulo: "Órgão (A–Z)", dirPadrao: "asc", asc: "A → Z", desc: "Z → A" },
+];
+
+function valorDe(m: ItemMinhas, campo: Campo): string | number | null {
+  const i = m.item;
+  switch (campo) {
+    case "salva": return m.salvaEm;
+    case "encerramento": return i.dataEncerramento;
+    case "envio": return m.enviadaEm;
+    case "abertura": return i.dataAbertura;
+    case "valor": return i.valorEstimado == null ? null : Number(i.valorEstimado);
+    case "titulo": return i.titulo ? semAcento(i.titulo) : null;
+    case "orgao": return i.orgao ? semAcento(i.orgao) : null;
+  }
+}
+
+/** Ordena sem mexer na lista original; quem não tem o dado (ex.: proposta nunca enviada) vai sempre para o fim. */
+function ordenar(lista: ItemMinhas[], o: Ordem): ItemMinhas[] {
+  const sinal = o.dir === "asc" ? 1 : -1;
+  return [...lista].sort((a, b) => {
+    const x = valorDe(a, o.campo), y = valorDe(b, o.campo);
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR")) * sinal;
+  });
+}
+
+const ouvintesOrdem = new Set<() => void>();
+let ordemEmMemoria = ""; // se o navegador não deixar usar localStorage, vale só até recarregar
+const lerOrdemBruta = () => { try { return localStorage.getItem(CHAVE_ORDEM) ?? ordemEmMemoria; } catch { return ordemEmMemoria; } };
+function assinarOrdem(avisar: () => void) {
+  ouvintesOrdem.add(avisar);
+  window.addEventListener("storage", avisar);
+  return () => { ouvintesOrdem.delete(avisar); window.removeEventListener("storage", avisar); };
+}
+function lerOrdem(bruto: string): Ordem {
+  try {
+    const o = JSON.parse(bruto || "null") as Ordem | null;
+    if (o && CAMPOS.some((c) => c.campo === o.campo) && (o.dir === "asc" || o.dir === "desc")) return o;
+  } catch { /* valor inválido: usa o padrão */ }
+  return ORDEM_PADRAO;
+}
+function salvarOrdem(o: Ordem) {
+  ordemEmMemoria = JSON.stringify(o);
+  try { localStorage.setItem(CHAVE_ORDEM, ordemEmMemoria); } catch { /* sem armazenamento */ }
+  ouvintesOrdem.forEach((f) => f());
+}
 
 const SEM_FILTROS: Filtros = {
   empresas: [], ufs: [], modalidades: [], plataformas: [], valorMin: "", valorMax: "", encerraDe: "", encerraAte: "", soAlerta: false, soProposta: false,
@@ -88,6 +155,11 @@ export function MinhasLicitacoesClient({
   const [busca, setBusca] = useState("");
   const [filtros, setFiltros] = useState<Filtros>(SEM_FILTROS);
   const [aberto, setAberto] = useState(false);
+  const [abertoOrdem, setAbertoOrdem] = useState(false);
+  // a escolha fica guardada neste navegador (useSyncExternalStore: servidor e cliente começam iguais)
+  const ordemBruta = useSyncExternalStore(assinarOrdem, lerOrdemBruta, () => "");
+  const ordem = useMemo(() => lerOrdem(ordemBruta), [ordemBruta]);
+  const escolherOrdem = salvarOrdem;
   const termo = semAcento(busca.trim());
   const ativos = contarFiltros(filtros);
   const filtrando = termo !== "" || ativos > 0;
@@ -106,7 +178,7 @@ export function MinhasLicitacoesClient({
     };
   }, [itens, plataformas, empresasDisponiveis]);
 
-  const visiveis = useMemo(() => itens.filter((m) => passa(m, termo, filtros)), [itens, termo, filtros]);
+  const visiveis = useMemo(() => ordenar(itens.filter((m) => passa(m, termo, filtros)), ordem), [itens, termo, filtros, ordem]);
 
   const etapasComConteudo = etapas.map((etapa) => {
     const daEtapa = visiveis.filter((m) => m.etapa === etapa.slug).map((m) => m.item);
@@ -213,6 +285,43 @@ export function MinhasLicitacoesClient({
               <Button variant="ghost" size="sm" disabled={ativos === 0} onClick={() => setFiltros(SEM_FILTROS)}>Limpar</Button>
               <Button size="sm" onClick={() => setAberto(false)}>Ver resultados</Button>
             </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <Popover open={abertoOrdem} onOpenChange={setAbertoOrdem}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="gap-2">
+            <ArrowUpDown className="size-4" />
+            Ordenar
+            {(ordem.campo !== ORDEM_PADRAO.campo || ordem.dir !== ORDEM_PADRAO.dir) && <span className="size-2 rounded-full bg-primary" aria-label="Ordem alterada" />}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[min(92vw,22rem)] p-2">
+          <ul className="flex flex-col">
+            {CAMPOS.map((c) => {
+              const ativo = ordem.campo === c.campo;
+              return (
+                <li key={c.campo}>
+                  <button
+                    type="button"
+                    onClick={() => escolherOrdem(ativo ? { campo: c.campo, dir: ordem.dir === "asc" ? "desc" : "asc" } : { campo: c.campo, dir: c.dirPadrao })}
+                    className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">{ativo && <Check className="size-4 text-primary" />}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className={ativo ? "font-medium" : ""}>{c.rotulo}</span>
+                      {ativo && <span className="block text-xs text-muted-foreground">{ordem.dir === "asc" ? c.asc : c.desc}</span>}
+                    </span>
+                    {ativo && (ordem.dir === "asc" ? <ArrowUp className="size-4 text-muted-foreground" /> : <ArrowDown className="size-4 text-muted-foreground" />)}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-1 flex items-center justify-between border-t px-2 pt-2">
+            <span className="text-xs text-muted-foreground">Clique de novo para inverter</span>
+            <Button variant="ghost" size="sm" disabled={ordem.campo === ORDEM_PADRAO.campo && ordem.dir === ORDEM_PADRAO.dir} onClick={() => escolherOrdem(ORDEM_PADRAO)}>Padrão</Button>
           </div>
         </PopoverContent>
       </Popover>

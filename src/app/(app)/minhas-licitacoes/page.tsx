@@ -35,6 +35,7 @@ type SavedLicitacao = {
   data_encerramento_proposta: string | null;
   link_origem: string | null;
   etapa: string | null;
+  created_at: string | null;
 };
 
 /** Página renderizada no servidor a cada requisição: a hora atual é a da requisição. */
@@ -59,8 +60,15 @@ export default async function MinhasLicitacoesPage() {
   const total = licitacoes.length;
   const idsLicitacoes = licitacoes.map((item) => item.id);
   const { data: propostas } = idsLicitacoes.length
-    ? await supabase.from("propostas").select("licitacao_id, status").in("licitacao_id", idsLicitacoes)
+    ? await supabase.from("propostas").select("licitacao_id, status, enviada_em").in("licitacao_id", idsLicitacoes)
     : { data: [] };
+  // data em que a proposta foi enviada (a mais recente, se houver mais de uma)
+  const enviadaEm = new Map<string, string>();
+  for (const pr of propostas ?? []) {
+    const d = pr.enviada_em ? String(pr.enviada_em) : "";
+    const k = String(pr.licitacao_id);
+    if (d && (!enviadaEm.get(k) || d > enviadaEm.get(k)!)) enviadaEm.set(k, d);
+  }
   const licitacoesComProposta = new Set((propostas ?? []).map((item) => String(item.licitacao_id)));
   const licitacoesEnviadas = new Set(
     (propostas ?? []).filter((item) => item.status === "enviada").map((item) => String(item.licitacao_id)),
@@ -158,6 +166,8 @@ export default async function MinhasLicitacoesPage() {
             etapa: normalizarEtapa(item.etapa),
             plataformaId: item.plataforma,
             empresa: item.empresa,
+            salvaEm: item.created_at,
+            enviadaEm: enviadaEm.get(item.id) ?? null,
             temProposta: licitacoesComProposta.has(item.id),
             item: {
               id: item.id,
