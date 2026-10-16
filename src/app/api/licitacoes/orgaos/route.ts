@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tokensOrgao } from "@/lib/licitacoes/providers/pncp-client";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * Sugestões de órgãos para o campo "Órgão" da busca: pesquisa o nome na busca textual do
@@ -29,6 +30,10 @@ async function paginaBusca(q: string, pagina: number): Promise<ItemBusca[]> {
 }
 
 export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
   const texto = (request.nextUrl.searchParams.get("q") ?? "").trim();
   if (texto.length < 3) return NextResponse.json({ orgaos: [] });
 

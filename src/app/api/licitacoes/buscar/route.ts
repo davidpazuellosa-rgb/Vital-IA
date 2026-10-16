@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buscarLicitacoes } from "@/lib/licitacoes/registry";
 import { UniversalFilter } from "@/lib/licitacoes/types";
+import { createClient } from "@/lib/supabase/server";
 
 const TAMANHO_PAGINA = 20;
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as UniversalFilter & { pagina?: number };
+  // Só quem está logado usa a busca (antes qualquer visitante podia usar o servidor como intermediário do PNCP).
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
+  const body = (await request.json().catch(() => null)) as (UniversalFilter & { pagina?: number }) | null;
+  if (!body) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
 
   if (!body.dataInicial || !body.dataFinal) {
     return NextResponse.json(
