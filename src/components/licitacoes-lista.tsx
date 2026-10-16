@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { LicitacaoCard, type LicitacaoCardProps } from "@/components/licitacao-card";
 import { formatarMoeda } from "@/lib/format";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
+import { linkSistemaOrigem, rotuloSistemaOrigem } from "@/lib/licitacoes/plataforma-origem";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------------------------
@@ -221,7 +222,7 @@ function TabelaLicitacoes({ itens }: { itens: ItemLista[] }) {
         <TableBody>
           {itens.map((i) => {
             const portal = linkPncp(i.numeroControlePNCP);
-            const externo = portal ?? i.linkOrigem;
+            const sistema = linkSistemaOrigem(i.linkOrigem);
             return (
               <TableRow key={i.id} className="group">
                 <TableCell className="w-full min-w-56 max-w-0 px-3 py-2">
@@ -248,13 +249,25 @@ function TabelaLicitacoes({ itens }: { itens: ItemLista[] }) {
                 })}
                 <TableCell className="px-3 py-2">
                   <div className="flex items-center justify-end gap-1">
-                    {externo && (
+                    {sistema && (
                       <a
-                        href={externo}
+                        href={sistema}
                         target="_blank"
                         rel="noreferrer"
-                        title={portal ? "Ver no PNCP" : "Ver no sistema de origem"}
-                        aria-label={portal ? "Ver no PNCP" : "Ver no sistema de origem"}
+                        title={rotuloSistemaOrigem(sistema)}
+                        aria-label={rotuloSistemaOrigem(sistema)}
+                        className="inline-flex size-7 items-center justify-center rounded-md text-primary transition-colors hover:bg-accent"
+                      >
+                        <ExternalLink className="size-3.5" />
+                      </a>
+                    )}
+                    {portal && (
+                      <a
+                        href={portal}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Ver no PNCP"
+                        aria-label="Ver no PNCP"
                         className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
                       >
                         <ExternalLink className="size-3.5" />

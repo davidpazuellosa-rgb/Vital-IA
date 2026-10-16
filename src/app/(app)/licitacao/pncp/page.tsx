@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { buscarCompraPncp, buscarItensPncp } from "@/lib/licitacoes/providers/pncp-itens";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
+import { linkSistemaOrigem, rotuloSistemaOrigem } from "@/lib/licitacoes/plataforma-origem";
 import { SalvarLicitacaoButton } from "@/components/salvar-licitacao-button";
 import { TentarNovamente } from "@/components/tentar-novamente";
 
@@ -76,10 +77,19 @@ export default async function LicitacaoPncpPerfil({
                   <p className="mt-0.5 text-sm">{lic.descricao}</p>
                 </div>
               )}
-              {(linkPncp(lic.numeroControlePNCP) ?? lic.linkOrigem) && (
-                <a href={linkPncp(lic.numeroControlePNCP) ?? lic.linkOrigem!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-                  <ExternalLink className="size-3.5" /> {linkPncp(lic.numeroControlePNCP) ? "Ver no PNCP" : "Ver no sistema de origem"}
-                </a>
+              {(linkPncp(lic.numeroControlePNCP) || linkSistemaOrigem(lic.linkOrigem)) && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                  {linkSistemaOrigem(lic.linkOrigem) && (
+                    <a href={linkSistemaOrigem(lic.linkOrigem)!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                      <ExternalLink className="size-3.5" /> {rotuloSistemaOrigem(lic.linkOrigem)}
+                    </a>
+                  )}
+                  {linkPncp(lic.numeroControlePNCP) && (
+                    <a href={linkPncp(lic.numeroControlePNCP)!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                      <ExternalLink className="size-3.5" /> Ver no PNCP
+                    </a>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

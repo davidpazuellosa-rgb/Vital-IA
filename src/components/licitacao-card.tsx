@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
+import { linkSistemaOrigem, rotuloSistemaOrigem } from "@/lib/licitacoes/plataforma-origem";
 import { cn } from "@/lib/utils";
 
 export interface LicitacaoCardProps {
@@ -55,8 +56,7 @@ export function LicitacaoCard({
   action,
 }: LicitacaoCardProps) {
   const linkPortalPncp = linkPncp(numeroControlePNCP);
-  const linkExterno = linkPortalPncp ?? linkOrigem;
-  const rotuloLink = linkPortalPncp ? "Ver no PNCP" : "Ver no sistema de origem";
+  const linkSistema = linkSistemaOrigem(linkOrigem);
   return (
     <Card className={cn("relative transition-colors", href && "hover:border-primary/50")}>
       {href && (
@@ -104,16 +104,21 @@ export function LicitacaoCard({
           />
         </div>
 
-        {linkExterno && (
-          <a
-            href={linkExterno}
-            target="_blank"
-            rel="noreferrer"
-            className="relative z-10 inline-flex w-fit items-center gap-1 text-sm text-primary hover:underline"
-          >
-            {rotuloLink}
-            <ExternalLink className="size-3.5" />
-          </a>
+        {(linkPortalPncp || linkSistema) && (
+          <div className="relative z-10 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {linkPortalPncp && (
+              <a href={linkPortalPncp} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-sm text-primary hover:underline">
+                Ver no PNCP
+                <ExternalLink className="size-3.5" />
+              </a>
+            )}
+            {linkSistema && (
+              <a href={linkSistema} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary hover:underline">
+                {rotuloSistemaOrigem(linkSistema)}
+                <ExternalLink className="size-3.5" />
+              </a>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

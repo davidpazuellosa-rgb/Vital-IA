@@ -34,3 +34,18 @@ export function detectarPlataforma(linkOrigem: string | null | undefined): Plata
   const sistema = SISTEMAS.find((s) => s.hosts.some((h) => hostCasa(host, h)));
   return sistema ? { id: sistema.id, nome: sistema.nome, host } : null;
 }
+
+/** Link do sistema onde a disputa acontece (nulo se não veio ou se é o próprio PNCP, que já tem o botão dele). */
+export function linkSistemaOrigem(linkOrigem: string | null | undefined): string | null {
+  const host = hostDeLink(linkOrigem);
+  if (!linkOrigem || !host || hostCasa(host, "pncp.gov.br")) return null;
+  return /^https?:\/\//i.test(linkOrigem) ? linkOrigem : `https://${linkOrigem}`;
+}
+
+/** "Abrir no Compras.gov.br", "Abrir no Licitanet"; sistema desconhecido mostra o endereço. */
+export function rotuloSistemaOrigem(linkOrigem: string | null | undefined): string {
+  const p = detectarPlataforma(linkOrigem);
+  if (p) return `Abrir no ${p.nome}`;
+  const host = hostDeLink(linkOrigem);
+  return host ? `Abrir em ${host}` : "Abrir no sistema de origem";
+}

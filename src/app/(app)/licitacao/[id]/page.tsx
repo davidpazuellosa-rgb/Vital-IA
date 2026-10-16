@@ -18,6 +18,7 @@ import { formatarData, formatarMoeda } from "@/lib/format";
 import { normalizarEtapa, PLATAFORMAS } from "@/lib/licitacoes/types";
 import { carregarDadosPncp, localEntregaSegura, type DadosPncp } from "@/lib/licitacoes/dados-pncp";
 import { linkPncp } from "@/lib/licitacoes/pncp-url";
+import { linkSistemaOrigem, rotuloSistemaOrigem } from "@/lib/licitacoes/plataforma-origem";
 import { LicitacaoAcoes } from "@/components/licitacao-acoes";
 import { LicitacaoItensTabela } from "@/components/licitacao-itens-tabela";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -90,16 +91,21 @@ export default async function LicitacaoDetalhePage({
                   <Badge variant="outline" className="font-normal">{lic.situacao}</Badge>
                 )}
               </div>
-              {(linkPncp(lic.numero_controle_pncp) ?? lic.link_origem) && (
-                <a
-                  href={linkPncp(lic.numero_controle_pncp) ?? lic.link_origem!}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                >
-                  <ExternalLink className="size-3.5" />
-                  {linkPncp(lic.numero_controle_pncp) ? "Ver no PNCP" : "Sistema de origem"}
-                </a>
+              {(linkPncp(lic.numero_controle_pncp) || linkSistemaOrigem(lic.link_origem)) && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                  {linkSistemaOrigem(lic.link_origem) && (
+                    <a href={linkSistemaOrigem(lic.link_origem)!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                      <ExternalLink className="size-3.5" />
+                      {rotuloSistemaOrigem(lic.link_origem)}
+                    </a>
+                  )}
+                  {linkPncp(lic.numero_controle_pncp) && (
+                    <a href={linkPncp(lic.numero_controle_pncp)!} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                      <ExternalLink className="size-3.5" />
+                      Ver no PNCP
+                    </a>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
