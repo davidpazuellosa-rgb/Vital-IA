@@ -79,6 +79,17 @@ export async function carregarConversa(id: string): Promise<{ mensagens: Mensage
 }
 
 /** Apaga a conversa e os arquivos anexados nela (que nunca foram para o acervo). */
+/** Muda o título de uma conversa (só do dono, pela RLS). Não mexe na data, então a ordem da lista não muda. */
+export async function renomearConversa(id: string, titulo: string): Promise<string> {
+  const limpo = titulo.replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!limpo) throw new Error("Informe um nome.");
+  const supabase = await sessao();
+  const { data, error } = await supabase.from("vita_conversas").update({ titulo: limpo }).eq("id", id).select("id").maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Conversa não encontrada.");
+  return limpo;
+}
+
 export async function apagarConversa(id: string): Promise<void> {
   const supabase = await sessao();
   const { data: msgs } = await supabase.from("vita_mensagens").select("dados").eq("conversa_id", id).eq("papel", "user");

@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { FileArchive,
+import { Pencil, FileArchive,
   ArrowUp, Check, CheckCircle2, History, Loader2, MessageSquarePlus, Search, ShieldCheck, Sparkles, Square, Trash2, X, XCircle, AlertTriangle,
   Download, Paperclip, FileText, FileSpreadsheet, ImageIcon, File as FileIcon, Upload, ArrowUpRight, Brain, CircleHelp, Copy, ExternalLink, Maximize2, MousePointerClick, ThumbsDown, ThumbsUp, Minimize2, CornerDownRight, SquarePen, MessageSquare,
 } from "lucide-react";
@@ -17,7 +17,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { obterEmpresaUserId } from "@/lib/documentos/actions";
 import { createClient } from "@/lib/supabase/client";
 import { ACEITOS, MAX_ANEXOS, corrigirArquivo, motivoRecusa, tipoDoArquivo, type TipoAnexo } from "@/lib/vita/anexos-regras";
-import { apagarConversa, carregarConversa, listarConversas, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
+import { apagarConversa, carregarConversa, listarConversas, renomearConversa, type AcaoVita, type AnexoExibido, type ResumoConversa } from "@/lib/vita/conversas";
 import { cn } from "@/lib/utils";
 import { comLinksDeLicitacao } from "@/lib/vita/links-licitacao";
 import { pergunta2texto, type PerguntaVita } from "@/lib/vita/pergunta";
@@ -1057,20 +1057,56 @@ function useConversas(ativo: boolean, busca: string, versao?: string) {
       return false;
     }
   }
-  return { lista, apagar };
+  async function renomear(id: string, titulo: string): Promise<boolean> {
+    try {
+      const novo = await renomearConversa(id, titulo);
+      setLista((l) => (l ?? []).map((c) => (c.id === id ? { ...c, titulo: novo } : c)));
+      return true;
+    } catch (e) {
+      toast.error("Não foi possível renomear", { description: e instanceof Error ? e.message : undefined });
+      return false;
+    }
+  }
+  return { lista, apagar, renomear };
 }
 
-function ItensConversas({ lista, busca, atual, onAbrir, onApagar, comIcone }: {
+function ItensConversas({ lista, busca, atual, onAbrir, onApagar, onRenomear, comIcone }: {
   lista: ResumoConversa[] | null; busca: string; atual: string | null;
-  onAbrir: (id: string) => void; onApagar: (id: string) => void; comIcone?: boolean;
+  onAbrir: (id: string) => void; onApagar: (id: string) => void; onRenomear: (id: string, titulo: string) => Promise<boolean>; comIcone?: boolean;
 }) {
+  const [editando, setEditando] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState("");
+  const comecar = (c: ResumoConversa) => { setRascunho(c.titulo); setEditando(c.id); };
+  async function concluir(c: ResumoConversa) {
+    const novo = rascunho.trim();
+    setEditando(null);
+    if (novo && novo !== c.titulo) await onRenomear(c.id, novo);
+  }
   if (lista === null) return <li className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> Carregando…</li>;
   if (lista.length === 0) return <li className="px-2 py-3 text-center text-sm text-muted-foreground">{busca ? "Nada encontrado" : "Nenhuma conversa ainda"}</li>;
   return lista.map((c) => (
     <li key={c.id} className="group flex items-center gap-1">
+      {editando === c.id ? (
+        <input
+          autoFocus
+          value={rascunho}
+          maxLength={120}
+          aria-label="Novo nome da conversa"
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setRascunho(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); void concluir(c); }
+            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditando(null); }
+          }}
+          onBlur={() => void concluir(c)}
+          className="mx-1 my-0.5 h-9 min-w-0 flex-1 rounded-md border border-ring bg-background px-2 text-sm outline-none ring-[3px] ring-ring/30"
+        />
+      ) : (
       <button
         type="button"
         onClick={() => onAbrir(c.id)}
+        onDoubleClick={() => comecar(c)}
+        title="Clique duas vezes para renomear"
         className={cn("flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent", c.id === atual && "bg-accent")}
       >
         {comIcone && <MessageSquare className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
@@ -1081,6 +1117,18 @@ function ItensConversas({ lista, busca, atual, onAbrir, onApagar, comIcone }: {
           </span>
         </span>
       </button>
+      )}
+      {editando !== c.id && (
+        <button
+          type="button"
+          onClick={() => comecar(c)}
+          className="rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+          aria-label="Renomear conversa"
+          title="Renomear"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onApagar(c.id)}
@@ -1096,7 +1144,7 @@ function ItensConversas({ lista, busca, atual, onAbrir, onApagar, comIcone }: {
 function Historico({ atual, onAbrir, onApagada }: { atual: string | null; onAbrir: (id: string) => void; onApagada: (id: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
-  const { lista, apagar } = useConversas(aberto, busca);
+  const { lista, apagar, renomear } = useConversas(aberto, busca);
 
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
@@ -1123,6 +1171,7 @@ function Historico({ atual, onAbrir, onApagada }: { atual: string | null; onAbri
             atual={atual}
             onAbrir={(id) => { onAbrir(id); setAberto(false); }}
             onApagar={(id) => void apagar(id).then((ok) => ok && onApagada(id))}
+            onRenomear={renomear}
           />
         </ul>
       </PopoverContent>
@@ -1135,7 +1184,7 @@ function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
   atual: string | null; versao: string; onAbrir: (id: string) => void; onNova: () => void; onApagada: (id: string) => void;
 }) {
   const [busca, setBusca] = useState("");
-  const { lista, apagar } = useConversas(true, busca, versao);
+  const { lista, apagar, renomear } = useConversas(true, busca, versao);
   return (
     <div className="hidden w-64 shrink-0 flex-col border-r bg-muted/30 md:flex animate-in fade-in-0 slide-in-from-left-2 duration-300">
       <div className="flex h-14 shrink-0 items-center gap-2 px-4">
@@ -1167,6 +1216,7 @@ function ColunaConversas({ atual, versao, onAbrir, onNova, onApagada }: {
           comIcone
           onAbrir={onAbrir}
           onApagar={(id) => void apagar(id).then((ok) => ok && onApagada(id))}
+          onRenomear={renomear}
         />
       </ul>
     </div>
