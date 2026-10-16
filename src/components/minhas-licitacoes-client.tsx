@@ -20,10 +20,13 @@ export type ItemMinhas = {
   item: ItemLista;
   etapa: string;
   plataformaId: string;
+  /** Empresa dona da licitação (slug em src/lib/empresas.ts). */
+  empresa: string;
   temProposta: boolean;
 };
 
 type Filtros = {
+  empresas: string[];
   ufs: string[];
   modalidades: string[];
   plataformas: string[];
@@ -36,14 +39,14 @@ type Filtros = {
 };
 
 const SEM_FILTROS: Filtros = {
-  ufs: [], modalidades: [], plataformas: [], valorMin: "", valorMax: "", encerraDe: "", encerraAte: "", soAlerta: false, soProposta: false,
+  empresas: [], ufs: [], modalidades: [], plataformas: [], valorMin: "", valorMax: "", encerraDe: "", encerraAte: "", soAlerta: false, soProposta: false,
 };
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function contarFiltros(f: Filtros): number {
   return [
-    f.ufs.length > 0, f.modalidades.length > 0, f.plataformas.length > 0,
+    f.empresas.length > 0, f.ufs.length > 0, f.modalidades.length > 0, f.plataformas.length > 0,
     f.valorMin !== "" || f.valorMax !== "", f.encerraDe !== "" || f.encerraAte !== "", f.soAlerta, f.soProposta,
   ].filter(Boolean).length;
 }
@@ -51,9 +54,10 @@ function contarFiltros(f: Filtros): number {
 function passa(m: ItemMinhas, busca: string, f: Filtros): boolean {
   const i = m.item;
   if (busca) {
-    const palheiro = semAcento([i.titulo, i.orgao, i.municipio, i.uf, i.modalidade, i.plataformaNome, i.numeroControlePNCP ?? ""].join(" "));
+    const palheiro = semAcento([i.titulo, i.orgao, i.municipio, i.uf, i.modalidade, i.plataformaNome, i.empresaNome ?? "", i.numeroControlePNCP ?? ""].join(" "));
     if (!busca.split(/\s+/).every((termo) => palheiro.includes(termo))) return false;
   }
+  if (f.empresas.length && !f.empresas.includes(m.empresa)) return false;
   if (f.ufs.length && !f.ufs.includes(i.uf)) return false;
   if (f.modalidades.length && !f.modalidades.includes(i.modalidade)) return false;
   if (f.plataformas.length && !f.plataformas.includes(m.plataformaId)) return false;
@@ -72,9 +76,12 @@ export function MinhasLicitacoesClient({
   etapas,
   itens,
   plataformas,
+  empresasDisponiveis,
 }: {
   etapas: Array<{ slug: string; nome: string; descricao: string }>;
   itens: ItemMinhas[];
+  /** Empresas que a pessoa enxerga (vem da lista de empresas do sistema: empresa nova aparece sozinha). */
+  empresasDisponiveis: Array<{ slug: string; nome: string }>;
   /** id → nome de exibição de cada plataforma. */
   plataformas: Record<string, string>;
 }) {
@@ -89,12 +96,15 @@ export function MinhasLicitacoesClient({
     const ufs = [...new Set(itens.map((m) => m.item.uf).filter(Boolean))].sort();
     const modalidades = [...new Set(itens.map((m) => m.item.modalidade).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
     const plats = [...new Set(itens.map((m) => m.plataformaId))];
+    // empresas do sistema que a pessoa enxerga + qualquer outra que apareça nas licitações
+    const empresas = [...empresasDisponiveis, ...[...new Set(itens.map((m) => m.empresa))].filter((s) => !empresasDisponiveis.some((e) => e.slug === s)).map((s) => ({ slug: s, nome: s }))];
     return {
+      empresas: empresas.map((e) => ({ value: e.slug, label: e.nome })),
       ufs: ufs.map((uf) => ({ value: uf, label: `${uf} · ${UF_NOMES[uf] ?? uf}` })),
       modalidades: modalidades.map((m) => ({ value: m, label: m })),
       plataformas: plats.map((p) => ({ value: p, label: plataformas[p] ?? p })),
     };
-  }, [itens, plataformas]);
+  }, [itens, plataformas, empresasDisponiveis]);
 
   const visiveis = useMemo(() => itens.filter((m) => passa(m, termo, filtros)), [itens, termo, filtros]);
 
@@ -148,6 +158,12 @@ export function MinhasLicitacoesClient({
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[min(92vw,26rem)] p-0">
           <div className="flex max-h-[min(80vh,34rem)] flex-col gap-4 overflow-y-auto p-4">
+            {opcoes.empresas.length > 1 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Empresa</Label>
+                <MultiSelect options={opcoes.empresas} selected={filtros.empresas} onChange={(v) => mudar("empresas", v)} placeholder="Todas as empresas" plural="empresas" />
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label>Estado (UF)</Label>
               <MultiSelect options={opcoes.ufs} selected={filtros.ufs} onChange={(v) => mudar("ufs", v)} placeholder="Todos os estados" plural="estados" searchable />

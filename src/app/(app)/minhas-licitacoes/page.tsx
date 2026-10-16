@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { EMPRESAS, type EmpresaSlug } from "@/lib/empresas";
+import { obterAcesso } from "@/lib/acesso";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PLATAFORMAS, ETAPAS_LICITACAO, normalizarEtapa, type EtapaSlug } from "@/lib/licitacoes/types";
 import { MinhasLicitacoesClient, type ItemMinhas } from "@/components/minhas-licitacoes-client";
@@ -52,6 +53,9 @@ export default async function MinhasLicitacoesPage() {
     .order("created_at", { ascending: false });
 
   const licitacoes = (data ?? []) as SavedLicitacao[];
+  // Todas as empresas do sistema que a pessoa enxerga: empresa nova (em src/lib/empresas.ts) aparece sozinha no filtro.
+  const acesso = await obterAcesso();
+  const empresasDisponiveis = Object.values(EMPRESAS).filter((e) => acesso?.empresas.includes(e.slug)).map((e) => ({ slug: e.slug, nome: e.nome }));
   const total = licitacoes.length;
   const idsLicitacoes = licitacoes.map((item) => item.id);
   const { data: propostas } = idsLicitacoes.length
@@ -147,11 +151,13 @@ export default async function MinhasLicitacoesPage() {
         </Card>
       ) : (
         <MinhasLicitacoesClient
+          empresasDisponiveis={empresasDisponiveis}
           etapas={ETAPAS_LICITACAO.map((etapa) => ({ slug: etapa.slug, nome: etapa.nome, descricao: etapa.descricao }))}
           plataformas={PLATAFORMA_NOME}
           itens={licitacoes.map((item): ItemMinhas => ({
             etapa: normalizarEtapa(item.etapa),
             plataformaId: item.plataforma,
+            empresa: item.empresa,
             temProposta: licitacoesComProposta.has(item.id),
             item: {
               id: item.id,
