@@ -132,7 +132,8 @@ export async function executarAlertas(): Promise<ResumoExecucao> {
     const novas = itens.filter((i) => !vistos.has(i.numeroControlePNCP));
 
     await supabase.from("alertas").update({ ultima_execucao: new Date().toISOString() }).eq("id", a.id);
-    await salvarOportunidadesDoAlerta(supabase, a.user_id, a.id, itens);
+    // Salva só as NOVAS: quem o usuário já removeu (e que o alerta já viu) não volta a cada hora.
+    await salvarOportunidadesDoAlerta(supabase, a.user_id, a.id, novas);
     if (novas.length === 0) continue;
     totalNovas += novas.length;
 
