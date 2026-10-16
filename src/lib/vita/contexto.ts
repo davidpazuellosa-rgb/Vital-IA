@@ -16,7 +16,7 @@ const PAGINAS: Array<[RegExp, string]> = [
   [/^\/documentos/, "Documentos (acervo de habilitação)"],
   [/^\/vital-norte\/clientes/, "Clientes"],
   [/^\/vital-norte\/nota-fiscal/, "Nota Fiscal"],
-  [/^\/vital-norte\/sistemas/, "Sistemas de Licitação"],
+  [/^\/sistemas/, "Sistemas de Licitação"],
   [/^\/vital-norte\/dados/, "Dados da Empresa"],
   [/^\/vital-norte\/alertas/, "Alertas"],
   [/^\/vital-norte\/catalogo/, "Catálogo de Produtos e Serviços"],

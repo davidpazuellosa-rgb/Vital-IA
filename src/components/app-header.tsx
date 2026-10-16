@@ -18,7 +18,7 @@ const TITLES: Array<[string, { label: string; icon: typeof Search }]> = [
   ["/rm/dados", { label: "RM · Dados da Empresa", icon: FileText }],
   ["/rm/catalogo", { label: "RM · Catálogo", icon: Package }],
   ["/documentos", { label: "Documentos", icon: FolderOpen }],
-  ["/vital-norte/sistemas", { label: "Sistemas de Licitação", icon: Globe }],
+  ["/sistemas", { label: "Sistemas de Licitação", icon: Globe }],
   ["/vital-norte/dados", { label: "Dados da Empresa", icon: FileText }],
   ["/vital-norte/catalogo", { label: "Catálogo de Produtos e Serviços", icon: Package }],
   ["/vital-norte/clientes", { label: "Clientes", icon: Users }],

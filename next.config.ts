@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@napi-rs/canvas"],
   // Não anuncia a tecnologia do servidor.
   poweredByHeader: false,
+  async redirects() {
+    return [{ source: "/vital-norte/sistemas", destination: "/sistemas", permanent: true }];
+  },
   // Cabeçalhos de segurança: a página só pode ser embutida por ela mesma (contra "clique enganoso"), o endereço de
   // origem não vaza para outros sites e câmera/microfone/localização ficam desligados.
   async headers() {

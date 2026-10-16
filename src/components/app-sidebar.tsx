@@ -26,13 +26,13 @@ import type { EmpresaSlug } from "@/lib/empresas";
 const NAV_ITEMS = [
   { href: "/busca", label: "Busca", icon: Search },
   { href: "/minhas-licitacoes", label: "Minhas Licitações", icon: Bookmark },
+  { href: "/sistemas", label: "Sistemas de Licitação", icon: Globe },
   { href: "/assinador-propostas", label: "Assinador de Propostas", icon: FileSignature },
   { href: "/vita", label: "Vita", icon: Sparkles },
 ];
 
 const VITAL_NORTE_ITEMS = [
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
-  { href: "/vital-norte/sistemas", label: "Sistemas de Licitação", icon: Globe },
   { href: "/vital-norte/dados", label: "Dados da Empresa", icon: FileText },
   { href: "/vital-norte/catalogo", label: "Catálogo", icon: Package },
   { href: "/vital-norte/clientes", label: "Clientes", icon: Users },

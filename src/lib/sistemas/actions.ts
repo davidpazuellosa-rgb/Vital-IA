@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolverEmpresaUserId } from "@/lib/empresa/escopo";
 
-const CAMINHO = "/vital-norte/sistemas";
+const CAMINHO = "/sistemas";
 
 /** Aceita "bllcompras.com" ou "https://…"; recusa qualquer coisa que não seja http(s). */
 function normalizarUrl(bruta: string): string {

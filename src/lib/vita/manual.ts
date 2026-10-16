@@ -5,7 +5,7 @@
 
 const MANUAL: Record<string, string> = {
   visao_geral: `Vital.IA — sistema de licitações públicas da empresa.
-Menu lateral: Busca, Minhas Licitações, Assinador de Propostas; grupo "Vital Norte": Documentos, Sistemas de Licitação, Dados da Empresa, Catálogo, Clientes, Nota Fiscal, Alertas; rodapé: Configurações e Sair.
+Menu lateral: Busca, Minhas Licitações, Sistemas de Licitação, Assinador de Propostas; grupo "Vital Norte": Documentos, Dados da Empresa, Catálogo, Clientes, Nota Fiscal, Alertas; rodapé: Configurações e Sair.
 Botão "Vita" no topo à direita (atalho ⌘J / Ctrl+J) abre a assistente.
 Compartilhado por toda a empresa: documentos (acervo), dados da empresa, configuração de proposta, sistemas de licitação, catálogo. Por usuário: licitações salvas, propostas, clientes, contratações, notas fiscais, alertas.
 Arquivos ficam num armazenamento privado. Login por e-mail e senha.`,
@@ -52,7 +52,7 @@ Menu do documento: Visualizar, Baixar, Site responsável (emitir nova via), Subs
 Cartão "Propostas": checklist de prontidão (dados cadastrais/bancários, modelo de proposta no acervo, padrões, responsável) e padrões: validade (dias, padrão 60), representante legal (David Pazuello Franco de Sá ou Ruy Menezes Leão Neto, cargo Sócio Administrador), impostos inclusos, observações padrão.
 Configurações (/configuracoes) só tem atalhos para estas telas.`,
 
-  sistemas: `Sistemas de Licitação (/vital-norte/sistemas): atalhos para os portais onde a empresa tem cadastro (BLL Compras, Licitar Digital, Compras.gov.br, Licitanet, e-Compras AM, Compras Manaus, Petronect…). Cada um: nome, endereço, login (copiável), observações; "Abrir" reaproveita a aba para manter o login. SENHAS NÃO SÃO GUARDADAS. Os portais não podem ser embutidos no sistema.`,
+  sistemas: `Sistemas de Licitação (/sistemas): atalhos para os portais onde a empresa tem cadastro (BLL Compras, Licitar Digital, Compras.gov.br, Licitanet, e-Compras AM, Compras Manaus, Petronect…). Cada um: nome, endereço, login (copiável), observações; "Abrir" reaproveita a aba para manter o login. SENHAS NÃO SÃO GUARDADAS. Os portais não podem ser embutidos no sistema.`,
 
   catalogo: `Catálogo (/vital-norte/catalogo): produtos e serviços que a empresa vende. Campos: tipo (produto/serviço), nome, descrição, categoria, unidade, marca, código, custo, preço de referência, margem mínima (%), fornecedores, observações, ativo. A tela mostra a margem real sobre o custo ((preço − custo) / custo) em vermelho quando fica abaixo da mínima.
 A Vita pode cadastrar/alterar/remover itens (com aprovação), inclusive vários de uma vez a partir de uma planilha ou lista anexada, e comparar os itens de um edital com o catálogo para sugerir preço e marca.`,

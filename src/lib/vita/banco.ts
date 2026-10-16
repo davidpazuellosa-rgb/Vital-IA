@@ -96,7 +96,7 @@ export const TABELAS: Record<string, RegraTabela> = {
     leitura: ["id", "nome", "url", "login", "observacoes", "ordem", "created_at"],
     escrita: ["nome", "url", "login", "observacoes", "ordem"],
     operacoes: ["inserir", "atualizar", "remover"],
-    escopo: "empresa", chave: "id", pagina: "/vital-norte/sistemas",
+    escopo: "empresa", chave: "id", pagina: "/sistemas",
   },
   catalogo_itens: {
     descricao: "Catálogo de produtos e serviços da empresa (custo, preço de referência, margem mínima %).",

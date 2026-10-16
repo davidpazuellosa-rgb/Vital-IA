@@ -156,7 +156,7 @@ export const MAPA: EntradaMapa[] = [
   },
   {
     id: "portais", area: "Alertas e portais", assunto: "Portais de licitação em que a empresa tem cadastro (link e login)", palavras: ["portal", "sistema de licitacao", "bll", "licitar digital", "licitanet", "compras.gov", "login do portal", "link do portal"],
-    fontes: [{ tipo: "tabela", tabela: "sistemas_licitacao", colunas: "nome, url, login, observacoes", nota: "Senhas NÃO são guardadas." }, { tipo: "pagina", rota: "/vital-norte/sistemas" }],
+    fontes: [{ tipo: "tabela", tabela: "sistemas_licitacao", colunas: "nome, url, login, observacoes", nota: "Senhas NÃO são guardadas." }, { tipo: "pagina", rota: "/sistemas" }],
   },
   /* ------------------------------------------- Vita e sistema ------------------------------------------- */
   {
@@ -177,7 +177,7 @@ export const PAGINAS_MAPA: Array<{ rota: string; nome: string; tem: string }> = 
   { rota: "/assinador-propostas", nome: "Assinador de Propostas", tem: "Guia para assinar no gov.br." },
   { rota: "/vita", nome: "Vita", tem: "Memórias, ferramentas (ligar/desligar), avaliações e este mapa." },
   { rota: "/documentos", nome: "Documentos", tem: "Acervo de habilitação (24 tipos) com validade." },
-  { rota: "/vital-norte/sistemas", nome: "Sistemas de Licitação", tem: "Atalhos dos portais (URL e login)." },
+  { rota: "/sistemas", nome: "Sistemas de Licitação", tem: "Atalhos dos portais (URL e login)." },
   { rota: "/vital-norte/dados", nome: "Dados da Empresa", tem: "Cadastro da empresa e padrões da proposta." },
   { rota: "/vital-norte/catalogo", nome: "Catálogo", tem: "Produtos e serviços com custo, preço e margem." },
   { rota: "/vital-norte/clientes", nome: "Clientes", tem: "Clientes, contratações e documentos de cada uma." },
